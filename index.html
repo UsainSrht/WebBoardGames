@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Board Games</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body class="flex items-center justify-center h-screen bg-gray-900 text-white">
+    <div class="text-center space-y-3">
+        <h1 class="text-2xl font-bold">Welcome to</h1>
+        <h1 class="text-xl font-bold">The</h1>
+        <h1 class="text-5xl font-bold">Web Board Games</h1>
+        
+        <div id="nicknameForm" >
+            <label for="nickname" class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Nickname</label>
+            <div class="relative">
+                <input type="nickname" id="nickname" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Nickname" required />
+                <button onclick="submitName()" class="text-white absolute end-2.5 bottom-2 bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>                          
+                </button>
+            </div>
+            <p id="nickname-input-reply" class="mt-2 text-sm text-red-600 dark:text-red-500 hidden"><span class="font-medium"></span></p>
+        </div>
+        
+        <div id="roomMain" class="border border-gray-700 rounded-lg">
+            <p class="text-lg text-gray-300">Create a room or join an existing one to play!</p>
+            <div class="space-y-4">
+                <button id="createRoom" class="px-6 py-3 bg-blue-500 rounded-lg text-white font-semibold cursor-not-allowed" onclick="createRoom()" disabled>Create Room</button>
+                
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="roomCode" placeholder="Enter room code" class="px-4 py-2 rounded-lg text-black cursor-not-allowed" disabled>
+                    <button id="joinRoom" class="px-6 py-3 bg-green-500 rounded-lg text-white font-semibold cursor-not-allowed" onclick="joinRoom()" disabled>Join Room</button>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+
+    <script>
+        const socket = io("http://localhost:3000");
+
+        function submitName() {
+            let name = document.getElementById('nickname').value;
+
+            if (name.length < 3) {
+                nicknameReply("Minimum nickanme length is 3");
+                return;
+            } else if (name.length > 16) {
+                nicknameReply("Maximum nickanme length is 16");
+                return;
+            }
+
+            socket.emit("submit-name", name);
+
+            const nicknameForm = document.getElementById('nicknameForm');
+            nicknameForm.classList.add("hidden");
+
+            const createRoom = document.getElementById('createRoom');
+            createRoom.disabled = false;
+            createRoom.classList.remove("cursor-not-allowed");
+            createRoom.classList.add("hover:bg-blue-600");
+            const joinRoomInput = document.getElementById('roomCode');
+            joinRoomInput.disabled = false;
+            joinRoomInput.classList.remove("cursor-not-allowed");
+            const joinRoomButton = document.getElementById('joinRoom');
+            joinRoomButton.disabled = false;
+            joinRoomButton.classList.remove("cursor-not-allowed");
+            joinRoomButton.classList.add("hover:bg-green-600");
+
+        }
+
+        function nicknameReply(message) {
+            let reply = document.getElementById("nickname-input-reply");
+            reply.classList.remove("hidden");
+            reply.innerHTML = message;
+        }
+
+        function createRoom() {
+            const roomCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+            socket.emit("create-room", roomCode);
+            window.location.href = `/game.html?room=${roomCode}`;
+        }
+
+        function joinRoom() {
+            const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+            if (roomCode) {
+                socket.emit("join-room", roomCode);
+                window.location.href = `/game.html?room=${roomCode}`;
+            } else {
+                alert('Please enter a valid room code.');
+            }
+        }
+    </script>
+</body>
+</html>
