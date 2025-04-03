@@ -8,6 +8,7 @@
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body class="flex items-center justify-center h-screen bg-gray-900 text-white">
+    
     <div id="welcome" class="text-center space-y-3">
         <h1 class="text-2xl font-bold">Welcome to</h1>
         <h1 class="text-xl font-bold">The</h1>
@@ -18,7 +19,7 @@
             <div class="space-y-4">
                 <button id="createRoom" class="px-6 py-3 bg-blue-500 rounded-lg text-white font-semibold cursor-not-allowed" onclick="createRoom()" disabled>Create Room</button>
                 
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center justify-center space-x-2">
                     <input type="text" id="roomCode" placeholder="Enter room code" class="px-4 py-2 rounded-lg text-black cursor-not-allowed" disabled>
                     <button id="joinRoom" class="px-6 py-3 bg-green-500 rounded-lg text-white font-semibold cursor-not-allowed" onclick="joinRoom()" disabled>Join Room</button>
                 </div>
@@ -28,7 +29,7 @@
     </div>
 
     <!-- Nickname popup -->
-    <div id="nickname-popup" tabindex="-1" class="overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full md:inset-0 h-modal md:h-full bg-black bg-opacity-50 flex items-center justify-center">
+    <div id="nickname-popup" class="overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full md:inset-0 h-modal md:h-full bg-black bg-opacity-50 flex items-center justify-center">
         <div class="relative p-4 w-full max-w-lg h-full md:h-auto">
             <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 md:p-8">
                 <div class="mb-4 text-sm font-light text-gray-500 dark:text-gray-400">
@@ -61,6 +62,10 @@
 
     <script>
         const socket = io("http://localhost:3000");
+
+        const storedId = localStorage.getItem("userId") || generateUUID();
+        localStorage.setItem("userId", storedId);
+        socket.emit("reconnect-user", storedId);
 
         function submitName() {
             let name = document.getElementById('nickname').value;

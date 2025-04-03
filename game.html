@@ -33,39 +33,29 @@
     </div>
 
     <!-- drawer component -->
-    <div id="drawer-right-example"
-        class="fixed top-0 right-0 z-40 h-screen p-4 overflow-y-auto transition-transform translate-x-full bg-white w-80 dark:bg-gray-800"
-        tabindex="-1" aria-labelledby="drawer-right-label">
-        <h5 id="drawer-right-label"
-            class="inline-flex items-center mb-4 text-base font-semibold text-gray-500 dark:text-gray-400"><svg
-                class="w-4 h-4 me-2.5" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor"
-                viewBox="0 0 20 20">
-                <path
-                    d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
-            </svg>Right drawer</h5>
-        <button type="button" data-drawer-hide="drawer-right-example" aria-controls="drawer-right-example"
-            class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 absolute top-2.5 end-2.5 inline-flex items-center justify-center dark:hover:bg-gray-600 dark:hover:text-white">
-            <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-            </svg>
-            <span class="sr-only">Close menu</span>
-        </button>
-        <p class="mb-6 text-sm text-gray-500 dark:text-gray-400">Supercharge your hiring by taking advantage of our <a
-                href="#" class="text-blue-600 underline font-medium dark:text-blue-500 hover:no-underline">limited-time
-                sale</a> for Flowbite Docs + Job Board. Unlimited access to over 190K top-ranked candidates and the #1
-            design job board.</p>
-        <div class="grid grid-cols-2 gap-4">
-            <a href="#"
-                class="px-4 py-2 text-sm font-medium text-center text-gray-900 bg-white border border-gray-200 rounded-lg focus:outline-none hover:bg-gray-100 hover:text-blue-700 focus:z-10 focus:ring-4 focus:ring-gray-100 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700">Learn
-                more</a>
-            <a href="#"
-                class="inline-flex items-center px-4 py-2 text-sm font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800">Get
-                access <svg class="rtl:rotate-180 w-3.5 h-3.5 ms-2" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"
-                    fill="none" viewBox="0 0 14 10">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M1 5h12m0 0L9 1m4 4L9 9" />
-                </svg></a>
+    <div id="player-sidebar" class="fixed top-0 right-0 z-40 h-screen p-4 overflow-y-auto transition-transform translate-x-full bg-white w-80 dark:bg-gray-800" tabindex="-1" aria-labelledby="drawer-right-label">
+        <!-- Players Section -->
+        <div id="players-section" class="h-1/3 overflow-y-auto">
+            <h5 id="drawer-right-label" class="inline-flex items-center mb-4 text-base font-semibold text-gray-500 dark:text-gray-400">Players</h5>
+            <button type="button" data-drawer-hide="player-sidebar" aria-controls="player-sidebar" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 absolute top-2.5 end-2.5 inline-flex items-center justify-center dark:hover:bg-gray-600 dark:hover:text-white">
+                <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                </svg>
+                <span class="sr-only">Close menu</span>
+            </button>
+            <div id="players"></div>
+        </div>
+        
+        <!-- <div class="font-medium border-t border-gray-200 dark:border-gray-700"></div> -->
+        
+        <!-- Chat Section -->
+        <div id="chat-section" class="flex flex-col h-2/3">
+            <h5 id="drawer-right-label-chat" class="inline-flex items-center mb-4 text-base font-semibold text-gray-500 dark:text-gray-400">Chat</h5>
+            <div id="message-box" class="flex-grow p-2 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700"></div>
+            <div class="flex items-center mt-2">
+                <input id="chat-input" type="text" placeholder="Type a message..." class="flex-grow p-2 border border-gray-300 rounded-lg dark:border-gray-600 dark:bg-gray-700 text-gray-900 dark:text-white" onkeydown="if (event.keyCode == 13) sendChatMessage()">
+                <button id="send-btn" class="ml-2 p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" onclick="sendChatMessage()">Send</button>
+            </div>
         </div>
     </div>
     
@@ -76,8 +66,7 @@
             <button class="text-white text-2xl" onclick="showToast(`click ${Date.now()}`)">
                 <svg id="server-status-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 text-gray-500">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
-                </svg>                  
-                <span id="server-status" class="absolute -top-1 -right-2 bg-red-500 text-white text-xs px-0.05 py-0.01 rounded-full">✖</span>
+                </svg>
             </button>
         </div>
 
@@ -90,7 +79,7 @@
         </button>
         
         <!-- drawer init and toggle -->   
-        <button class="text-white text-2xl" type="button" data-drawer-target="drawer-right-example" data-drawer-show="drawer-right-example" data-drawer-placement="right" aria-controls="drawer-right-example">
+        <button class="text-white text-2xl" type="button" data-drawer-target="player-sidebar" data-drawer-show="player-sidebar" data-drawer-placement="right" aria-controls="player-sidebar">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
             </svg>       
@@ -108,28 +97,46 @@
         socket.on("connect", () => {
             document.getElementById("server-status-icon").classList.remove("text-gray-500");
             document.getElementById("server-status-icon").classList.add("text-green-500");
-            document.getElementById("server-status").classList.remove("bg-red-500");
-            document.getElementById("server-status").classList.add("bg-green-500");
-            document.getElementById("server-status").textContent = "✓";
         });
 
         socket.on("disconnect", () => {
             document.getElementById("server-status-icon").classList.remove("text-green-500");
             document.getElementById("server-status-icon").classList.add("text-gray-500");
-            document.getElementById("server-status").classList.remove("bg-green-500");
-            document.getElementById("server-status").classList.add("bg-red-500");
-            document.getElementById("server-status").textContent = "✖";
         });
 
         socket.on("player-joined", (player) => {
             showToast(`${player} joined.`);
-            addPlayerList(player);
         });
 
         socket.on("player-kicked", (player) => {
             showToast(`${player} kicked.`);
-            removePlayerList(player);
         });
+
+        socket.on("player-list", (players) => {
+            updatePlayerList(players);
+        });
+
+        socket.on("chat-message", (message, name) => {
+            const messageBox = document.getElementById("message-box");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("p-2", "bg-gray-200", "rounded-lg", "mb-2", "text-gray-800");
+            messageDiv.innerHTML = `<strong>${name}:</strong> ${message}`;
+            messageBox.appendChild(messageDiv);
+            messageBox.scrollTop = messageBox.scrollHeight; // Scroll to the bottom
+        });
+
+        function sendChatMessage() {
+            const chatInput = document.getElementById("chat-input");
+            let message = chatInput.value.trim();
+            if (message.length > 200) {
+                showToast("Message too long. Max 200 characters.");
+                message = message.substring(0, 200); // Trim to 200 characters
+            }
+            if (message !== "") {
+                socket.emit("chat-message", message);
+                chatInput.value = ""; // Clear the input field
+            }
+        }
 
         function openPopup(id) {
             document.getElementById(id).classList.remove('hidden');
@@ -140,24 +147,14 @@
             }
         }
 
-        function toggleDropdown() {
-            const dropdown = document.getElementById("player-dropdown");
-            if (dropdown.classList.contains("hidden")) {
-                dropdown.classList.remove("hidden");
-            } else {
-                dropdown.classList.add("hidden");
-            }
-        }
-
         function updatePlayerList(players) {
-            const playerList = document.getElementById("player-list");
-            const playerCount = document.getElementById("player-count");
-            playerList.innerHTML = "";
+            const playersDiv = document.getElementById("players");
+            playersDiv.innerHTML = "";
             players.forEach(player => {
-                const li = document.createElement("li");
-                li.classList.add("flex", "justify-between", "items-center", "py-1");
+                const li = document.createElement("div");
+                li.classList.add("flex", "justify-between", "items-center", "py-1", "bg-white-300", "text-gray-800", "rounded-lg");
                 li.innerHTML = `<span>${player}</span> <button onclick="kickPlayer('${player}')" class="text-red-500 hover:text-red-700">x</button>`;
-                playerList.appendChild(li);
+                playersDiv.appendChild(li);
             });
             playerCount.textContent = players.length;
         }
@@ -206,6 +203,33 @@
                 }, 500); // Remove after fade
             }, 4000); // 4 seconds before fading out
         }
+
+        //Drawer system
+        document.addEventListener("DOMContentLoaded", function () {
+        const drawer = document.getElementById("player-sidebar");
+        const openButton = document.querySelector("[data-drawer-show='player-sidebar']");
+        const closeButton = drawer.querySelector("[data-drawer-hide='player-sidebar']");
+
+        // Function to open the drawer
+        function openDrawer() {
+            drawer.classList.remove("translate-x-full");
+        }
+
+        // Function to close the drawer
+        function closeDrawer() {
+            drawer.classList.add("translate-x-full");
+        }
+
+        // Event listeners
+        openButton.addEventListener("click", openDrawer);
+        closeButton.addEventListener("click", closeDrawer);
+
+        // Close the drawer when clicking outside of it
+        document.addEventListener("click", function (event) {
+            if (!drawer.contains(event.target) && !openButton.contains(event.target)) {
+                closeDrawer();
+            }});
+        });
     </script>
 </body>
 </html>
