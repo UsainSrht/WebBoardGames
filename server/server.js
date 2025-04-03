@@ -41,7 +41,7 @@ io.on("connection", (socket) => {
       socket.join(roomCode);
       rooms[roomCode].players.push(socket.id);
       console.log(`User ${getName(socket.id)}(${socket.id}) joined room ${roomCode}`);
-      io.to(roomCode).emit("player-joined", rooms[roomCode].players);
+      io.to(roomCode).emit("player-joined", socket.id);
     } else {
       socket.emit("error", "Room not found");
     }
@@ -51,8 +51,7 @@ io.on("connection", (socket) => {
     console.log(`User disconnected: ${getName(socket.id)}(${socket.id})`);
     if (socket.id in players && players[socket.id].current_room !== null) {
         let room = players[socket.id].current_room;
-        let name = players[socket.id].name;
-        io.to(room).emit("player-left", name);
+        io.to(room).emit("player-left", socket.id);
     }
   });
 });

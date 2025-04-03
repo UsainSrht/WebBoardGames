@@ -8,24 +8,11 @@
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body class="flex items-center justify-center h-screen bg-gray-900 text-white">
-    <div class="text-center space-y-3">
+    <div id="welcome" class="text-center space-y-3">
         <h1 class="text-2xl font-bold">Welcome to</h1>
         <h1 class="text-xl font-bold">The</h1>
         <h1 class="text-5xl font-bold">Web Board Games</h1>
-        
-        <div id="nicknameForm" >
-            <label for="nickname" class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Nickname</label>
-            <div class="relative">
-                <input type="nickname" id="nickname" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Nickname" required />
-                <button onclick="submitName()" class="text-white absolute end-2.5 bottom-2 bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                    </svg>                          
-                </button>
-            </div>
-            <p id="nickname-input-reply" class="mt-2 text-sm text-red-600 dark:text-red-500 hidden"><span class="font-medium"></span></p>
-        </div>
-        
+
         <div id="roomMain" class="border border-gray-700 rounded-lg">
             <p class="text-lg text-gray-300">Create a room or join an existing one to play!</p>
             <div class="space-y-4">
@@ -38,6 +25,38 @@
             </div>
         </div>
         
+    </div>
+
+    <!-- Nickname popup -->
+    <div id="nickname-popup" tabindex="-1" class="overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full md:inset-0 h-modal md:h-full bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="relative p-4 w-full max-w-lg h-full md:h-auto">
+            <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 md:p-8">
+                <div class="mb-4 text-sm font-light text-gray-500 dark:text-gray-400">
+                    <h3 class="mb-3 text-2xl font-bold text-gray-900 dark:text-white">You'll need a name</h3>
+                    <div id="nicknameForm" >
+                        <label for="nickname" class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Nickname</label>
+                        <div class="relative">
+                            <input type="nickname" id="nickname" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Nickname" required />
+                            <button onclick="submitName()" class="text-white absolute end-2.5 bottom-2 bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>                          
+                            </button>
+                        </div>
+                        <p id="nickname-input-reply" class="mt-2 text-sm text-red-600 dark:text-red-500 hidden"><span class="font-medium"></span></p>
+                    </div>
+                </div>
+                <!-- 
+                <div class="justify-between items-center pt-0 space-y-4 sm:flex sm:space-y-0">
+                    <a href="#" class="font-medium text-primary-600 dark:text-primary-500 hover:underline">Learn more about privacy</a>
+                    <div class="items-center space-y-4 sm:space-x-4 sm:flex sm:space-y-0">
+                        <button id="close-modal" type="button"  class="py-2 px-4 w-full text-sm font-medium text-gray-500 bg-white rounded-lg border border-gray-200 sm:w-auto hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-primary-300 hover:text-gray-900 focus:z-10 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-500 dark:hover:text-white dark:hover:bg-gray-600 dark:focus:ring-gray-600">Cancel</button>
+                        <button id="confirm-button" type="button" class="py-2 px-4 w-full text-sm font-medium text-center text-white rounded-lg bg-primary-700 sm:w-auto hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">Confirm</button>
+                    </div>
+                </div>
+                -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -56,8 +75,14 @@
 
             socket.emit("submit-name", name);
 
-            const nicknameForm = document.getElementById('nicknameForm');
+            const nicknameForm = document.getElementById('nickname-popup');
             nicknameForm.classList.add("hidden");
+
+            const welcome = document.getElementById('welcome');
+            const il = document.createElement("il");
+            il.classList.add("text-sm", "text-gray-600", "font-semibold", "mt-4");
+            il.innerHTML = `nickname: ${name}`;
+            welcome.appendChild(il);
 
             const createRoom = document.getElementById('createRoom');
             createRoom.disabled = false;
