@@ -254,7 +254,7 @@
             messageDiv.innerHTML = `<strong>${name}:</strong> ${message}`;
             messageBox.appendChild(messageDiv);
             messageBox.scrollTop = messageBox.scrollHeight; // Scroll to the bottom
-            notificationBadge.classList.remove("hidden");
+            if (!isDrawerOpen()) document.getElementById("notification-badge").classList.remove("hidden");
         });
 
         socket.on("system-message", (message) => {
@@ -384,10 +384,6 @@
             drawer.classList.add("translate-x-full");
         }
 
-        function isDrawerOpen() {
-            return !drawer.classList.contains("translate-x-full");
-        }
-
         // Event listeners
         openButton.addEventListener("click", openDrawer);
         closeButton.addEventListener("click", closeDrawer);
@@ -399,6 +395,12 @@
             }});
         });
 
+        function isDrawerOpen() {
+            const drawer = document.getElementById("player-sidebar");
+            return !drawer.classList.contains("translate-x-full");
+        }
+
+
         // Initialize the game board canvas
         const canvas = document.getElementById("canvas-board");
         const ctx = canvas.getContext("2d");
@@ -406,6 +408,7 @@
         // Resize the canvas to fit the game board
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
+        
 
         
     </script>
