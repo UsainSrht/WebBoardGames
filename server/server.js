@@ -12,6 +12,19 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
+const port = process.env.PORT || 3000;
+
+// Serve static files from the root directory
+app.use(express.static(path.join(__dirname, "..")));  // Go up one level to access root
+
+// Serve index.html for GET /
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "index.html"));
+});
+
+server.listen(port, () => console.log(`Server running on port ${port}`));
+
+
 
 const rooms = {}; // Store room data
 const players = {};
@@ -118,8 +131,6 @@ io.on("connection", (socket) => {
   socket.on("kick-player", (userId) => {});
 
 });
-
-server.listen(3000, () => console.log("Server running on port 3000"));
 
 function getName(userId) {
   return userId in players ? ("name" in players[userId] ? players[userId].name : null) : null;

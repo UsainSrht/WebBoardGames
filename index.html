@@ -62,7 +62,7 @@
 
     <script>
         console.log("debug start");
-        const socket = io("http://localhost:3000");
+        const socket = io();
 
         socket.onAny((eventName, ...args) => {
             console.log(eventName, "in with args: ", args);
