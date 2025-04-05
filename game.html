@@ -13,7 +13,11 @@
 <body class="flex items-center justify-center h-screen">
     
     <!-- Game Board -->
-    <div id="game-board" class="w-full h-full absolute top-0 left-0"></div>
+    <div id="game-board" class="w-full h-full absolute top-0 left-0">
+
+        <canvas id="canvas-board" class="w-full h-full"></canvas>
+
+    </div>
     
     <!-- Settings Popup -->
     <div id="settings-popup" class="hidden fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center" onclick="closePopup('settings-popup', event)">
@@ -61,14 +65,23 @@
     
     <!-- UI Controls -->
     <div class="fixed top-4 right-4 space-x-4 flex">
+        <!-- Nickname -->
+        <span id="nickname-display" class="text-white text-2xl">Nickname</span>
+
+        <!-- Room Code -->
+        <button id="roomCode" class="flex ml-2 p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" onclick="showToast(`Room code copied to clipboard.`)">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+            </svg>
+            RoomCode
+        </button>
+
         <!-- Server Status Icon -->
-        <div class="relative">
-            <button class="text-white text-2xl" onclick="showToast(`click ${Date.now()}`)">
-                <svg id="server-status-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 text-gray-500">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
-                </svg>
-            </button>
-        </div>
+        <button class="text-white text-2xl" onclick="showToast(`click ${Date.now()}`)">
+            <svg id="server-status-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6 text-gray-500">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+            </svg>
+        </button>
 
         <!-- Settings -->
         <button onclick="openPopup('settings-popup')" class="text-white text-2xl">
@@ -87,11 +100,60 @@
     
     </div>
 
+    <!-- Nickname popup -->
+    <div id="nickname-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full md:inset-0 h-modal md:h-full bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="relative p-4 w-full max-w-lg h-full md:h-auto">
+            <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 md:p-8">
+                <div class="mb-4 text-sm font-light text-gray-500 dark:text-gray-400">
+                    <h3 class="mb-3 text-2xl font-bold text-gray-900 dark:text-white">You'll need a name</h3>
+                    <div id="nicknameForm" >
+                        <label for="nickname" class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Nickname</label>
+                        <div class="relative">
+                            <input onkeydown="if (event.keyCode == 13) checkName()" type="nickname" id="nickname" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Nickname" required />
+                            <button onclick="checkName()" class="text-white absolute end-2.5 bottom-2 bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>                          
+                            </button>
+                        </div>
+                        <p id="nickname-input-reply" class="mt-2 text-sm text-red-600 dark:text-red-500 hidden"><span class="font-medium"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div id="toast-container" class="fixed top-0 left-0 z-50 p-4 space-y-2"></div>
 
     <script>
+        console.log("game debug start");
         const socket = io("http://localhost:3000");
+
+        socket.onAny((eventName, ...args) => {
+            console.log(eventName, "in with args: ", args);
+        });
+
+        socket.on("error", (error) => {
+            console.error("Error from server:", error);
+            //showToast(`Error: ${error}`);
+            alert(`Error: ${error}`);
+        });
+
+        function tryJoinURLRoom() {
+            let params = new URLSearchParams(window.location.search);
+            let roomCode = params.get("room");
+            if (params.has("room")) {
+                joinRoom(roomCode);
+            } else {
+                //redirect to home page
+                //window.location.href = "/index.html";
+            }
+        }
+
+        function joinRoom(roomCode) {
+            socket.emit("join-room", roomCode);
+        }
 
         // Server connection status
         socket.on("connect", () => {
@@ -104,11 +166,72 @@
             document.getElementById("server-status-icon").classList.add("text-gray-500");
         });
 
+        socket.on("connect-user", (userId, name, room) => {
+            localStorage.setItem("userId", userId);
+            document.getElementById("nickname-display").textContent = name || "Guest";
+            document.getElementById("roomCode").textContent = room || "?????";
+            if (!room) {
+                tryJoinURLRoom();
+            } else {
+                joinRoom(room);
+                //socket.emit("request-room-data", room);
+            }
+        });
+
+        socket.on("send-room-data", (room, players, started) => {
+            document.getElementById("roomCode").textContent = room;
+            updatePlayerList(players);
+        });
+
+        socket.on("request-user-id", () => {
+            const storedId = localStorage.getItem("userId") || null;
+            socket.emit("send-user-id", storedId);
+        });
+
+        socket.on("request-nickname", () => {
+            const nicknamePopup = document.getElementById("nickname-popup");
+            nicknamePopup.classList.remove("hidden");
+            document.getElementById("nickname").focus();
+        });
+
+        function checkName() {
+            let name = document.getElementById('nickname').value;
+
+            if (name.length < 3) {
+                nicknameReply("Minimum nickanme length is 3");
+                return;
+            } else if (name.length > 16) {
+                nicknameReply("Maximum nickanme length is 16");
+                return;
+            }
+
+            submitName(name);
+        }
+
+        function submitName(name) {
+            // name, isInGame
+            socket.emit("submit-name", name, true);
+
+            const nicknameForm = document.getElementById('nickname-popup');
+            nicknameForm.classList.add("hidden");
+        }
+
+        function nicknameReply(message) {
+            let reply = document.getElementById("nickname-input-reply");
+            reply.classList.remove("hidden");
+            reply.innerHTML = message;
+        }
+
         socket.on("player-joined", (player) => {
             showToast(`${player} joined.`);
         });
 
+        socket.on("player-left", (player) => {
+            showToast(`${player} left.`);
+        });
+
         socket.on("player-kicked", (player) => {
+            socket.emit("kick-player", player);
             showToast(`${player} kicked.`);
         });
 
@@ -132,7 +255,7 @@
                 showToast("Message too long. Max 200 characters.");
                 message = message.substring(0, 200); // Trim to 200 characters
             }
-            if (message !== "") {
+            if (message) {
                 socket.emit("chat-message", message);
                 chatInput.value = ""; // Clear the input field
             }
@@ -152,11 +275,28 @@
             playersDiv.innerHTML = "";
             players.forEach(player => {
                 const li = document.createElement("div");
-                li.classList.add("flex", "justify-between", "items-center", "py-1", "bg-white-300", "text-gray-800", "rounded-lg");
-                li.innerHTML = `<span>${player}</span> <button onclick="kickPlayer('${player}')" class="text-red-500 hover:text-red-700">x</button>`;
+                li.classList.add(
+                    "flex", "justify-between", "items-center", "p-3", "m-2", 
+                    "bg-blue-600", "hover:bg-blue-700", "text-white", 
+                    "rounded-lg", "shadow-md", "transition", "duration-200"
+                );
+
+                li.innerHTML = `
+                    <span class="text-lg font-medium">${player}</span>
+                    <button 
+                        onclick="kickPlayer('${player}')" 
+                        type="button" 
+                        class="p-2 rounded-md border border-gray-300 bg-transparent text-gray-300 
+               hover:bg-gray-200 hover:text-gray-900 transition duration-200"
+                    >
+                        <svg class="w-4 h-4 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                        </svg>
+                    </button>
+                `;
+
                 playersDiv.appendChild(li);
             });
-            playerCount.textContent = players.length;
         }
 
         function joinPlayer(player) {
@@ -164,7 +304,7 @@
         }
 
         function kickPlayer(player) {
-
+            socket.emit("kick-player", player);
             showToast(`${player} kicked.`);
         }
 
@@ -230,6 +370,22 @@
                 closeDrawer();
             }});
         });
+
+        // Initialize the game board canvas
+        const canvas = document.getElementById("canvas-board");
+        const ctx = canvas.getContext("2d");
+
+        // Resize the canvas to fit the game board
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Example: Draw a grid (for tile-based games)
+        const gridSize = 50;
+        for (let x = 0; x < canvas.width; x += gridSize) {
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.strokeRect(x, y, gridSize, gridSize);
+            }
+        }
     </script>
 </body>
 </html>

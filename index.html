@@ -37,8 +37,8 @@
                     <div id="nicknameForm" >
                         <label for="nickname" class="mb-2 text-sm font-medium text-gray-900 sr-only dark:text-white">Nickname</label>
                         <div class="relative">
-                            <input type="nickname" id="nickname" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Nickname" required />
-                            <button onclick="submitName()" class="text-white absolute end-2.5 bottom-2 bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
+                            <input onkeydown="if (event.keyCode == 13) checkName()" type="nickname" id="nickname" class="block w-full p-4 ps-10 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Nickname" required />
+                            <button onclick="checkName()" class="text-white absolute end-2.5 bottom-2 bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                                 </svg>                          
@@ -61,13 +61,35 @@
     </div>
 
     <script>
+        console.log("debug start");
         const socket = io("http://localhost:3000");
 
-        const storedId = localStorage.getItem("userId") || generateUUID();
-        localStorage.setItem("userId", storedId);
-        socket.emit("reconnect-user", storedId);
+        socket.onAny((eventName, ...args) => {
+            console.log(eventName, "in with args: ", args);
+        });
 
-        function submitName() {
+        socket.on("error", (error) => {
+            console.error("Error from server:", error);
+            //showToast(`Error: ${error}`);
+            alert(`Error: ${error}`);
+        });
+
+        socket.on("connect-user", (userId, name, room) => {
+            if (room) {
+                window.location.href = `/game.html?room=${room}`;
+            } else if (name) {
+                submitName(name);
+            } else {
+                //
+            }
+        });
+
+        socket.on("request-user-id", () => {
+            const storedId = localStorage.getItem("userId") || null;
+            socket.emit("send-user-id", storedId);
+        });
+
+        function checkName() {
             let name = document.getElementById('nickname').value;
 
             if (name.length < 3) {
@@ -78,7 +100,12 @@
                 return;
             }
 
-            socket.emit("submit-name", name);
+            submitName(name);
+        }
+
+        function submitName(name) {
+            // name, isInGame
+            socket.emit("submit-name", name, false);
 
             const nicknameForm = document.getElementById('nickname-popup');
             nicknameForm.classList.add("hidden");
@@ -100,7 +127,6 @@
             joinRoomButton.disabled = false;
             joinRoomButton.classList.remove("cursor-not-allowed");
             joinRoomButton.classList.add("hover:bg-green-600");
-
         }
 
         function nicknameReply(message) {
