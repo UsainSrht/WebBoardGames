@@ -184,7 +184,7 @@
 
     <script>
         console.log("game debug start");
-        const socket = io();
+        const socket = io("http://localhost:3000");
 
         socket.onAny((eventName, ...args) => {
             console.log(eventName, "in with args: ", args);
@@ -245,7 +245,7 @@
             started = isStarted;
             game = selectedGame;
             if (!started) showSelectedGame(game);
-            updatePlayerList(players, host, isHost);
+            updatePlayerList(players);
         });
 
         socket.on("request-user-id", () => {
@@ -352,52 +352,59 @@
             }
         }
 
-        function updatePlayerList(players, host, isHost) {
+        function updatePlayerList(players) {
             const playersDiv = document.getElementById("players");
             playersDiv.innerHTML = "";
             const lobbyPlayersDiv = document.getElementById("lobby-players");
             lobbyPlayersDiv.innerHTML = "";
-            players.forEach((name, userId) => {
-                const li = document.createElement("div");
-                li.classList.add(
-                    "flex", "justify-between", "items-center", "p-3", "m-2", 
-                    "bg-blue-600", "hover:bg-blue-700", "text-white", 
-                    "rounded-lg", "shadow-md", "transition", "duration-200"
-                );
+            players.forEach(player => {
+                for (let name in player) {
+                    let userId = player[name];
+                    const li = document.createElement("div");
+                    li.classList.add(
+                        "flex", "justify-between", "items-center", "p-3", "m-2", 
+                        "bg-blue-600", "hover:bg-blue-700", "text-white", 
+                        "rounded-lg", "shadow-md", "transition", "duration-200"
+                    );
+                    
+                    if (userId === host) {
+                        //without crown
+                        li.innerHTML = `
+                        <span class="text-lg font-medium">${name}</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                    <path d="M19.6872 14.0931L19.8706 12.3884C19.9684 11.4789 20.033 10.8783 19.9823 10.4999L20 10.5C20.8284 10.5 21.5 9.82843 21.5 9C21.5 8.17157 20.8284 7.5 20 7.5C19.1716 7.5 18.5 8.17157 18.5 9C18.5 9.37466 18.6374 9.71724 18.8645 9.98013C18.5384 10.1814 18.1122 10.606 17.4705 11.2451L17.4705 11.2451C16.9762 11.7375 16.729 11.9837 16.4533 12.0219C16.3005 12.043 16.1449 12.0213 16.0038 11.9592C15.7492 11.847 15.5794 11.5427 15.2399 10.934L13.4505 7.7254C13.241 7.34987 13.0657 7.03557 12.9077 6.78265C13.556 6.45187 14 5.77778 14 5C14 3.89543 13.1046 3 12 3C10.8954 3 10 3.89543 10 5C10 5.77778 10.444 6.45187 11.0923 6.78265C10.9343 7.03559 10.759 7.34984 10.5495 7.7254L8.76006 10.934C8.42056 11.5427 8.25081 11.847 7.99621 11.9592C7.85514 12.0213 7.69947 12.043 7.5467 12.0219C7.27097 11.9837 7.02381 11.7375 6.5295 11.2451C5.88787 10.606 5.46156 10.1814 5.13553 9.98012C5.36264 9.71724 5.5 9.37466 5.5 9C5.5 8.17157 4.82843 7.5 4 7.5C3.17157 7.5 2.5 8.17157 2.5 9C2.5 9.82843 3.17157 10.5 4 10.5L4.01771 10.4999C3.96702 10.8783 4.03162 11.4789 4.12945 12.3884L4.3128 14.0931C4.41458 15.0393 4.49921 15.9396 4.60287 16.75H19.3971C19.5008 15.9396 19.5854 15.0393 19.6872 14.0931Z" fill="#f9ae19"/>
+                                    <path d="M10.9121 21H13.0879C15.9239 21 17.3418 21 18.2879 20.1532C18.7009 19.7835 18.9623 19.1172 19.151 18.25H4.84896C5.03765 19.1172 5.29913 19.7835 5.71208 20.1532C6.65817 21 8.07613 21 10.9121 21Z" fill="#f9ae19"/>
+                                </svg>`;
+                    } else if (isHost) {
+                        //with kick button
+                        li.innerHTML = `
+                        <span class="text-lg font-medium">${name}</span>
+                        <button onclick="kickPlayer('${userId}')" class="p-2 rounded-md border border-gray-300 bg-transparent text-gray-300 hover:bg-gray-200 hover:text-gray-900 transition duration-200">
+                            <svg class="w-4 h-4 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                            </svg>
+                        </button>`;
+                    } else {
+                        //without kick button
+                        li.innerHTML = `<span class="text-lg font-medium">${name}</span>`;
+                    }
+                    
 
-                /*<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                                <path d="M19.6872 14.0931L19.8706 12.3884C19.9684 11.4789 20.033 10.8783 19.9823 10.4999L20 10.5C20.8284 10.5 21.5 9.82843 21.5 9C21.5 8.17157 20.8284 7.5 20 7.5C19.1716 7.5 18.5 8.17157 18.5 9C18.5 9.37466 18.6374 9.71724 18.8645 9.98013C18.5384 10.1814 18.1122 10.606 17.4705 11.2451L17.4705 11.2451C16.9762 11.7375 16.729 11.9837 16.4533 12.0219C16.3005 12.043 16.1449 12.0213 16.0038 11.9592C15.7492 11.847 15.5794 11.5427 15.2399 10.934L13.4505 7.7254C13.241 7.34987 13.0657 7.03557 12.9077 6.78265C13.556 6.45187 14 5.77778 14 5C14 3.89543 13.1046 3 12 3C10.8954 3 10 3.89543 10 5C10 5.77778 10.444 6.45187 11.0923 6.78265C10.9343 7.03559 10.759 7.34984 10.5495 7.7254L8.76006 10.934C8.42056 11.5427 8.25081 11.847 7.99621 11.9592C7.85514 12.0213 7.69947 12.043 7.5467 12.0219C7.27097 11.9837 7.02381 11.7375 6.5295 11.2451C5.88787 10.606 5.46156 10.1814 5.13553 9.98012C5.36264 9.71724 5.5 9.37466 5.5 9C5.5 8.17157 4.82843 7.5 4 7.5C3.17157 7.5 2.5 8.17157 2.5 9C2.5 9.82843 3.17157 10.5 4 10.5L4.01771 10.4999C3.96702 10.8783 4.03162 11.4789 4.12945 12.3884L4.3128 14.0931C4.41458 15.0393 4.49921 15.9396 4.60287 16.75H19.3971C19.5008 15.9396 19.5854 15.0393 19.6872 14.0931Z" fill="#1C274C"/>
-                                <path d="M10.9121 21H13.0879C15.9239 21 17.3418 21 18.2879 20.1532C18.7009 19.7835 18.9623 19.1172 19.151 18.25H4.84896C5.03765 19.1172 5.29913 19.7835 5.71208 20.1532C6.65817 21 8.07613 21 10.9121 21Z" fill="#1C274C"/>
-                            </svg>*/
+                    playersDiv.appendChild(li);
 
-                li.innerHTML = `
+                    const li2 = document.createElement("div");
+                    li2.classList.add(
+                        "flex", "justify-between", "items-center", "p-3", "m-2",
+                        "bg-transparent", "border-2", "border-gray-700", "h-10",
+                        "hover:bg-gray-600", "transition-all", "duration-200", "rounded-md");
+
+                    li2.innerHTML = `
                     <span class="text-lg font-medium">${name}</span>
-                    <button 
-                        onclick="kickPlayer('${userId}')" 
-                        type="button"
-                        class="p-2 rounded-md border border-gray-300 bg-transparent text-gray-300 
-               hover:bg-gray-200 hover:text-gray-900 transition duration-200"
-                    >
-                        <svg class="w-4 h-4 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-                        </svg>
-                    </button>
-                `;
+                    ready state
+                    `;
 
-                playersDiv.appendChild(li);
-
-                const li2 = document.createElement("div");
-                li2.classList.add(
-                    "flex", "justify-between", "items-center", "p-3", "m-2",
-                    "bg-transparent", "border-2", "border-gray-700", "h-10",
-                    "hover:bg-gray-600", "transition-all", "duration-200", "rounded-md");
-
-                li2.innerHTML = `
-                <span class="text-lg font-medium">${player}</span>
-                x
-                `;
-
-                lobbyPlayersDiv.appendChild(li);
+                    lobbyPlayersDiv.appendChild(li2);
+                }
             });
         }
 

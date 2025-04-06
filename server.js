@@ -99,7 +99,7 @@ io.on("connection", (socket) => {
       socket.join(roomCode);
       io.to(roomCode).emit("player-joined", name);
       players[userId].current_room = roomCode;
-      socket.emit("send-room-data", getRoomData(roomCode));
+      socket.emit("send-room-data", ...getRoomData(roomCode));
       console.log(`User ${name}(${socket.id}) joined room ${roomCode}`);
     } else {
       socket.emit("error", "Room not found");
@@ -107,9 +107,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("request-room-data", (roomCode) => {
-    //todo send detailed room data
-    console.log(`sending room data ${roomCode} ${rooms[roomCode].players.length}`);
-    socket.emit("send-room-data", getRoomData(roomCode));
+    socket.emit("send-room-data", ...getRoomData(roomCode));
   });
 
   socket.on("chat-message", (message) => {
@@ -147,7 +145,7 @@ io.on("connection", (socket) => {
         if (room in rooms) {
           io.to(room).emit("player-left", name);
           rooms[room].players = rooms[room].players.filter(player => player !== userId);
-          io.to(room).emit("player-list", rooms[roomCode].players.map(userId => ({ [getName(userId)]: userId })));
+          io.to(room).emit("player-list", rooms[room].players.map(userId => ({ [getName(userId)]: userId })));
         }
     }
     //add timeout and delete
@@ -171,5 +169,11 @@ function getRoom(userId) {
 }
 
 function getRoomData(roomCode) {
-  return roomCode, rooms[roomCode].players.map(userId => ({ [getName(userId)]: userId })), rooms[roomCode].host, rooms[roomCode].started, rooms[roomCode].game;
+  return [
+    roomCode,
+    rooms[roomCode].players.map(userId => ({ [getName(userId)]: userId })),
+    rooms[roomCode].host,
+    rooms[roomCode].started,
+    rooms[roomCode].game
+  ];
 }
