@@ -137,6 +137,11 @@ io.on("connection", (socket) => {
       }
       rooms[room].game = game;
       io.to(room).emit("game-selected", game);
+      //cancel all ready states
+      rooms[room].playerReadyStates = [];
+      rooms[room].players.forEach(userId2 => {
+        io.to(room).emit("ready-state", userId2, false);
+      });
     } else {
       socket.emit("error", "You are not in a room");
     }
@@ -209,6 +214,22 @@ io.on("connection", (socket) => {
       }
     }
     
+  });
+
+  socket.on("togle-ready", () => {
+    const userId = getUserId(socket.id);
+    if (!userId) return;
+    const room = getRoom(userId);
+    if (!room || !rooms[room]) return;
+    let isReady;
+    if (rooms[room].playerReadyStates.includes(userId)) {
+      rooms[room].playerReadyStates = rooms[room].playerReadyStates.filter(player => player !== userId);
+      isReady = false;
+    } else {
+      rooms[room].playerReadyStates.push(userId);
+      isReady = true;
+    }
+    io.to(room).emit("ready-state", userId, isReady);
   });
 
 });
