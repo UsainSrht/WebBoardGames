@@ -38,7 +38,7 @@
                         </div>
                     </div>
                     <div class="absolute bottom-0 left-0 right-0 p-2">
-                        <button id="ready-button" class="wbg-not-ready w-full h-10 bg-blue-500 hover:bg-blue-600 rounded-md mt-2 flex items-center justify-center">
+                        <button id="ready-button" onclick="toggleReady(this)" class="wbg-not-ready w-full h-10 bg-blue-500 hover:bg-blue-600 rounded-md mt-2 flex items-center justify-center">
                             <span class="text-white text-lg">Ready</span>
                         </button>
                     </div>
@@ -464,7 +464,8 @@
                     li2.classList.add(
                         "flex", "justify-between", "items-center", "p-3", "m-2",
                         "bg-transparent", "border-2", "border-gray-700", "h-10",
-                        "hover:bg-gray-600", "transition-all", "duration-200", "rounded-md");
+                        "hover:bg-gray-600", "transition-all", "duration-200", 
+                        "rounded-md");
 
                     li2.innerHTML = `
                     <span class="text-lg text-white font-medium">${name}</span>
@@ -526,14 +527,14 @@
             const playerDiv = document.getElementById("lobby-player-" + userId);
             const readyStateDiv = document.getElementById("lobby-player-ready-state-" + userId);
             if (isReady) {
-                playerDiv.classList.add("border-green-700");
-                playerDiv.classList.remove("border-gray-700");
+                playerDiv.classList.add("border-green-700", "text-green-600");
+                playerDiv.classList.remove("border-gray-700", "text-red-600");
                 readyStateDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                                             </svg>`;
             } else {
-                playerDiv.classList.remove("border-green-700");
-                playerDiv.classList.add("border-gray-700");
+                playerDiv.classList.remove("border-green-700", "text-green-600");
+                playerDiv.classList.add("border-gray-700", "text-red-600");
                 readyStateDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                                             </svg>`;
