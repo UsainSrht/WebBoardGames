@@ -153,7 +153,14 @@
             <!-- Notification Badge -->
             <span id="notification-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">!</span>
         </button>
-    
+    </div>
+    <div class="fixed top-4 left-4 spaxe-x-4 flex">
+        <button id="leave-room" class="flex ml-2 p-2 text-white rounded-lg bg-transparent hover:bg-red-500 opacity-50" onclick="leaveRoomPopup()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+            <span>Leave</span>
+        </button>
     </div>
 
     <!-- Nickname popup -->
@@ -179,12 +186,35 @@
         </div>
     </div>
 
+    <!-- Leave Room popup -->
+    <div id="leave-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full md:inset-0 h-modal md:h-full bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="relative p-4 w-full max-w-lg h-full md:h-auto">
+            <div class="relative p-4 bg-white rounded-lg shadow dark:bg-gray-800 md:p-8">
+                <div class="mb-4 text-sm font-light text-gray-500 dark:text-gray-400">
+                    <h3 class="mb-3 text-2xl font-bold text-center text-gray-900 dark:text-white mb-5">Do you want to leave?</h3>
+                    <div id="leaveForm" class="flex items-center justify-between">
+                        <button onclick="closeLeaveRoomPopup()" class=" text-center text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                        <button onclick="leaveRoom()" class="text-center text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-4 py-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div id="toast-container" class="fixed top-0 left-0 z-50 p-4 space-y-2"></div>
 
     <script>
         console.log("game debug start");
-        const socket = io("http://localhost:3000");
+        const socket = io();
 
         socket.onAny((eventName, ...args) => {
             console.log(eventName, "in with args: ", args);
@@ -298,9 +328,8 @@
         });
 
         socket.on("player-kicked", (player) => {
-            socket.emit("kick-player", player);
-            showToast(`${player} kicked.`);
-            sendSystemMessage(`${player} was kicked from the game.`);
+            showToast(`${player} got kicked.`);
+            sendSystemMessage(`${player} got kicked.`);
         });
 
         socket.on("player-list", (players) => {
@@ -399,7 +428,7 @@
                         "hover:bg-gray-600", "transition-all", "duration-200", "rounded-md");
 
                     li2.innerHTML = `
-                    <span class="text-lg font-medium">${name}</span>
+                    <span class="text-lg text-white font-medium">${name}</span>
                     ready state
                     `;
 
@@ -408,13 +437,10 @@
             });
         }
 
-        function joinPlayer(player) {
-            showToast(`${player} kicked.`);
-        }
-
-        function kickPlayer(player) {
-            socket.emit("kick-player", player);
-            showToast(`${player} kicked.`);
+        function kickPlayer(userId) {
+            socket.emit("kick-player", userId);
+            //toast message should come from server
+            //showToast(`${player} kicked.`);
         }
 
         socket.on("game-selected", (game) => {
@@ -430,8 +456,8 @@
                     gameButton.classList.add("border-green-700");
                     gameButton.classList.remove("border-gray-700");
                 } else {
-                    gameButton.classList.add("bg-gray-700");
-                    gameButton.classList.remove("bg-green-700");
+                    gameButton.classList.add("border-gray-700");
+                    gameButton.classList.remove("border-green-700");
                 }
             }
         }
@@ -509,6 +535,22 @@
         function isDrawerOpen() {
             const drawer = document.getElementById("player-sidebar");
             return !drawer.classList.contains("translate-x-full");
+        }
+
+        function leaveRoomPopup() {
+            const leavePopup = document.getElementById("leave-popup");
+            leavePopup.classList.remove("hidden");
+            document.getElementById("leave-room-cancel").focus();
+        }
+
+        function closeLeaveRoomPopup() {
+            const leavePopup = document.getElementById("leave-popup");
+            leavePopup.classList.add("hidden");
+        }
+
+        function leaveRoom() {
+            socket.emit("leave-room");
+            window.location.href = "/index.html";
         }
 
 

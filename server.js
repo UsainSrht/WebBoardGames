@@ -91,11 +91,15 @@ io.on("connection", (socket) => {
         socket.emit("error", "Room is full");
         return;
       }
+      if (rooms[roomCode].kicked_players.includes(userId)) {
+        socket.emit("error", "You have been kicked from this room!");
+        return;
+      }
       if (!rooms[roomCode].players.includes(userId)) {
         console.log(`${userId} added to room ${roomCode}`);
         rooms[roomCode].players.push(userId);
       }
-      io.to(roomCode).emit("player-list", rooms[roomCode].players.map(userId => ({ [getName(userId)]: userId })));
+      io.to(roomCode).emit("player-list", getPlayerMap(roomCode));
       socket.join(roomCode);
       io.to(roomCode).emit("player-joined", name);
       players[userId].current_room = roomCode;
@@ -136,23 +140,63 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("leave-room", () => {
+    const userId = getUserId(socket.id);
+    if (!userId) return;
+    const name = getName(userId);
+    const room = getRoom(userId);
+    if (room && rooms[room]) {
+      console.log(`${name}(${userId})(${socket.id}) left room ${room}`);
+      socket.leave(room);
+      rooms[room].players = rooms[room].players.filter(player => player !== userId);
+      io.to(room).emit("player-left", name);
+      io.to(room).emit("player-list", getPlayerMap(roomCode));
+      delete players[userId].current_room;
+    }
+  });
+
   socket.on("disconnect", () => {
     const userId = getUserId(socket.id);
+    if (!userId) return;
     const name = getName(userId);
+    delete players[userId].socketId;
     console.log(`User disconnected: ${name}(${userId})(${socket.id})`);
     if (userId in players && players[userId].current_room) {
         let room = players[userId].current_room;
         if (room in rooms) {
           io.to(room).emit("player-left", name);
           rooms[room].players = rooms[room].players.filter(player => player !== userId);
-          io.to(room).emit("player-list", rooms[room].players.map(userId => ({ [getName(userId)]: userId })));
+          io.to(room).emit("player-list", getPlayerMap(roomCode));
         }
     }
     //add timeout and delete
     //delete players[userId];
+    setTimeout(() => {
+      if (players[userId].socketId) return; // still connected
+      else {
+        delete players[userId]; // delete player if not connected
+      }
+    }, 10000); // 10 seconds timeout
   });
 
-  socket.on("kick-player", (userId) => {});
+  socket.on("kick-player", (kickedUserId) => {
+    const userId = getUserId(socket.id);
+    if (!userId) return;
+    const room = getRoom(userId);
+    if (!room || !rooms[room]) return;
+    if (userId === rooms[room].host) {
+      socket.emit("error", "You are not the host of this room!");
+      return;
+    }
+    if (!rooms[room].players.includes(kickedUserId)) {
+      socket.emit("error", "Player not in room!");
+      return;
+    }
+    rooms[room].kicked_players.push(kickedUserId);
+    rooms[room].players = rooms[room].players.filter(player => player !== kickedUserId);
+    io.to(room).emit("player-kicked", getName(kickedUserId));
+    io.to(room).emit("player-list", getPlayerMap(roomCode));
+  });
 
 });
 
@@ -168,10 +212,14 @@ function getRoom(userId) {
   return userId in players ? ("current_room" in players[userId] ? players[userId].current_room : null) : null;
 }
 
+function getPlayerMap(roomCode) {
+  return rooms[roomCode].players.map(userId => ({ [getName(userId)]: userId }));
+}
+
 function getRoomData(roomCode) {
   return [
     roomCode,
-    rooms[roomCode].players.map(userId => ({ [getName(userId)]: userId })),
+    getPlayerMap(roomCode),
     rooms[roomCode].host,
     rooms[roomCode].started,
     rooms[roomCode].game
