@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tile Game - Play</title>
+    <title>Web Board Games</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <style>
@@ -51,11 +51,11 @@
                         <div class="flex-1 overflow-y-auto h-80">
                             <div id="games" class="grid grid-cols-3 gap-2 h-1/2 p-2">
                                 <button id="game-rock-paper-scissors" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                                    <img src="../images/rock-paper-scissors.png" alt="Rock Paper Scissors" class="w-1/2 mx-auto mt-2">
+                                    <img src="./images/rock-paper-scissors.png" alt="Rock Paper Scissors" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Rock Paper Scissors</span>
                                 </button>
                                 <button id="game-dice" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                                    <img src="../images/dice.png" alt="Dice" class="w-1/2 mx-auto mt-2">
+                                    <img src="./images/dice.png" alt="Dice" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Dice</span>
                                 </button>
                                 <button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>
@@ -332,6 +332,11 @@
             sendSystemMessage(`${player} got kicked.`);
         });
 
+        socket.on("you-got-kicked", () => {
+            alert("You got kicked from the room.");
+            window.location.href = "/index.html";
+        });
+
         socket.on("player-list", (players) => {
             updatePlayerList(players);
         });
@@ -408,7 +413,7 @@
                         //with kick button
                         li.innerHTML = `
                         <span class="text-lg font-medium">${name}</span>
-                        <button onclick="kickPlayer('${userId}')" class="p-2 rounded-md border border-gray-300 bg-transparent text-gray-300 hover:bg-gray-200 hover:text-gray-900 transition duration-200">
+                        <button onclick="kickPlayer('${userId}')" class="p-2 rounded-md border border-gray-300 bg-transparent text-gray-300 hover:bg-red-400 hover:text-gray-900 transition duration-200">
                             <svg class="w-4 h-4 text-white" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
                             </svg>

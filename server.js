@@ -184,7 +184,7 @@ io.on("connection", (socket) => {
     if (!userId) return;
     const room = getRoom(userId);
     if (!room || !rooms[room]) return;
-    if (userId === rooms[room].host) {
+    if (userId !== rooms[room].host) {
       socket.emit("error", "You are not the host of this room!");
       return;
     }
@@ -196,6 +196,9 @@ io.on("connection", (socket) => {
     rooms[room].players = rooms[room].players.filter(player => player !== kickedUserId);
     io.to(room).emit("player-kicked", getName(kickedUserId));
     io.to(room).emit("player-list", getPlayerMap(roomCode));
+    
+    const socketId = players[kickedUserId]?.socketId;
+    if (socketId) io.to(socketId).emit("you-got-kicked");
   });
 
 });
