@@ -197,8 +197,16 @@ io.on("connection", (socket) => {
     io.to(room).emit("player-kicked", getName(kickedUserId));
     io.to(room).emit("player-list", getPlayerMap(room));
 
-    const socketId = players[kickedUserId]?.socketId;
-    if (socketId) io.to(socketId).emit("you-got-kicked");
+    if (players[kickedUserId]) {
+      delete players[kickedUserId].current_room;
+      const socketId = players[kickedUserId]?.socketId;
+      if (socketId) {
+        const kickedUserSocket = io.sockets.sockets.get(socketId);
+        kickedUserSocket.emit("you-got-kicked");
+        kickedUserSocket.leave(room);
+      }
+    }
+    
   });
 
 });

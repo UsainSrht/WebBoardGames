@@ -50,11 +50,11 @@
                     <div class="max-w-sm mx-auto">
                         <div class="flex-1 overflow-y-auto h-80">
                             <div id="games" class="grid grid-cols-3 gap-2 h-1/2 p-2">
-                                <button id="game-rock-paper-scissors" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                                <button id="game-rock-paper-scissors" onclick="selectGame('rock-paper-scissors')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
                                     <img src="./images/rock-paper-scissors.png" alt="Rock Paper Scissors" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Rock Paper Scissors</span>
                                 </button>
-                                <button id="game-dice" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                                <button id="game-dice" onclick="selectGame('dice')"  class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
                                     <img src="./images/dice.png" alt="Dice" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Dice</span>
                                 </button>
