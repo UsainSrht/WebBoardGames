@@ -216,7 +216,7 @@ io.on("connection", (socket) => {
     
   });
 
-  socket.on("togle-ready", () => {
+  socket.on("toggle-ready", () => {
     const userId = getUserId(socket.id);
     if (!userId) return;
     const room = getRoom(userId);
