@@ -150,7 +150,7 @@ io.on("connection", (socket) => {
       socket.leave(room);
       rooms[room].players = rooms[room].players.filter(player => player !== userId);
       io.to(room).emit("player-left", name);
-      io.to(room).emit("player-list", getPlayerMap(roomCode));
+      io.to(room).emit("player-list", getPlayerMap(room));
       delete players[userId].current_room;
     }
   });
@@ -166,7 +166,7 @@ io.on("connection", (socket) => {
         if (room in rooms) {
           io.to(room).emit("player-left", name);
           rooms[room].players = rooms[room].players.filter(player => player !== userId);
-          io.to(room).emit("player-list", getPlayerMap(roomCode));
+          io.to(room).emit("player-list", getPlayerMap(room));
         }
     }
     //add timeout and delete
@@ -195,8 +195,8 @@ io.on("connection", (socket) => {
     rooms[room].kicked_players.push(kickedUserId);
     rooms[room].players = rooms[room].players.filter(player => player !== kickedUserId);
     io.to(room).emit("player-kicked", getName(kickedUserId));
-    io.to(room).emit("player-list", getPlayerMap(roomCode));
-    
+    io.to(room).emit("player-list", getPlayerMap(room));
+
     const socketId = players[kickedUserId]?.socketId;
     if (socketId) io.to(socketId).emit("you-got-kicked");
   });
