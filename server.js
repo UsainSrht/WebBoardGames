@@ -68,7 +68,7 @@ io.on("connection", (socket) => {
   socket.on("create-room", (roomCode) => {
     const userId = getUserId(socket.id);
     rooms[roomCode] = { 
-        players: [], kicked_players: [], 
+        players: [], kicked_players: [], playerReadyStates: [],
         started: false, created: Date.now(),
         host: userId, game: null
     };
