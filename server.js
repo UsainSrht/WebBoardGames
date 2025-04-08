@@ -5,7 +5,12 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
-const game1 = require('./games/rock-paper-scissors');
+const playerCounts = {
+  "rock-paper-scissors": { min: 2, max: 12 },
+  "dice": { min: 2, max: 12 },
+  "kingdomino": { min: 2, max: 4 },
+  "uno": { min: 2, max: 10 },
+};
 
 const app = express();
 const server = http.createServer(app);
@@ -89,10 +94,11 @@ io.on("connection", (socket) => {
         socket.emit("error", "Room already started");
         return;
       }
-      if (rooms[roomCode].players.length >= 4) {
+      //no player cap on lobby, games have their own to start
+      /*if (rooms[roomCode].players.length >= 4) {
         socket.emit("error", "Room is full");
         return;
-      }
+      }*/
       if (rooms[roomCode].kicked_players.includes(userId)) {
         socket.emit("error", "You have been kicked from this room!");
         return;
@@ -136,7 +142,7 @@ io.on("connection", (socket) => {
         return;
       }
       rooms[room].game = game;
-      io.to(room).emit("game-selected", game);
+      io.to(room).emit("game-selected", game, playerCounts[game].min, playerCounts[game].max);
       //cancel all ready states
       rooms[room].playerReadyStates = [];
       rooms[room].players.forEach(userId2 => {
@@ -230,7 +236,18 @@ io.on("connection", (socket) => {
       isReady = true;
     }
     io.to(room).emit("ready-state", userId, isReady);
+
+    if (!rooms[room].game) return;
+    if (rooms[room].playerReadyStates.length >= playerCounts[rooms[room].game].min) {
+      if (rooms[room].playerReadyStates.length <= playerCounts[rooms[room].game].max) {
+        if (rooms[room].playerReadyStates.length === rooms[room].players.length) {
+          startGame(rooms, rooms[room].game);
+        }
+      }
+    }
   });
+
+  
 
 });
 
@@ -258,4 +275,27 @@ function getRoomData(roomCode) {
     rooms[roomCode].started,
     rooms[roomCode].game
   ];
+}
+
+function startGame(room, game) {
+  console.log(`Starting game ${game} in room ${room}`);
+  rooms[room].started = true;
+  rooms[room].game = game;
+  io.to(room).emit("game-started", game);
+
+  let gameScript;
+  if (game === "rock-paper-scissors") {
+    const rockPaperScissors = require('./games/rock-paper-scissors');
+    gameScript = rockPaperScissors(io, room, rooms[room], getDetailedPlayerMap(room));
+  } else if (game === "dice") {
+    //load dice
+  } else {
+    console.log("Game not implemented yet!" + game);
+  }
+}
+
+function getDetailedPlayerMap(roomCode) {
+  return Object.fromEntries(
+    Object.entries(players).filter(([key]) => rooms[roomCode].players.includes(key))
+  );
 }

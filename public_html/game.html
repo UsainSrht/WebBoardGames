@@ -45,7 +45,7 @@
                 </div>
                 <div class="border-l border-gray-700 mx-2"></div>
                 <div class="w-1/2 pl-2">
-                    <h2 class="text-lg font-semibold text-center text-white mb-2">Games</h2>
+                    <h2 id="games-label" class="text-lg font-semibold text-center text-white mb-2">Games</h2>
                     <div class="max-w-sm mx-auto">
                         <div class="flex-1 overflow-y-auto h-80">
                             <div id="games" class="grid grid-cols-3 gap-2 h-1/2 p-2">
@@ -483,16 +483,13 @@
 
         function kickPlayer(userId) {
             socket.emit("kick-player", userId);
-            //toast message should come from server
-            //showToast(`${player} kicked.`);
         }
 
-        socket.on("game-selected", (game) => {
-            showSelectedGame(game);
-            //todo cancel ready states
+        socket.on("game-selected", (game, minPlayers, maxPlayers) => {
+            showSelectedGame(game, minPlayers, maxPlayers);
         });
 
-        function showSelectedGame(game) {
+        function showSelectedGame(game, minPlayers, maxPlayers) {
             const gamesGrid = document.getElementById("games");
             for (let i = 0; i < gamesGrid.children.length; i++) {
                 const gameButton = gamesGrid.children[i];
@@ -504,6 +501,8 @@
                     gameButton.classList.remove("border-green-700");
                 }
             }
+            const gamesLabel = document.getElementById("games-label");
+            gamesLabel.innerHTML = `${game} (${minPlayers}-${maxPlayers} players)`;
             const readyButton = document.getElementById("ready-button");
             readyButton.classList.add("animation-pulse");
         }
@@ -657,6 +656,19 @@
         function closeKickPopup() {
             const kickPopup = document.getElementById("kick-popup");
             kickPopup.classList.add("hidden");
+        }
+
+        socket.on("game-started", (game) => {
+            startGame(game);
+        });
+
+        function startGame(game) {
+            const lobbyPopup = document.getElementById("lobby-popup");
+            lobbyPopup.classList.add("hidden");
+
+            const script = document.createElement('script');
+            script.src = `./games/${gameId}.js`;
+            document.body.appendChild(script);
         }
 
 
