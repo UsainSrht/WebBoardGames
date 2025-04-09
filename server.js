@@ -274,7 +274,7 @@ function getRoomData(roomCode) {
     rooms[roomCode].host,
     rooms[roomCode].started,
     rooms[roomCode].game,
-    platerCounts[rooms[roomCode].game]?.min,
+    playerCounts[rooms[roomCode].game]?.min,
     playerCounts[rooms[roomCode].game]?.max
   ];
 }
