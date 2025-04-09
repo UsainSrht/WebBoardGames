@@ -672,6 +672,9 @@
 
             const script = document.createElement('script');
             script.src = `./games/${game}.js`;
+            script.onload = () => {
+                console.log(`${game}.js loaded successfully!`);
+            };
             document.body.appendChild(script);
         }
 
