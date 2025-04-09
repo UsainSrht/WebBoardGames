@@ -291,13 +291,17 @@
         let isHost;
         let started;
         let game;
-        socket.on("send-room-data", (room, players, receivedHost, isStarted, selectedGame) => {
+        let minPlayers;
+        let maxPlayers;
+        socket.on("send-room-data", (room, players, receivedHost, isStarted, selectedGame, min, max) => {
             document.getElementById("room-code").textContent = room;
             host = receivedHost;
             isHost = localStorage.getItem("userId") === host;
             started = isStarted;
             game = selectedGame;
-            if (!started) showSelectedGame(game);
+            minPlayers = min;
+            maxPlayers = max;
+            if (!started) showSelectedGame(game, minPlayers, maxPlayers);
             updatePlayerList(players);
         });
 
@@ -502,7 +506,7 @@
                 }
             }
             const gamesLabel = document.getElementById("games-label");
-            gamesLabel.innerHTML = `${game} (${minPlayers}-${maxPlayers} players)`;
+            gamesLabel.innerHTML = game ? `${game} (${minPlayers}-${maxPlayers} players)` : "Games";
             const readyButton = document.getElementById("ready-button");
             readyButton.classList.add("animation-pulse");
         }
@@ -667,7 +671,7 @@
             lobbyPopup.classList.add("hidden");
 
             const script = document.createElement('script');
-            script.src = `./games/${gameId}.js`;
+            script.src = `./games/${game}.js`;
             document.body.appendChild(script);
         }
 
