@@ -670,14 +670,12 @@
             const lobbyPopup = document.getElementById("lobby-popup");
             lobbyPopup.classList.add("hidden");
 
-            const script = document.createElement('script');
-            script.src = `../games/${game}.js`;
-            script.onload = () => {
-                console.log(`${game}.js loaded successfully!`);
-            };
-            document.body.appendChild(script);
+            loadGame(game);
         }
 
+
+        /*
+        do the canvas in games their own files
 
         // Initialize the game board canvas
         const canvas = document.getElementById("canvas-board");
@@ -688,6 +686,32 @@
         canvas.height = window.innerHeight;
         
         //todo mouse drawing like gartic 
+        */
+
+        async function loadGame(game) {
+        try {
+            const response = await fetch(`./games/${game}.html`);
+            if (!response.ok) throw new Error("Game file not found");
+            const html = await response.text();
+            
+            const gameContainer = document.getElementById("game-board");
+            gameContainer.innerHTML = html;
+
+            // Execute any scripts inside the loaded game page
+            gameContainer.querySelectorAll("script").forEach((oldScript) => {
+                const newScript = document.createElement("script");
+                if (oldScript.src) {
+                    newScript.src = oldScript.src;
+                } else {
+                    newScript.textContent = oldScript.textContent;
+                }
+                document.body.appendChild(newScript);
+            });
+
+        } catch (error) {
+            console.error("Error loading game:", error);
+        }
+    }
 
         
     </script>

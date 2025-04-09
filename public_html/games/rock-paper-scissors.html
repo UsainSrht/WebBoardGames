@@ -1,0 +1,20 @@
+<h2>Rock Paper Scissors</h2>
+<p>Choose your move:</p>
+<button onclick="selectMove('rock')">Rock</button>
+<button onclick="selectMove('paper')">Paper</button>
+<button onclick="selectMove('scissors')">Scissors</button>
+
+<script>
+    function selectMove(move) {
+        alert(`You chose ${move}!`);
+        if (typeof socket !== "undefined") {
+            socket.emit("rps-select-move", move);
+        } else {
+            console.error("Socket is not defined!");
+        }
+    }
+
+    socket.on("rps-move-selected", (move, userId) => {
+        console.log(`User ${userId} selected ${move}`);
+    });
+</script>
