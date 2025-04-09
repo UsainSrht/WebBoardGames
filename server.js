@@ -241,7 +241,7 @@ io.on("connection", (socket) => {
     if (rooms[room].playerReadyStates.length >= playerCounts[rooms[room].game].min) {
       if (rooms[room].playerReadyStates.length <= playerCounts[rooms[room].game].max) {
         if (rooms[room].playerReadyStates.length === rooms[room].players.length) {
-          startGame(rooms, rooms[room].game);
+          startGame(room, rooms[room].game);
         }
       }
     }
