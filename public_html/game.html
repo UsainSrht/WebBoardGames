@@ -686,7 +686,9 @@
                 if (oldScript.src) {
                     newScript.src = oldScript.src;
                 } else {
-                    newScript.textContent = oldScript.textContent;
+                    newScript.textContent = `(function() {
+                                                ${oldScript.textContent}
+                                            })();`;
                 }
                 document.body.appendChild(newScript);
             });
