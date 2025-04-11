@@ -1,20 +1,106 @@
-<h2>Rock Paper Scissors</h2>
-<p>Choose your move:</p>
-<button onclick="selectMove('rock')">Rock</button>
-<button onclick="selectMove('paper')">Paper</button>
-<button onclick="selectMove('scissors')">Scissors</button>
+<!-- Rock Paper Scissors Popup -->
+<div id="rps-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 bg-gray-800 p-4 rounded-2xl shadow-lg transition-all duration-500 ease-in-out">
+    <div>
+        <h1 id="countdown-label" class="text-3xl font-bold text-center text-white mb-4">Countdown</h1>
+        <h1 class="text-2xl font-bold text-center text-white mb-4">Select Your Move</h1>
+        <div class="flex">
+            <button id="rps-move-rock" onclick="selectMove('rock')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-rock.png" alt="Rock" class="w-1/2 mx-auto mt-2">
+                <span class="text-sm">Rock</span>
+            </button>
+            <button id="rps-move-paper" onclick="selectMove('paper')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-paper.png" alt="Paper" class="w-1/2 mx-auto mt-2">
+                <span class="text-sm">Paper</span>
+            </button>
+            <button id="rps-move-paper" onclick="selectMove('scissors')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-scissors.png" alt="Scissors" class="w-1/2 mx-auto mt-2">
+                <span class="text-sm">Scissors</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Left Players -->
+<div id="bottom-left-modal" data-modal-placement="bottom-left" tabindex="-1" class="fixed top-0 left-0 right-0 z-50 hidden w-full p-4 overflow-x-hidden overflow-y-auto md:inset-0 h-[calc(100%-1rem)] max-h-full">
+    <div class="relative w-full max-w-2xl max-h-full">
+        <!-- Modal content -->
+        <div class="relative rounded-lg shadow-sm bg-gray-700">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t border-gray-600">
+                <h3 class="text-xl font-medium text-white">
+                    Bottom left modal
+                </h3>
+                <button type="button" class="text-gray-400 bg-transparent rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center hover:bg-gray-600 hover:text-white" data-modal-hide="bottom-left-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <div class="p-4 md:p-5 space-y-4">
+                <p class="text-base leading-relaxed text-gray-400">
+                    With less than a month to go before the European Union enacts new consumer privacy laws for its citizens, companies around the world are updating their terms of service agreements to comply.
+                </p>
+                <p class="text-base leading-relaxed text-gray-400">
+                    The European Union’s General Data Protection Regulation (G.D.P.R.) goes into effect on May 25 and is meant to ensure a common set of data rights in the European Union. It requires organizations to notify users as soon as possible of high-risk data breaches that could personally affect them.
+                </p>
+            </div>
+            <!-- Modal footer -->
+            <div class="flex items-center p-4 md:p-5 space-x-3 rtl:space-x-reverse border-trounded-b border-gray-600">
+                <button data-modal-hide="bottom-left-modal" type="button" class="text-white focus:ring-4 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center bg-blue-600 hover:bg-blue-700 focus:ring-blue-800">I accept</button>
+                <button data-modal-hide="bottom-left-modal" type="button" class="py-2.5 px-5 ms-3 text-sm font-medium focus:outline-none rounded-lg border focus:z-10 focus:ring-4 focus:ring-gray-700 bg-gray-800 text-gray-400 border-gray-600 hover:text-white hover:bg-gray-700">Decline</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
-    function selectMove(move) {
-        alert(`You chose ${move}!`);
-        if (typeof socket !== "undefined") {
-            socket.emit("rps-select-move", move);
-        } else {
-            console.error("Socket is not defined!");
-        }
+    if (typeof socket === "undefined") {
+        console.error("Socket is not defined!");
+        return;
     }
 
-    socket.on("rps-move-selected", (move, userId) => {
-        console.log(`User ${userId} selected ${move}`);
+    socket.on("rps-game-started", (countdown) => {
+        console.log("Game started with countdown:", countdown);
+        document.getElementById("countdown-label").textContent = countdown;
+        countDown(countdown);
     });
+
+    function countDown(countdown) {
+        const countdownLabel = document.getElementById("countdown-label");
+        setTimeout(() => {
+            countdownLabel.textContent = countdown;
+            countdown--;
+            if (countdown > 0) {
+                countDown(countdown);
+            }
+        }, 1000);
+    }
+
+    function selectMove(move) {
+        socket.emit("rps-select-move", move);
+    }
+
+    socket.on("rps-move-selected", (move) => {
+        console.log(`selected ${move}`);
+        for (const element in ["rock", "paper", "scissors"]) {
+            const moveButton = document.getElementById(`rps-move-${element}`);
+            if (moveButton) {
+                if (move === element) {
+                    moveButton.classList.remove("border-gray-700");
+                    moveButton.classList.add("border-green-700");
+                } else {
+                    moveButton.classList.remove("border-green-700");
+                    moveButton.classList.add("border-gray-700");
+                }
+            }
+        }
+    });
+
+    socket.on("rps-game-end", (playerMoves) => {
+
+    });
+
+
 </script>
