@@ -2,18 +2,18 @@
 <div id="rps-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 bg-gray-800 p-4 rounded-2xl shadow-lg transition-all duration-500 ease-in-out">
     <div>
         <h1 id="countdown-label" class="text-3xl font-bold text-center text-white mb-4">Countdown</h1>
-        <h1 class="text-2xl font-bold text-center text-white mb-4 p-4">Select Your Move</h1>
-        <div class="flex">
-            <button id="rps-move-rock" onclick="selectMove('rock')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                <img src="./images/rps-rock.png" alt="Rock" class="w-1/3 mx-auto mt-2">
+        <h1 class="text-2xl font-bold text-center text-white mb-4">Select Your Move</h1>
+        <div class="flex p-4">
+            <button id="rps-move-rock" onclick="selectMove('rock')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-rock.png" alt="Rock" class="w-1/2 mx-auto mt-2">
                 <span class="text-sm">Rock</span>
             </button>
-            <button id="rps-move-paper" onclick="selectMove('paper')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                <img src="./images/rps-paper.png" alt="Paper" class="w-1/3 mx-auto mt-2">
+            <button id="rps-move-paper" onclick="selectMove('paper')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-paper.png" alt="Paper" class="w-1/2 mx-auto mt-2">
                 <span class="text-sm">Paper</span>
             </button>
-            <button id="rps-move-paper" onclick="selectMove('scissors')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                <img src="./images/rps-scissors.png" alt="Scissors" class="w-1/3 mx-auto mt-2">
+            <button id="rps-move-paper" onclick="selectMove('scissors')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-scissors.png" alt="Scissors" class="w-1/2 mx-auto mt-2">
                 <span class="text-sm">Scissors</span>
             </button>
         </div>
@@ -21,17 +21,14 @@
 </div>
 
 <!-- Bottom Left Players -->
-<div id="bottom-left-modal" data-modal-placement="bottom-left" tabindex="-1" class="fixed top-0 left-0 right-0 z-50 hidden w-full p-4 overflow-x-hidden overflow-y-auto md:inset-0 h-[calc(100%-1rem)] max-h-full">
+<div id="scoreboard-popup" data-modal-placement="bottom-left" class="fixed top-0 left-0 right-0 z-50 hidden w-full p-4 overflow-x-hidden overflow-y-auto md:inset-0 h-[calc(100%-1rem)] max-h-full">
     <div class="relative w-full max-w-2xl max-h-full">
-        <!-- Modal content -->
         <div class="relative rounded-lg shadow-sm bg-gray-700">
-            <!-- Modal header -->
             <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t border-gray-600">
                 <h3 class="text-xl font-medium text-white">
                     Scoreboard
                 </h3>
             </div>
-            <!-- Modal body -->
             <div id="scoreboard-players" class="p-4 md:p-5 space-y-4">
                 <div class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-600 rounded-t text-white">
                     <span>Player</span>
@@ -121,10 +118,13 @@
         }
     });
 
-    const canvas = document.createElement("canvas-board");
+    const canvas = document.getElementById("canvas-board");
     const ctx = canvas.getContext("2d");
 
     socket.on("rps-game-end", (playerMoves) => {
+        const rpsPopup = document.getElementById("rps-popup");
+        rpsPopup.classList.add("hidden");
+
         const center = { x: canvas.width / 2, y: canvas.height / 2 };
         const radius = Math.min(canvas.width, canvas.height) / 3;
 
