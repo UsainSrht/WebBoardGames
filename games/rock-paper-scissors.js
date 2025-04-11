@@ -3,7 +3,7 @@ module.exports = (io, room, roomData, players) => {
 
   const countdown = 7;
 
-  io.to(room).emit("rps-game-started", countdown);
+  io.to(room).emit("rps-game-started", countdown, players.map(userId => ({ [getName(userId)]: userId })));
 
   const playerMoves = {};
 
@@ -11,15 +11,13 @@ module.exports = (io, room, roomData, players) => {
 
     const userId = getUserId(socket.id);
     if (!userId) return;
+    playerMoves[userId] = { name: getName(userId), move: null };
 
     socket.on("rps-select-move", (move) => {
       const userId = getUserId(socket.id);
       if (!userId) return;
+      playerMoves[userId].move = move;
       io.to(room).emit("rps-move-selected", move);
-    });
-
-    socket.on("rps-countdown-end", () => {
-
     });
 
   });
@@ -29,7 +27,8 @@ module.exports = (io, room, roomData, players) => {
   }, countdown * 1000);
 
   function countdownEnd() {
-
+    console.log("Countdown ended, processing moves...");
+    io.to(room).emit("rps-game-ended", playerMoves);
   }
 
   //returns only for players that are in this room
