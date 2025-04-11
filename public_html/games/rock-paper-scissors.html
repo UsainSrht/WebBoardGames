@@ -3,16 +3,16 @@
     <div>
         <h1 id="countdown-label" class="text-3xl font-bold text-center text-white mb-4">Countdown</h1>
         <h1 class="text-2xl font-bold text-center text-white mb-4">Select Your Move</h1>
-        <div class="flex p-4 space-4">
-            <button id="rps-move-rock" onclick="selectMove('rock')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+        <div class="flex items-center justify-between p-4">
+            <button id="rps-move-rock" onclick="rpsSelectMove('rock')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
                 <img src="./images/rps-rock.png" alt="Rock" class="w-1/2 mx-auto mt-2">
                 <span class="text-sm">Rock</span>
             </button>
-            <button id="rps-move-paper" onclick="selectMove('paper')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+            <button id="rps-move-paper" onclick="rpsSelectMove('paper')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
                 <img src="./images/rps-paper.png" alt="Paper" class="w-1/2 mx-auto mt-2">
                 <span class="text-sm">Paper</span>
             </button>
-            <button id="rps-move-paper" onclick="selectMove('scissors')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+            <button id="rps-move-scissors" onclick="rpsSelectMove('scissors')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
                 <img src="./images/rps-scissors.png" alt="Scissors" class="w-1/2 mx-auto mt-2">
                 <span class="text-sm">Scissors</span>
             </button>
@@ -98,9 +98,9 @@
         }, 1000);
     }
 
-    function selectMove(move) {
+    window.rpsSelectMove = function (move) {
         socket.emit("rps-select-move", move);
-    }
+    };
 
     socket.on("rps-move-selected", (move) => {
         console.log(`selected ${move}`);
@@ -148,6 +148,7 @@
 
     function drawMoves(moveData) {
         const canvas = document.getElementById("canvas-board");
+        console.log("canvas: " + canvas);
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         movesData.forEach(move => {
