@@ -3,7 +3,7 @@ module.exports = (io, room, roomData, players) => {
 
   const countdown = 7;
 
-  io.to(room).emit("rps-game-started", countdown, Object.entries(players).map(([key, value]) => { key: value[name] }));
+  io.to(room).emit("rps-game-started", countdown, Object.entries(players).map(([key, value]) => { key: value.name }));
   const playerMoves = {};
 
   io.on("connection", (socket) => {
