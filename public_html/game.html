@@ -233,7 +233,7 @@
     <!-- Toast -->
     <div id="toast-container" class="fixed top-0 left-0 z-50 p-4 space-y-2"></div>
 
-    <script>
+    <script type="module">
         console.log("game debug start");
         const socket = io();
 
@@ -679,9 +679,7 @@
 
             loadGameHTML(game);
         }
-    </script>
 
-    <script type="module">
         async function loadGameHTML(game) {
             const res = await fetch(`/games/${game}.html`);
             const html = await res.text();

@@ -142,7 +142,7 @@ io.on("connection", (socket) => {
         return;
       }
       rooms[room].game = game;
-      io.to(room).emit("game-selected", game, gameDatas[game].min, gameDatas[game].max);
+      io.to(room).emit("game-selected", game, gameDatas[game].min, gameDatas[game].max, gameDatas[game].name);
       //cancel all ready states
       rooms[room].playerReadyStates = [];
       rooms[room].players.forEach(userId2 => {
