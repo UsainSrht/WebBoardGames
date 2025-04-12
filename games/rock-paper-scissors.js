@@ -7,12 +7,13 @@ module.exports = (io, room, roomData, players) => {
   const playerMoves = {};
 
   io.on("connection", (socket) => {
-
+    console.log("User " + socket.id + " connected to rps backend in room: " + room);
     const userId = getUserId(socket.id);
     if (!userId) return;
     playerMoves[userId] = { name: getName(userId), move: null };
 
     socket.on("rps-select-move", (move) => {
+      console.log("User " + players[userId].name+"("+userId+")("+socket.id+") selected move: " + move + " in room: " + room);
       const userId = getUserId(socket.id);
       if (!userId) return;
       playerMoves[userId].move = move;

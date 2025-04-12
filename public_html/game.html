@@ -487,8 +487,8 @@
             socket.emit("kick-player", userId);
         }
 
-        socket.on("game-selected", (game, minPlayers, maxPlayers) => {
-            showSelectedGame(game, minPlayers, maxPlayers);
+        socket.on("game-selected", (game, minPlayers, maxPlayers, gameName) => {
+            showSelectedGame(game, minPlayers, maxPlayers, gameName);
         });
 
         function showSelectedGame(game, minPlayers, maxPlayers, gameName) {

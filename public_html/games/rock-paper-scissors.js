@@ -19,7 +19,10 @@ function loadImages(callback) {
         img.onload = () => {
             loadedImages[key] = img;
             count++;
-            if (count === keys.length) callback();
+            if (count === keys.length) {
+                console.log("All images loaded, calling callback.");
+                callback();
+            }
         };
     });
 }
@@ -106,6 +109,7 @@ socket.on("rps-game-end", (playerMoves) => {
 });
 
 function drawMoves(movesData) {
+    console.log("Drawing moves", movesData);
     const gameBoard = document.getElementById('game-board');
     gameBoard.innerHTML = ""; // Clear previous content
 
