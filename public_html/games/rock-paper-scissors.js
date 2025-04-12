@@ -50,9 +50,10 @@ socket.on("rps-game-started", (countdown, players) => {
 });
 
 function countDown(countdown) {
+    console.log("Countdown:", countdown);
     const countdownLabel = document.getElementById("countdown-label");
+    countdownLabel.textContent = countdown;
     setTimeout(() => {
-        countdownLabel.textContent = countdown;
         countdown--;
         if (countdown > 0) {
             countDown(countdown);
@@ -67,9 +68,12 @@ window.rpsSelectMove = function (move) {
 socket.on("rps-move-selected", (move) => {
     console.log(`selected ${move}`);
     for (const element in ["rock", "paper", "scissors"]) {
+        console.log(element);
         const moveButton = document.getElementById(`rps-move-${element}`);
         if (moveButton) {
+            console.log(moveButton);
             if (move === element) {
+                console.log("selected");
                 moveButton.classList.remove("border-gray-700");
                 moveButton.classList.add("border-green-700");
             } else {
@@ -81,8 +85,18 @@ socket.on("rps-move-selected", (move) => {
 });
 
 socket.on("rps-game-end", (playerMoves) => {
+    console.log("rps countdown ended");
     const rpsPopup = document.getElementById("rps-popup");
     rpsPopup.classList.add("hidden");
+
+    const gameBoard = document.getElementById('game-board');
+    gameBoard.innerHTML = ""; // Clear previous content
+
+    const canvas = document.createElement("canvas");
+    canvas.id = "rps-canvas";
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gameBoard.appendChild(canvas);
 
     const center = { x: canvas.width / 2, y: canvas.height / 2 };
     const radius = Math.min(canvas.width, canvas.height) / 3;
@@ -110,17 +124,11 @@ socket.on("rps-game-end", (playerMoves) => {
 
 function drawMoves(movesData) {
     console.log("Drawing moves", movesData);
-    const gameBoard = document.getElementById('game-board');
-    gameBoard.innerHTML = ""; // Clear previous content
 
-    const canvas = document.createElement("canvas");
-    canvas.id = "rps-canvas";
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    gameBoard.appendChild(canvas);
-
+    const canvas = document.getElementById("rps-canvas");
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     movesData.forEach(move => {
         const img = loadedImages[move];
         if (img) {
