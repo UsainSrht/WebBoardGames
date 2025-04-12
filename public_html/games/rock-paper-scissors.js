@@ -36,6 +36,7 @@ socket.on("rps-game-started", (countdownEndUnix, players) => {
     countDown(remainingSeconds);
 
     const scoreboard = document.getElementById("scoreboard-players");
+    scoreboard.innerHTML = ""; // Clear previous content
     players.forEach(player => {
         for (let name in player) {
             let userId = player[name];
