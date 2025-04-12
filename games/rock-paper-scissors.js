@@ -26,7 +26,7 @@ module.exports = (io, room, roomData, players) => {
   }, countdown * 1000);
 
   function countdownEnd() {
-    console.log(room + "Countdown ended, processing moves...");
+    console.log("Countdown ended, processing moves for room: " + room);
     io.to(room).emit("rps-game-ended", playerMoves);
   }
 

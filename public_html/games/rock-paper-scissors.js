@@ -1,7 +1,6 @@
 console.log("Rock Paper Scissors game script loaded.");
 if (typeof socket === "undefined") {
     console.error("Socket is not defined!");
-    return;
 }
 
 const images = {
