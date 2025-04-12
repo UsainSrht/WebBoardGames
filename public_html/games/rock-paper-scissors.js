@@ -70,7 +70,6 @@ socket.on("rps-move-selected", (move) => {
         const moveButton = document.getElementById(`rps-move-${element}`);
         if (moveButton) {
             if (move === element) {
-                console.log("selected");
                 moveButton.classList.remove("border-gray-700");
                 moveButton.classList.add("border-green-700");
             } else {
@@ -81,7 +80,7 @@ socket.on("rps-move-selected", (move) => {
     });
 });
 
-socket.on("rps-game-end", (playerMoves) => {
+socket.on("rps-game-ended", (playerMoves) => {
     console.log("rps countdown ended");
     const rpsPopup = document.getElementById("rps-popup");
     rpsPopup.classList.add("hidden");
