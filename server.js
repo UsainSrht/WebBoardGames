@@ -9,7 +9,7 @@ const gameDatas = {
   "rock-paper-scissors": { min: 2, max: 12, name: "Rock Paper Scissors" },
   "dice": { min: 2, max: 12, name: "Dice" },
   "kingdomino": { min: 2, max: 4, name: "Kingdomino" },
-  "uno": { min: 2, max: 10, name: "Uno" },
+  "uno": { min: 2, max: 10, name: "Uno" }
 };
 
 const app = express();
