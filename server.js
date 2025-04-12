@@ -5,11 +5,11 @@ const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
 
-const playerCounts = {
-  "rock-paper-scissors": { min: 2, max: 12 },
-  "dice": { min: 2, max: 12 },
-  "kingdomino": { min: 2, max: 4 },
-  "uno": { min: 2, max: 10 },
+const gameDatas = {
+  "rock-paper-scissors": { min: 2, max: 12, name: "Rock Paper Scissors" },
+  "dice": { min: 2, max: 12, name: "Dice" },
+  "kingdomino": { min: 2, max: 4, name: "Kingdomino" },
+  "uno": { min: 2, max: 10, name: "Uno" },
 };
 
 const app = express();
@@ -142,7 +142,7 @@ io.on("connection", (socket) => {
         return;
       }
       rooms[room].game = game;
-      io.to(room).emit("game-selected", game, playerCounts[game].min, playerCounts[game].max);
+      io.to(room).emit("game-selected", game, gameDatas[game].min, gameDatas[game].max);
       //cancel all ready states
       rooms[room].playerReadyStates = [];
       rooms[room].players.forEach(userId2 => {
@@ -238,8 +238,8 @@ io.on("connection", (socket) => {
     io.to(room).emit("ready-state", userId, isReady);
 
     if (!rooms[room].game) return;
-    if (rooms[room].playerReadyStates.length >= playerCounts[rooms[room].game].min) {
-      if (rooms[room].playerReadyStates.length <= playerCounts[rooms[room].game].max) {
+    if (rooms[room].playerReadyStates.length >= gameDatas[rooms[room].game].min) {
+      if (rooms[room].playerReadyStates.length <= gameDatas[rooms[room].game].max) {
         if (rooms[room].playerReadyStates.length === rooms[room].players.length) {
           startGame(room, rooms[room].game);
         }
@@ -274,8 +274,9 @@ function getRoomData(roomCode) {
     rooms[roomCode].host,
     rooms[roomCode].started,
     rooms[roomCode].game,
-    playerCounts[rooms[roomCode].game]?.min,
-    playerCounts[rooms[roomCode].game]?.max
+    gameDatas[rooms[roomCode].game]?.min,
+    gameDatas[rooms[roomCode].game]?.max,
+    gameDatas[rooms[roomCode].game]?.name
   ];
 }
 

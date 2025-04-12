@@ -18,7 +18,7 @@
     <!-- Game Board -->
     <div id="game-board" class="w-full h-full absolute top-0 left-0">
 
-        <canvas id="canvas-board" class="w-full h-full"></canvas>
+        <!-- <canvas id="canvas-board" class="w-full h-full"></canvas> -->
 
     </div>
     
@@ -291,7 +291,7 @@
         let game;
         let minPlayers;
         let maxPlayers;
-        socket.on("send-room-data", (room, players, receivedHost, isStarted, selectedGame, min, max) => {
+        socket.on("send-room-data", (room, players, receivedHost, isStarted, selectedGame, min, max, gameName) => {
             document.getElementById("room-code").textContent = room;
             host = receivedHost;
             isHost = localStorage.getItem("userId") === host;
@@ -299,7 +299,7 @@
             game = selectedGame;
             minPlayers = min;
             maxPlayers = max;
-            if (!started) showSelectedGame(game, minPlayers, maxPlayers);
+            if (!started) showSelectedGame(game, minPlayers, maxPlayers, gameName);
             updatePlayerList(players);
         });
 
@@ -491,7 +491,7 @@
             showSelectedGame(game, minPlayers, maxPlayers);
         });
 
-        function showSelectedGame(game, minPlayers, maxPlayers) {
+        function showSelectedGame(game, minPlayers, maxPlayers, gameName) {
             const gamesGrid = document.getElementById("games");
             for (let i = 0; i < gamesGrid.children.length; i++) {
                 const gameButton = gamesGrid.children[i];
@@ -504,7 +504,7 @@
                 }
             }
             const gamesLabel = document.getElementById("games-label");
-            gamesLabel.innerHTML = game ? `${game} (${minPlayers}-${maxPlayers} players)` : "Games";
+            gamesLabel.innerHTML = gameName ? `${gameName} (${minPlayers}-${maxPlayers} players)` : "Games";
             const readyButton = document.getElementById("ready-button");
             readyButton.classList.add("animation-pulse");
         }
@@ -679,39 +679,22 @@
 
             loadGame(game);
         }
+    </script>
 
-        async function loadGame(game) {
-        try {
-            const response = await fetch(`./games/${game}.html`);
-            if (!response.ok) throw new Error("Game file not found");
-            const html = await response.text();
-            
-            const gameContainer = document.getElementById("game-board");
-            gameContainer.innerHTML = html;
+    <script type="module">
+        async function loadGameHTML(game) {
+            const res = await fetch(`/games/${game}.html`);
+            const html = await res.text();
+            document.getElementById('game-board').innerHTML = html;
 
-            // Execute any scripts inside the loaded game page
-            gameContainer.querySelectorAll("script").forEach((oldScript) => {
-                const newScript = document.createElement("script");
-                if (oldScript.src) {
-                    newScript.src = oldScript.src;
-                } else {
-                    newScript.textContent = `(function() {
-                                                try {
-                                                    ${oldScript.textContent}
-                                                } catch (e) {
-                                                    console.error("Error in dynamic script:", e);
-                                                }
-                                            })();`;
-                }
-                document.body.appendChild(newScript);
-            });
-
-        } catch (error) {
-            console.error("Error loading game:", error);
+            // After injecting the HTML, load the script manually
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.src = '/games/rock-paper-scissors.js';
+            document.body.appendChild(script);
         }
-    }
 
-        
+        loadGameHTML();
     </script>
 </body>
 </html>
