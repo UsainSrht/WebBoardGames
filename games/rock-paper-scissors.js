@@ -3,17 +3,8 @@ module.exports = (io, room, roomData, players) => {
 
   const countdown = 7;
 
-  io.to(room).emit("rps-game-started", countdown, Object.entries(players).map(([key, value]) => [value.name, key]));
   const playerMoves = {};
-
-  setTimeout(() => {
-    countdownEnd();
-  }, countdown * 1000);
-
-  function countdownEnd() {
-    console.log("Countdown ended, processing moves for room: " + room);
-    io.to(room).emit("rps-game-ended", playerMoves);
-  }
+  const readyPlayers = [];
 
   for (let userId in players) {
     const socket = io.sockets.sockets.get(players[userId].socketId);
@@ -28,5 +19,30 @@ module.exports = (io, room, roomData, players) => {
       playerMoves[userId].move = move;
       socket.emit("rps-move-selected", move);
     });
+
+    socket.on("rps-page-loaded", () => {
+      if (!readyPlayers.includes(userId)) {
+        readyPlayers.push(userId);
+        if (readyPlayers.length === Object.keys(players).length) {
+          console.log("All players are ready, starting countdown for room: " + room);
+          startGame();
+        }
+      }
+    });
   }
+
+  function startGame() {
+    const countdownEndUnix = Date.now() + countdown * 1000;
+    io.to(room).emit("rps-game-started", countdownEndUnix, Object.entries(players).map(([key, value]) => [value.name, key]));
+
+    setTimeout(() => {
+      countdownEnd();
+    }, countdown * 1000);
+  }
+
+  function countdownEnd() {
+    console.log("Countdown ended, processing moves for room: " + room);
+    io.to(room).emit("rps-game-ended", playerMoves);
+  }
+  
 };

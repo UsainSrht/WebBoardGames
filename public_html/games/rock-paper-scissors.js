@@ -3,6 +3,8 @@ if (typeof socket === "undefined") {
     console.error("Socket is not defined!");
 }
 
+socket.emit("rps-page-loaded");
+
 const images = {
     rock: "./images/rps-rock.png",
     paper: "./images/rps-paper.png",
@@ -27,10 +29,11 @@ function loadImages(callback) {
     });
 }
 
-socket.on("rps-game-started", (countdown, players) => {
-    console.log("Game started with", players.length, "players and countdown:", countdown);
-    document.getElementById("countdown-label").textContent = countdown;
-    countDown(countdown);
+socket.on("rps-game-started", (countdownEndUnix, players) => {
+    console.log("Game started with", players.length, "players and countdown:", countdownEndUnix);
+    const remainingSeconds = Math.floor((Date.now()-countdownEndUnix) / 1000);
+    document.getElementById("countdown-label").textContent = remainingSeconds;
+    countDown(remainingSeconds);
 
     const scoreboard = document.getElementById("scoreboard-players");
     players.forEach(player => {
