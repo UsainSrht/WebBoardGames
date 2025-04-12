@@ -26,7 +26,7 @@ module.exports = (io, room, roomData, players) => {
     socket.on("rps-select-move", (move) => {
       console.log("User " + players[userId].name+"("+userId+")("+socket.id+") selected move: " + move + " in room: " + room);
       playerMoves[userId].move = move;
-      io.to(room).emit("rps-move-selected", move);
+      socket.emit("rps-move-selected", move);
     });
   }
 };

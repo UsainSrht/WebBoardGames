@@ -66,12 +66,9 @@ window.rpsSelectMove = function (move) {
 };
 
 socket.on("rps-move-selected", (move) => {
-    console.log(`selected ${move}`);
-    for (const element in ["rock", "paper", "scissors"]) {
-        console.log(element);
+    ["rock", "paper", "scissors"].forEach(element => {
         const moveButton = document.getElementById(`rps-move-${element}`);
         if (moveButton) {
-            console.log(moveButton);
             if (move === element) {
                 console.log("selected");
                 moveButton.classList.remove("border-gray-700");
@@ -81,7 +78,7 @@ socket.on("rps-move-selected", (move) => {
                 moveButton.classList.add("border-gray-700");
             }
         }
-    }
+    });
 });
 
 socket.on("rps-game-end", (playerMoves) => {
