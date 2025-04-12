@@ -31,7 +31,7 @@ function loadImages(callback) {
 
 socket.on("rps-game-started", (countdownEndUnix, players) => {
     console.log("Game started with", players.length, "players and countdown:", countdownEndUnix);
-    const remainingSeconds = Math.floor((Date.now()-countdownEndUnix) / 1000);
+    const remainingSeconds = Math.floor((countdownEndUnix-Date.now()) / 1000);
     document.getElementById("countdown-label").textContent = remainingSeconds;
     countDown(remainingSeconds);
 
@@ -117,26 +117,27 @@ socket.on("rps-game-ended", (playerMoves) => {
     }
 
     loadImages(() => {
-        drawMoves(movesData);
+        drawMoves(movesData, center);
     });
 });
 
-function drawMoves(movesData) {
+function drawMoves(movesData, center) {
     console.log("Drawing moves", movesData);
 
     const canvas = document.getElementById("rps-canvas");
     const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    movesData.forEach(move => {
-        const img = loadedImages[move];
+    Object.keys(movesData).forEach(userId => {
+        const data = movesData[userId];
+        const img = loadedImages[data.move];
         if (img) {
-            const x = player.x + (center.x - player.x) * player.progress;
-            const y = player.y + (center.y - player.y) * player.progress;
+            const x = data.x + (center.x - data.x) * data.progress;
+            const y = data.y + (center.y - data.y) * data.progress;
             ctx.drawImage(img, x - 30, y - 30, 60, 60);
             ctx.fillStyle = "white";
             ctx.font = "16px Arial";
-            ctx.fillText(player.name, x - 20, y + 50);
+            ctx.fillText(data.name, x - 20, y + 50);
         }
     });
 }
