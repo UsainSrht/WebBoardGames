@@ -105,8 +105,7 @@ socket.on("rps-game-ended", (playerMoves) => {
 
     let index = 0;
     for (const key of Object.keys(playerMoves)) {
-        console.log("index", index, "key", key, "moveData", playerMoves[key], "length", playerMoves.length);
-        const angle = (index / playerMoves.length) * Math.PI * 2;
+        const angle = (index / Object.keys(playerMoves).length) * Math.PI * 2;
         movesData[key] = {
             name: playerMoves[key].name,
             move: playerMoves[key].move,
