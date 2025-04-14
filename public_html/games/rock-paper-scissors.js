@@ -135,7 +135,17 @@ function drawMoves(movesData, center) {
         if (img) {
             const x = data.x + (center.x - data.x) * data.progress;
             const y = data.y + (center.y - data.y) * data.progress;
-            ctx.drawImage(img, x - 30, y - 30, 60, 60);
+
+            ctx.save(); // Save the current context state
+            ctx.translate(x, y); // Move to the image center
+            //angle+90 to make it face center
+            ctx.rotate((data.angle+90) * Math.PI / 180); // Rotate in radians
+
+            ctx.drawImage(img, -30, -30, 60, 60); // Draw image centered at (0, 0)
+            ctx.restore(); // Restore to the original state (unrotated)
+
+            //ctx.drawImage(img, x - 30, y - 30, 60, 60);
+
             ctx.fillStyle = "white";
             ctx.font = "16px Arial";
             ctx.fillText(data.name, x - 20, y + 50);
