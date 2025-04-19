@@ -2,8 +2,9 @@ module.exports = (io, room, roomData, players) => {
   console.log(`Initializing rock paper scissors for room: ${room}`);
 
   const countdown = 7;
+  const waitBeforeNewGame = 7;
 
-  const playerMoves = {};
+  const playerGameData = {};
   const readyPlayers = [];
 
   for (let userId in players) {
@@ -12,11 +13,11 @@ module.exports = (io, room, roomData, players) => {
   }
 
   function initForPlayer(userId, socket, name) {
-    playerMoves[userId] = { name: name, move: null };
+    playerGameData[userId] = { name: name, move: null, score: 0 };
 
     socket.on("rps-select-move", (move) => {
       console.log("User " + players[userId].name+"("+userId+")("+socket.id+") selected move: " + move + " in room: " + room);
-      playerMoves[userId].move = move;
+      playerGameData[userId].move = move;
       socket.emit("rps-move-selected", move);
     });
 
@@ -33,7 +34,7 @@ module.exports = (io, room, roomData, players) => {
 
   function startGame() {
     const countdownEndUnix = Date.now() + countdown * 1000;
-    io.to(room).emit("rps-game-started", countdownEndUnix, Object.keys(players).map(userId => ({ [players[userId].name]: userId })));
+    io.to(room).emit("rps-game-started", countdownEndUnix, playerGameData);
 
     setTimeout(() => {
       countdownEnd();
@@ -42,7 +43,45 @@ module.exports = (io, room, roomData, players) => {
 
   function countdownEnd() {
     console.log("Countdown ended, processing moves for room: " + room);
-    io.to(room).emit("rps-game-ended", playerMoves);
+    processMoves(playerGameData);
+    io.to(room).emit("rps-game-ended", playerGameData);
+    setTimeout(() => {
+      startGame();
+    }, waitBeforeNewGame * 1000);
+  }
+
+  function processMoves(moveData) {
+    const keys = Object.keys(moveData);
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const userId = keys[i];
+        const user2 = keys[j];
+        if (userId === user2) continue;
+        const move1 = moveData[userId].move;
+        const move2 = moveData[user2].move;
+        const winner = getWinner(move1, move2);
+        if (winner === 1) {
+          moveData[userId].score++;
+          moveData[user2].score--;
+        } else if (winner === 2) {
+          moveData[user2].score++;
+          moveData[userId].score--;
+        }
+      }
+    }
+  }
+
+  function getWinner(move1, move2) {
+    if (move1 === move2) return "draw";
+    if (
+      (move1 === "rock" && move2 === "scissors") ||
+      (move1 === "scissors" && move2 === "paper") ||
+      (move1 === "paper" && move2 === "rock")
+    ) {
+      return 1;
+    } else {
+      return 2;
+    }
   }
 
 };

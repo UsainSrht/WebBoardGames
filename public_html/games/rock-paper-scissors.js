@@ -37,26 +37,26 @@ socket.on("rps-game-started", (countdownEndUnix, players) => {
 
     const scoreboard = document.getElementById("scoreboard-players");
     scoreboard.innerHTML = ""; // Clear previous content
-    players.forEach(player => {
-        for (let name in player) {
-            let userId = player[name];
-
-            const line = document.createElement("div");
-            line.innerHTML = `
-                <div id="scoreboard-player-${userId}" class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-600 rounded-t text-white">
-                    <span>${name}</span>
-                    <span id="scoreboard-player-score-${userId}">Score</span>
-                </div>
-            `;
-            scoreboard.appendChild(line);
-        }
-    });
+    for (userId in players) {
+        const name = players[userId].name;
+        const score = players[userId].score;
+        const line = document.createElement("div");
+        line.innerHTML = `
+            <div id="scoreboard-player-${userId}" class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-600 rounded-t text-white">
+                <span>${name}</span>
+                <span id="scoreboard-player-score-${userId}">${score}</span>
+            </div>
+        `;
+        scoreboard.appendChild(line);
+    }
 });
 
 function countDown(countdown) {
     console.log("Countdown:", countdown);
     const countdownLabel = document.getElementById("countdown-label");
     countdownLabel.textContent = countdown;
+    const countdownBar = document.getElementById("countdown-bar");
+    countdownBar.style.width = `${(countdown / 7) * 100}%`;
     setTimeout(() => {
         countdown--;
         if (countdown > 0) {
@@ -127,6 +127,7 @@ socket.on("rps-game-ended", (playerMoves) => {
     }
 
     loadImages(() => {
+        gameBoard.removeChild(loadingLabel);
         drawMoves(movesData, center);
     });
 });

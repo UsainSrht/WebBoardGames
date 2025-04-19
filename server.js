@@ -90,7 +90,7 @@ io.on("connection", (socket) => {
     }
     //console.log(`${name}(${userId})(${socket.id}) wants to join room: ${roomCode}`);
     if (rooms[roomCode]) {
-      if (rooms[roomCode].started) {
+      if (rooms[roomCode].started && players[userId].current_room !== roomCode) {
         socket.emit("error", "Room already started");
         return;
       }
@@ -182,8 +182,6 @@ io.on("connection", (socket) => {
           io.to(room).emit("player-list", getPlayerMap(room));
         }
     }
-    //add timeout and delete
-    //delete players[userId];
     setTimeout(() => {
       if (players[userId].socketId) return; // still connected
       else {
