@@ -59,7 +59,7 @@ module.exports = (io, room, roomData, players) => {
     }
     if (round > maxRounds) {
       console.log("Game ended, resetting for room: " + room);
-      endGame(room);
+      io.emit("game-ended", room);
       return;
     }
     setTimeout(() => {

@@ -245,8 +245,6 @@ io.on("connection", (socket) => {
     }
   });
 
-  
-
 });
 
 function getName(userId) {
@@ -295,15 +293,20 @@ function startGame(room, game) {
   }
 }
 
+io.on("game-ended", (room) => {
+  console.log(`Game ended in room ${room}`);
+  endGame(room);
+});
+
 function endGame(room) {
   console.log(`Ending game in room ${room}`);
   rooms[room].started = false;
   rooms[room].game = null;
-  io.to(room).emit("back-to-lobby");
   rooms[room].playerReadyStates = [];
-  rooms[room].players.forEach(userId => {
-    io.to(room).emit("ready-state", userId, false);
-  });
+  io.to(room).emit("back-to-lobby");
+  //rooms[room].players.forEach(userId => {
+  //  io.to(room).emit("ready-state", userId, false);
+  //});
 }
 
 function getDetailedPlayerMap(roomCode) {
