@@ -30,8 +30,6 @@ function loadImages(callback) {
 }
 
 socket.on("rps-game-started", (countdownEndUnix, players) => {
-    console.log("Game started with", players.length, "players and countdown:", countdownEndUnix);
-
     const rpsPopup = document.getElementById("rps-popup");
     rpsPopup.classList.remove("hidden");
 
