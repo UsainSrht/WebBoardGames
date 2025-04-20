@@ -41,7 +41,7 @@ socket.on("rps-game-started", (countdownEndUnix, players) => {
 
     const scoreboard = document.getElementById("scoreboard-players");
     scoreboard.innerHTML = ""; // Clear previous content
-    for (userId in players) {
+    for (const userId in players) {
         const name = players[userId].name;
         const score = players[userId].score;
         const line = document.createElement("div");
@@ -112,7 +112,7 @@ socket.on("rps-game-ended", (playerMoves) => {
     gameBoard.appendChild(canvas);
 
     const center = { x: canvas.width / 2, y: canvas.height / 2 };
-    const radius = Math.min(canvas.width, canvas.height) / 3;
+    const radius = Math.min(canvas.width, canvas.height) / 2.5;
 
     const movesData = {};
 
@@ -157,7 +157,7 @@ function drawMoves(movesData, center) {
         Object.keys(movesData).forEach(userId => {
             const data = movesData[userId];
 
-            if (data.progress < 0.8) {
+            if (data.progress < 0.7) {
                 data.progress += 0.005;
                 if (data.progress > 1) data.progress = 1;
                 allDone = false;

@@ -295,6 +295,17 @@ function startGame(room, game) {
   }
 }
 
+function endGame(room) {
+  console.log(`Ending game in room ${room}`);
+  rooms[room].started = false;
+  rooms[room].game = null;
+  io.to(room).emit("back-to-lobby");
+  rooms[room].playerReadyStates = [];
+  rooms[room].players.forEach(userId => {
+    io.to(room).emit("ready-state", userId, false);
+  });
+}
+
 function getDetailedPlayerMap(roomCode) {
   return Object.fromEntries(
     Object.entries(players).filter(([key]) => rooms[roomCode].players.includes(key))

@@ -26,8 +26,8 @@
     <div id="lobby-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 bg-gray-800 p-4 rounded-2xl shadow-lg transition-all duration-500 ease-in-out">
         <div>
             <h1 class="text-2xl font-bold text-center text-white mb-4">Lobby</h1>
-            <div class="flex">
-                <div class="relative w-1/2 pr-2 flex flex-col">
+            <div class="flex flex-col sm:flex-row">
+                <div class="relative w-full sm:w-1/2 pr-2 flex flex-col">
                     <h2 class="text-lg font-semibold text-white text-center mb-2">Players</h2>
                     <div class="overflow-y-auto h-64">
                         <div id="lobby-players" class="space-y-2 px-2">
@@ -44,7 +44,7 @@
                     </div>
                 </div>
                 <div class="border-l border-gray-700 mx-2"></div>
-                <div class="w-1/2 pl-2">
+                <div class="w-full sm:w-1/2 pl-2">
                     <h2 id="games-label" class="text-lg font-semibold text-center text-white mb-2">Games</h2>
                     <div class="max-w-sm mx-auto">
                         <div class="flex-1 overflow-y-auto h-80">
@@ -680,6 +680,22 @@
 
             loadGameHTML(game);
         }
+
+        socket.on("back-to-lobby", () => {
+            endGame();
+            //socket.emit("request-room-data", roomcode);
+        });
+
+        function endGame() {
+            const gameBoard = document.getElementById("game-board");
+            gameBoard.innerHTML = ""; // Clear the game board
+            const lobbyPopup = document.getElementById("lobby-popup");
+            lobbyPopup.classList.remove("hidden");
+            const gameScript = document.getElementById("game-script");
+            if (gameScript) {
+                gameScript.remove(); // Remove the game script if it exists
+            }
+        }
     </script>
 
     <script type="module">
@@ -691,7 +707,8 @@
             // After injecting the HTML, load the script manually
             const script = document.createElement('script');
             script.type = 'module';
-            script.src = '/games/rock-paper-scissors.js';
+            script.id = 'game-script';
+            script.src = `/games/${game}.js`;
             document.body.appendChild(script);
         }
     </script>

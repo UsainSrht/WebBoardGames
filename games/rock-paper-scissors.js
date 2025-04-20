@@ -3,6 +3,9 @@ module.exports = (io, room, roomData, players) => {
 
   const countdown = 7;
   const waitBeforeNewGame = 7;
+  const maxRounds = 3;
+  
+  let round = 1;
 
   const playerGameData = {};
   const readyPlayers = [];
@@ -43,8 +46,33 @@ module.exports = (io, room, roomData, players) => {
 
   function countdownEnd() {
     console.log("Countdown ended, processing moves for room: " + room);
+    for (let userId in playerGameData) {
+      if (!playerGameData[userId].move) {
+        switch (Math.floor(Math.random() * 3)) {
+          default:
+          case 0:
+            playerGameData[userId].move = "rock";
+            break;
+          case 1:
+            playerGameData[userId].move = "paper";
+            break;
+          case 2:
+            playerGameData[userId].move = "scissors";
+            break;
+        }
+      }
+    }
     processMoves(playerGameData);
+    round++;
+    for (let userId in playerGameData) {
+      playerGameData[userId].move = null;
+    }
     io.to(room).emit("rps-game-ended", playerGameData);
+    if (round > maxRounds) {
+      console.log("Game ended, resetting for room: " + room);
+      endGame(room);
+      return;
+    }
     setTimeout(() => {
       startGame();
     }, waitBeforeNewGame * 1000);
