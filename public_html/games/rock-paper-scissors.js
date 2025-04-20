@@ -31,6 +31,10 @@ function loadImages(callback) {
 
 socket.on("rps-game-started", (countdownEndUnix, players) => {
     console.log("Game started with", players.length, "players and countdown:", countdownEndUnix);
+
+    const rpsPopup = document.getElementById("rps-popup");
+    rpsPopup.classList.remove("hidden");
+
     const remainingSeconds = Math.floor((countdownEndUnix-Date.now()) / 1000);
     document.getElementById("countdown-label").textContent = remainingSeconds;
     countDown(remainingSeconds);
@@ -90,7 +94,7 @@ socket.on("rps-game-ended", (playerMoves) => {
     rpsPopup.classList.add("hidden");
 
     const gameBoard = document.getElementById('game-board');
-    gameBoard.innerHTML = ""; // Clear previous content
+    //gameBoard.innerHTML = ""; // Clear previous content
 
     const loadingLabel = document.createElement("div");
     loadingLabel.id = "loading-label";
@@ -153,8 +157,8 @@ function drawMoves(movesData, center) {
         Object.keys(movesData).forEach(userId => {
             const data = movesData[userId];
 
-            if (data.progress < 1) {
-                data.progress += 0.02;
+            if (data.progress < 0.8) {
+                data.progress += 0.005;
                 if (data.progress > 1) data.progress = 1;
                 allDone = false;
             }
