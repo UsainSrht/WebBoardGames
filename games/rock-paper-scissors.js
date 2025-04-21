@@ -1,4 +1,4 @@
-module.exports = (io, room, roomData, players) => {
+module.exports = (io, eventBus, room, roomData, players) => {
   console.log(`Initializing rock paper scissors for room: ${room}`);
 
   const countdown = 7;
@@ -59,7 +59,8 @@ module.exports = (io, room, roomData, players) => {
     }
     if (round > maxRounds) {
       console.log("Game ended, resetting for room: " + room);
-      io.emit("game-ended", room);
+      eventBus.emit("game-ended", room);
+      io.serverSideEmit("server-side-emit-test", "31");
       return;
     }
     setTimeout(() => {

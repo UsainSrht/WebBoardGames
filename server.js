@@ -4,6 +4,8 @@ const path = require("path");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const EventEmitter = require('events');
+const eventBus = new EventEmitter();
 
 const gameDatas = {
   "rock-paper-scissors": { min: 2, max: 12, name: "Rock Paper Scissors" },
@@ -285,7 +287,7 @@ function startGame(room, game) {
   let gameScript;
   if (game === "rock-paper-scissors") {
     const rockPaperScissors = require('./games/rock-paper-scissors');
-    gameScript = rockPaperScissors(io, room, rooms[room], getDetailedPlayerMap(room));
+    gameScript = rockPaperScissors(io, eventBus, room, rooms[room], getDetailedPlayerMap(room));
   } else if (game === "dice") {
     //load dice
   } else {
@@ -293,9 +295,13 @@ function startGame(room, game) {
   }
 }
 
-io.on("game-ended", (room) => {
+eventBus.on("game-ended", (room) => {
   console.log(`Game ended in room ${room}`);
   endGame(room);
+});
+
+io.on("server-side-emit-test", (arg1) => {
+  console.log("Server-side emit test: " + arg1);
 });
 
 function endGame(room) {
