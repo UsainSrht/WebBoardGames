@@ -36,7 +36,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
   }
 
   function startGame() {
-    const countdownEndUnix = Date.now() + countdown * 1000;
+    const countdownEndUnix = Date.now() + (countdown * 1000);
     io.to(room).emit("rps-game-started", countdownEndUnix);
     io.to(room).emit("update-scoreboard", playerGameData);
 

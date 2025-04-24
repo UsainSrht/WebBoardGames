@@ -247,6 +247,10 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("ping", (callback) => {
+    callback();
+  });
+
 });
 
 function getName(userId) {
