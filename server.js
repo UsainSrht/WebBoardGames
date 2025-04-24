@@ -300,16 +300,13 @@ eventBus.on("game-ended", (room) => {
   endGame(room);
 });
 
-io.on("server-side-emit-test", (arg1) => {
-  console.log("Server-side emit test: " + arg1);
-});
-
 function endGame(room) {
   console.log(`Ending game in room ${room}`);
   rooms[room].started = false;
   rooms[room].game = null;
   rooms[room].playerReadyStates = [];
   io.to(room).emit("back-to-lobby");
+  //todo ready states - reset game html page completely when going back
   //rooms[room].players.forEach(userId => {
   //  io.to(room).emit("ready-state", userId, false);
   //});

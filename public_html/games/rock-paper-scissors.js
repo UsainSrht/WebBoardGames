@@ -29,14 +29,29 @@ function loadImages(callback) {
     });
 }
 
-socket.on("rps-game-started", (countdownEndUnix, players) => {
+socket.on("rps-game-started", (countdownEndUnix) => {
     const rpsPopup = document.getElementById("rps-popup");
+    //todo clear selection
     rpsPopup.classList.remove("hidden");
+
+    ["rock", "paper", "scissors"].forEach(element => {
+        const moveButton = document.getElementById(`rps-move-${element}`);
+        if (moveButton) {
+            moveButton.classList.remove("border-green-700");
+            moveButton.classList.add("border-gray-700");
+        }
+    });
 
     const remainingSeconds = Math.floor((countdownEndUnix-Date.now()) / 1000);
     document.getElementById("countdown-label").textContent = remainingSeconds;
     countDown(remainingSeconds);
+});
 
+socket.on("update-scoreboard", (players) => {
+    updateScoreboard(players);
+});
+
+function updateScoreboard(players) {
     const scoreboard = document.getElementById("scoreboard-players");
     scoreboard.innerHTML = ""; // Clear previous content
     for (const userId in players) {
@@ -51,7 +66,7 @@ socket.on("rps-game-started", (countdownEndUnix, players) => {
         `;
         scoreboard.appendChild(line);
     }
-});
+}
 
 function countDown(countdown) {
     console.log("Countdown:", countdown);

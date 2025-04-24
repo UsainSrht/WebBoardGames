@@ -37,7 +37,8 @@ module.exports = (io, eventBus, room, roomData, players) => {
 
   function startGame() {
     const countdownEndUnix = Date.now() + countdown * 1000;
-    io.to(room).emit("rps-game-started", countdownEndUnix, playerGameData);
+    io.to(room).emit("rps-game-started", countdownEndUnix);
+    io.to(room).emit("update-scoreboard", playerGameData);
 
     setTimeout(() => {
       countdownEnd();
@@ -53,14 +54,16 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
     io.to(room).emit("rps-game-ended", playerGameData);
     processMoves(playerGameData);
+    io.to(room).emit("update-scoreboard", playerGameData);
     round++;
     for (let userId in playerGameData) {
       playerGameData[userId].move = null;
     }
     if (round > maxRounds) {
       console.log("Game ended, resetting for room: " + room);
-      eventBus.emit("game-ended", room);
-      io.serverSideEmit("server-side-emit-test", "31");
+      setTimeout(() => {
+        eventBus.emit("game-ended", room);
+      }, waitBeforeNewGame * 1000);
       return;
     }
     setTimeout(() => {

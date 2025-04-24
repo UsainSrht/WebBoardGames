@@ -689,11 +689,28 @@
         function endGame() {
             const gameBoard = document.getElementById("game-board");
             gameBoard.innerHTML = ""; // Clear the game board
+
             const lobbyPopup = document.getElementById("lobby-popup");
             lobbyPopup.classList.remove("hidden");
+
             const gameScript = document.getElementById("game-script");
             if (gameScript) {
                 gameScript.remove(); // Remove the game script if it exists
+            }
+
+            showSelectedGame(null, 0, 0, null);
+
+            const readyButton = document.getElementById("ready-button");
+            readyButton.classList.remove("cursor-not-allowed");
+            readyButton.disabled = false;
+            readyButton.classList.add("animation-pulse", "wbg-not-ready");
+            readyButton.innerHTML = `<span class="text-white text-lg">Ready</span>`;
+
+            const playersDiv = document.getElementById("lobby-players");
+            for (let i = 0; i < playersDiv.children.length; i++) {
+                const playerDiv = playersDiv.children[i];
+                playerDiv.classList.remove("border-green-700");
+                playerDiv.classList.add("border-gray-700");
             }
         }
     </script>
