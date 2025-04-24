@@ -117,6 +117,7 @@ io.on("connection", (socket) => {
       console.log(`User ${name}(${socket.id}) joined room ${roomCode}`);
     } else {
       socket.emit("error", "Room not found");
+      socket.emit("return-to-main-page");
     }
   });
 

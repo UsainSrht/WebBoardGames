@@ -193,7 +193,7 @@
                 <div class="mb-4 text-sm font-light text-gray-400">
                     <h3 class="text-2xl font-bold text-center text-white mb-5">Do you want to leave?</h3>
                     <div id="leaveForm" class="flex items-center justify-between">
-                        <button onclick="closeLeaveRoomPopup()" class=" text-center text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
+                        <button id="leave-room-cancel" onclick="closeLeaveRoomPopup()" class=" text-center text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
                             </svg>
@@ -215,7 +215,7 @@
             <div class="relative p-4 rounded-lg shadow bg-gray-800 md:p-8">
                 <div class="mb-4 text-sm font-light text-gray-400">
                     <div id="kick-id" class="hidden"></div>
-                    <h3 class="text-2xl font-bold text-center text-white mb-5">Do you want to kick <h3 id="kick-name"></h3></h3>
+                    <h3 id="kick-name" class="text-2xl font-bold text-center text-white mb-5">Do you want to kick ?</h3>
                     <div id="kickForm" class="flex items-center justify-between">
                         <button onclick="closeKickPopup()" class=" text-center text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-4 py-2">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -258,7 +258,7 @@
                 joinRoom(roomCode);
             } else {
                 //redirect to home page
-                //window.location.href = "/index.html";
+                window.location.href = "/index.html";
             }
         }
 
@@ -287,6 +287,10 @@
                 joinRoom(room);
                 //socket.emit("request-room-data", room);
             }
+        });
+
+        socket.on("return-to-main-page", () => {
+            window.location.href = "/index.html";
         });
 
         let host;
@@ -665,7 +669,7 @@
             const kickPopup = document.getElementById("kick-popup");
             kickPopup.classList.remove("hidden");
             document.getElementById("kick-id").innerHTML = userId;
-            document.getElementById("kick-name").innerHTML = name;
+            document.getElementById("kick-name").innerHTML = `Do you want to kick ${name}?`;
         }
 
         function closeKickPopup() {
