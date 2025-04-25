@@ -6,6 +6,7 @@
     <title>Web Board Games</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
     <style>
         body {
             background-color: #344055;
@@ -748,12 +749,11 @@
             document.getElementById('game-board').innerHTML = html;
 
             // After injecting the HTML, load the script manually
-            /*const script = document.createElement('script');
+            const script = document.createElement('script');
             script.type = 'module';
             script.id = 'game-script';
             script.src = `/games/${game}.js`;
-            document.body.appendChild(script);*/
-            // test script with src in html
+            document.body.appendChild(script);
         }
     </script>
 </body>
