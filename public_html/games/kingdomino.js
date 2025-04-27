@@ -89,6 +89,10 @@ function create() {
     // Staging area for free tiles
     createFreeTiles(this, [31,69,52,96]);
 
+    socket.on("kingdomino-place-all-tiles", (tiles) => {
+        createTestTiles(this, tiles);
+    });
+
     // Input listeners
     this.input.on('gameobjectdown', (pointer, gameObject) => {
         if (this.freeTiles.contains(gameObject)) {
@@ -159,7 +163,7 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
     }
 }
 
-socket.on("kingdomino-place-all-tiles", (tiles) => {
+function createTestTiles(scene, tiles) {
     console.log("Kingdomino tiles received: ", tiles);
     let scene = game.scene.getScene('default');
     console.log("scene ", scene);
@@ -175,7 +179,7 @@ socket.on("kingdomino-place-all-tiles", (tiles) => {
         tile.add([rectangle, number, image]);
         scene.freeTiles.add(tile);
     }
-});
+}
 
 function createFreeTiles(scene, numbers) {
     // Create some example 1x2 tiles outside the grid
