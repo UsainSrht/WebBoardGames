@@ -161,7 +161,7 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
 
 socket.on("kingdomino-place-all-tiles", (tiles) => {
     console.log("Kingdomino tiles received: ", tiles);
-    let scene = this;
+    let scene = game.scene.getScene('default');
     console.log("scene ", scene);
     for (let i = 0; i < tiles.length; i++) {
         let tile = scene.add.container(50 + i*100, 50 + Math.floor(i,12)*100); 
