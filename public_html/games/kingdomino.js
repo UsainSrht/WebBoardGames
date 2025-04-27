@@ -150,7 +150,9 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
     const castle = scene.add.rectangle(castleX + tileSize/2, castleY + tileSize/2, tileSize, tileSize, 0x8888ff)
         .setStrokeStyle(2, 0xffffff)
         .setOrigin(0.5);
-    scene.add.image(castleX + tileSize/2, castleY + tileSize/2, 'castle').setOrigin(0.5);
+    scene.add.image(castleX + tileSize/2, castleY + tileSize/2, 'castle')
+        .setOrigin(0.5)
+        .setDisplaySize(tileSize, tileSize);
 
     if (placedGroup) {
         placedGroup.add(castle); // Treat the castle as a placed object
@@ -159,6 +161,8 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
 
 socket.on("kingdomino-place-all-tiles", (tiles) => {
     console.log("Kingdomino tiles received: ", tiles);
+    let scene = this;
+    console.log("scene ", scene);
     for (let i = 0; i < tiles.length; i++) {
         let tile = scene.add.container(50 + i*100, 50 + Math.floor(i,12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
