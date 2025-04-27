@@ -165,8 +165,6 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
 
 function createTestTiles(scene, tiles) {
     console.log("Kingdomino tiles received: ", tiles);
-    let scene = game.scene.getScene('default');
-    console.log("scene ", scene);
     for (let i = 0; i < tiles.length; i++) {
         let tile = scene.add.container(50 + i*100, 50 + Math.floor(i,12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
