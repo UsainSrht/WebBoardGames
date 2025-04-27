@@ -44,7 +44,7 @@ function preload() {
     this.load.image('28', './images/kingdomino/28.png');
     this.load.image('29', './images/kingdomino/29.png');
     this.load.image('30', './images/kingdomino/30.png');
-    this.load.image('31', './images/kingdomino/31.png');
+    this.load.image('31', './images/kingdomino/30.png');
     this.load.image('32', './images/kingdomino/32.png');
     this.load.image('36', './images/kingdomino/36.png');
     this.load.image('37', './images/kingdomino/37.png');
@@ -158,6 +158,7 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
 }
 
 socket.on("kingdomino-place-all-tiles", (tiles) => {
+    console.log("Kingdomino tiles received: ", tiles);
     for (let i = 0; i < tiles.length; i++) {
         let tile = scene.add.container(50 + i*100, 50 + Math.floor(i,12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
