@@ -295,6 +295,9 @@ function startGame(room, game) {
     gameScript = rockPaperScissors(io, eventBus, room, rooms[room], getDetailedPlayerMap(room));
   } else if (game === "dice") {
     //load dice
+  } else if (game === "kingdomino") {
+    const kingdomino = require('./games/kingdomino');
+    gameScript = kingdomino(io, eventBus, room, rooms[room], getDetailedPlayerMap(room));
   } else {
     console.log("Game not implemented yet!" + game);
   }

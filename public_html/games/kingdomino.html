@@ -32,8 +32,9 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
+    socket.emit("kingdomino-preload-start");
     
-    /*this.load.image('castle', './images/kingdomino/castle.png');
+    this.load.image('castle', './images/kingdomino/castle.png');
     this.load.image('background', './images/kingdomino/background.png');
 
     this.load.image('1', './images/kingdomino/1.png');
@@ -69,8 +70,9 @@ function preload() {
     this.load.image('44', './images/kingdomino/44.png');
     this.load.image('45', './images/kingdomino/45.png');
     this.load.image('46', './images/kingdomino/46.png');
-    this.load.image('48', './images/kingdomino/48.png');*/
+    this.load.image('48', './images/kingdomino/48.png');
 
+    socket.emit("kingdomino-preload-finish");
 }
 
 function update() {
@@ -78,6 +80,7 @@ function update() {
 }
 
 function create() {
+    socket.emit("kingdomino-create-start");
     this.add.rectangle(0, 0, config.width, config.height)
         .setOrigin(0)
         .setStrokeStyle(1, 0xffffff);
@@ -136,6 +139,8 @@ function create() {
             this.grabbedTile.angle += 90;
         }
     });
+
+    socket.emit("kingdomino-create-finish");
 }
 
 function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, placedGroup = null) {
@@ -164,6 +169,21 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
         placedGroup.add(castle); // Treat the castle as a placed object
     }
 }
+
+socket.on("kingdomino-place-all-tiles", (tiles) => {
+    for (let i = 0; i < tiles.length; i++) {
+        let tile = scene.add.container(50 + i*100, 50 + Math.floor(i,12)*100); 
+        let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
+            .setStrokeStyle(2, 0x000000)
+            .setInteractive();
+        let number = scene.add.text(0, 0, tiles[i].left.type + " " + i + " " + tiles[i].right.type, { fontSize: '32px', color: '#000000' }).setOrigin(0.5);
+        let image = scene.add.image(0, 0, tiles[i].asset).setOrigin(0.5);
+        tile.setData('number', i);
+        tile.setData('data', tiles[i]);
+        tile.add([rectangle, number, image]);
+        scene.freeTiles.add(tile);
+    }
+});
 
 function createFreeTiles(scene, numbers) {
     // Create some example 1x2 tiles outside the grid
