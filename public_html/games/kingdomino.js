@@ -36,7 +36,7 @@ function preload() {
     this.load.image('17', './images/kingdomino/17.png');
     this.load.image('18', './images/kingdomino/18.png');
     this.load.image('19', './images/kingdomino/19.png');
-    this.load.image('21', './images/kingdomino/20.png');
+    this.load.image('20', './images/kingdomino/20.png');
     this.load.image('21', './images/kingdomino/21.png');
     this.load.image('22', './images/kingdomino/22.png');
     this.load.image('23', './images/kingdomino/23.png');
@@ -86,10 +86,20 @@ function create() {
     drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
     drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
 
-    // Staging area for free tiles
-    createFreeTiles(this, [31,69,52,96]);
-
     socket.on("kingdomino-place-all-tiles", (tiles) => {
+        //dynamically load tiles
+        /*assets.forEach(asset => {
+        this.load.image(asset.key, asset.url);
+    });
+
+    this.load.once('complete', () => {
+        console.log('All assets loaded!');
+        assets.forEach(asset => {
+            this.add.image(Phaser.Math.Between(100, 700), Phaser.Math.Between(100, 500), asset.key);
+        });
+    });
+
+    this.load.start();*/ 
         createTestTiles(this, tiles);
     });
 
@@ -169,31 +179,18 @@ function createTestTiles(scene, tiles) {
     for (let i = 0; i < keys.length; i++) {
         let tileNumber = keys[i];
         console.log(i,"Tile number: ", tileNumber);
-        let tile = scene.add.container(50 + (i%12)*100, 50 + Math.floor(i/12)*100); 
+        let tile = scene.add.container(50 + (i%12)*105, 50 + Math.floor(i/12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
             .setStrokeStyle(2, 0x000000)
             .setInteractive();
-        let text = scene.add.text(0, 0, tiles[tileNumber].left.type + " " + i + " " + tiles[tileNumber].right.type, { fontSize: '24px', color: '#000000' }).setOrigin(0.5);
+        let text = scene.add.text(0, 0, tiles[tileNumber].left.type + " " + tileNumber + " " + tiles[tileNumber].right.type, { fontSize: '18px', color: '#000000' }).setOrigin(0.5);
         let image = scene.add.image(0, 0, tiles[tileNumber].asset)
             .setOrigin(0.5)
             .setDisplaySize(100, 50); // Adjust size to fit the rectangle
         tile.setData('number', tileNumber);
         tile.setData('data', tiles[tileNumber]);
         tile.add([rectangle, image, text]);
-        scene.add.existing(tile);
-    }
-}
-
-function createFreeTiles(scene, numbers) {
-    // Create some example 1x2 tiles outside the grid
-    for (let i = 0; i < numbers.length; i++) {
-        let tile = scene.add.container(100 + i * 120, config.height - 100); 
-        let rectangle = scene.add.rectangle(0,0, 100, 200, 0x00ff00) // 1x2 vertical
-            .setStrokeStyle(2, 0x000000)
-            .setInteractive();
-        let number = scene.add.text(0, 0, numbers[i], { fontSize: '32px', color: '#000000' }).setOrigin(0.5);
-        tile.setData('number', numbers[i]); // Store the number in the tile data
-        tile.add([rectangle, number]);
+        //scene.add.existing(tile);
         scene.freeTiles.add(tile);
     }
 }
