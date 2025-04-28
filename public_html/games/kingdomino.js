@@ -169,17 +169,17 @@ function createTestTiles(scene, tiles) {
     for (let i = 0; i < keys.length; i++) {
         let tileNumber = keys[i];
         console.log(i,"Tile number: ", tileNumber);
-        let tile = scene.add.container(50 + (i%12)*100, 50 + Math.floor(i,12)*100); 
+        let tile = scene.add.container(50 + (i%12)*100, 50 + Math.floor(i/12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
             .setStrokeStyle(2, 0x000000)
             .setInteractive();
-        let number = scene.add.text(0, 0, tiles[tileNumber].left.type + " " + i + " " + tiles[tileNumber].right.type, { fontSize: '32px', color: '#000000' }).setOrigin(0.5);
+        let text = scene.add.text(0, 0, tiles[tileNumber].left.type + " " + i + " " + tiles[tileNumber].right.type, { fontSize: '24px', color: '#000000' }).setOrigin(0.5);
         let image = scene.add.image(0, 0, tiles[tileNumber].asset)
             .setOrigin(0.5)
             .setDisplaySize(100, 50); // Adjust size to fit the rectangle
         tile.setData('number', tileNumber);
         tile.setData('data', tiles[tileNumber]);
-        tile.add([rectangle, number, image]);
+        tile.add([rectangle, image, text]);
         scene.add.existing(tile);
     }
 }
