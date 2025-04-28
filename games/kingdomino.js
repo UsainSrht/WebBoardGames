@@ -76,7 +76,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
 
     function startGame() {
-        io.to(room).emit("kingdomino-place-all-tiles", tiles);
+        io.to(room).emit("kingdomino-game-start", tiles);
     }
 
 };

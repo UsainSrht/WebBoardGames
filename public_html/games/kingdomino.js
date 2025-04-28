@@ -2,13 +2,13 @@
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
-    height: window.innerHeight,
+    height: window.innerHeight*0.95,
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
     transparent: true,
-    parent: 'game-container',
+    parent: 'game-board',
     scene: {
         preload: preload,
         create: create,
@@ -17,6 +17,23 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+
+const onChangeScreen = () => {
+    game.scale.resize(window.innerWidth, window.innerHeight);
+    if (game.scene.scenes.length > 0) {
+        let currentScene = game.scene.scenes[0];
+        //currentScene.resize();
+    }
+}
+
+const _orientation = screen.orientation || screen.mozOrientation || screen.msOrientation;
+_orientation.addEventListener('change', () => {
+    onChangeScreen();
+});
+
+window.addEventListener('resize', () => {
+    onChangeScreen();
+});
 
 function preload() {
     socket.emit("kingdomino-preload-start");
@@ -68,6 +85,18 @@ function update() {
 
 function create() {
     socket.emit("kingdomino-create-start");
+
+    const gameBoard = document.getElementById('game-board');
+
+    const loadingLabel = document.createElement("div");
+    loadingLabel.id = "loading-label";
+    loadingLabel.className = "flex items-center justify-center h-screen w-screen bg-gray-800 bg-opacity-50 fixed top-0 left-0 z-50";
+    loadingLabel.innerHTML = `<svg aria-hidden="true" class="w-8 h-8 text-gray-600 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
+                                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
+                                </svg>`;
+    gameBoard.appendChild(loadingLabel);
+
     this.add.rectangle(0, 0, config.width, config.height)
         .setOrigin(0)
         .setStrokeStyle(1, 0xffffff);
@@ -86,28 +115,27 @@ function create() {
     drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
     drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
 
-    socket.on("kingdomino-place-all-tiles", (tiles) => {
-        //dynamically load tiles
-        /*assets.forEach(asset => {
-        this.load.image(asset.key, asset.url);
-    });
-
-    this.load.once('complete', () => {
-        console.log('All assets loaded!');
-        assets.forEach(asset => {
-            this.add.image(Phaser.Math.Between(100, 700), Phaser.Math.Between(100, 500), asset.key);
-        });
-    });
-
-    this.load.start();*/ 
+    socket.on("kingdomino-game-start", (tiles) => {
+        gameBoard.removeChild(loadingLabel);
         createTestTiles(this, tiles);
     });
 
     // Input listeners
-    this.input.on('gameobjectdown', (pointer, gameObject) => {
-        if (this.freeTiles.contains(gameObject)) {
-            console.log('Picked up free tile');
-            this.grabbedTile = gameObject;
+    this.input.on('pointerdown', (pointer) => {
+        if (pointer.rightButtonDown()) {
+            if (this.grabbedTile) {
+                this.grabbedTile.angle += 90;
+            }
+        } else {
+            if (!this.grabbedTile) {
+                // Try to pick up a free tile
+                const tile = pointer.manager.hitTest(pointer)[0];
+                if (tile && this.freeTiles.contains(tile)) {
+                    console.log('Picked up free tile');
+                    this.grabbedTile = tile;
+                    this.children.bringToTop(tile);
+                }
+            }
         }
     });
 
@@ -120,24 +148,16 @@ function create() {
 
     this.input.on('pointerup', (pointer) => {
         if (this.grabbedTile) {
-            // Check if inside player's grid
             if (isInsideGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100)) {
                 console.log('Placed tile into grid');
                 this.grabbedTile.disableInteractive(); // Lock it
                 this.freeTiles.remove(this.grabbedTile);
                 this.placedTiles.add(this.grabbedTile);
 
-                // Snap to nearest grid square
+                // Snap
                 snapTileToGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100);
             }
             this.grabbedTile = null;
-        }
-    });
-
-    // Rotate grabbed tile on right click
-    this.input.on('pointerdown', (pointer) => {
-        if (pointer.rightButtonDown() && this.grabbedTile) {
-            this.grabbedTile.angle += 90;
         }
     });
 
@@ -175,15 +195,13 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
 
 function createTestTiles(scene, tiles) {
     let keys = Object.keys(tiles);
-    console.log(keys.length, "Kingdomino tiles received: ", tiles);
     for (let i = 0; i < keys.length; i++) {
         let tileNumber = keys[i];
-        console.log(i,"Tile number: ", tileNumber);
         let tile = scene.add.container(50 + (i%12)*105, 50 + Math.floor(i/12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
             .setStrokeStyle(2, 0x000000)
             .setInteractive();
-        let text = scene.add.text(0, 0, tiles[tileNumber].left.type + " " + tileNumber + " " + tiles[tileNumber].right.type, { fontSize: '18px', color: '#000000' }).setOrigin(0.5);
+        let text = scene.add.text(0, 0, tileNumber, { fontSize: '18px', color: '#000000' }).setOrigin(0.5);
         let image = scene.add.image(0, 0, tiles[tileNumber].asset)
             .setOrigin(0.5)
             .setDisplaySize(100, 50); // Adjust size to fit the rectangle
