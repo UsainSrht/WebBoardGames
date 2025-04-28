@@ -128,12 +128,15 @@ function create() {
             }
         } else {
             if (!this.grabbedTile) {
-                // Try to pick up a free tile
-                const tile = pointer.manager.hitTest(pointer)[0];
-                if (tile && this.freeTiles.contains(tile)) {
-                    console.log('Picked up free tile');
-                    this.grabbedTile = tile;
-                    this.children.bringToTop(tile);
+                const tiles = this.freeTiles.getChildren();
+                for (let i = tiles.length - 1; i >= 0; i--) { // Topmost first
+                    const tile = tiles[i];
+                    if (tile.getBounds().contains(pointer.x, pointer.y)) {
+                        console.log('Picked up free tile');
+                        this.grabbedTile = tile;
+                        this.children.bringToTop(tile);
+                        break;
+                    }
                 }
             }
         }
