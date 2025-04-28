@@ -164,10 +164,11 @@ function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, p
 }
 
 function createTestTiles(scene, tiles) {
-    console.log("Kingdomino tiles received: ", tiles);
+    console.log(tiles.length, "Kingdomino tiles received: ", tiles);
     let keys = Object.keys(tiles);
     for (let i = 0; i < tiles.length; i++) {
         let tileNumber = keys[i];
+        console.log(i,"Tile number: ", tileNumber);
         let tile = scene.add.container(50 + i*100, 50 + Math.floor(i,12)*100); 
         let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
             .setStrokeStyle(2, 0x000000)
@@ -177,7 +178,7 @@ function createTestTiles(scene, tiles) {
         tile.setData('number', tileNumber);
         tile.setData('data', tiles[tileNumber]);
         tile.add([rectangle, number, image]);
-        scene.add(tile);
+        scene.add.existing(tile);
     }
 }
 
