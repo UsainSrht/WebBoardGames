@@ -151,14 +151,18 @@ function create() {
 
     this.input.on('pointerup', (pointer) => {
         if (this.grabbedTile) {
-            if (isInsideGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100)) {
+            if (isInsideGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100) &&
+                canPlaceTile(this.grabbedTile, this.placedTiles, config.width/2, config.height-300, 5, 100)) {
+                
                 console.log('Placed tile into grid');
                 this.grabbedTile.disableInteractive(); // Lock it
                 this.freeTiles.remove(this.grabbedTile);
                 this.placedTiles.add(this.grabbedTile);
-
+    
                 // Snap
                 snapTileToGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100);
+            } else {
+                console.log('Invalid placement');
             }
             this.grabbedTile = null;
         }
@@ -225,17 +229,59 @@ function isInsideGrid(tile, centerX, centerY, gridSize, tileSize) {
     return (tile.x > gridStartX && tile.x < gridEndX && tile.y > gridStartY && tile.y < gridEndY);
 }
 
+function canPlaceTile(tile, placedTiles, centerX, centerY, gridSize, tileSize) {
+    const gridStartX = centerX - (gridSize * tileSize) / 2;
+    const gridStartY = centerY - (gridSize * tileSize) / 2;
+
+    let localX = tile.x - gridStartX;
+    let localY = tile.y - gridStartY;
+
+    let col = Math.floor(localX / tileSize);
+    let row = Math.floor(localY / tileSize);
+
+    let occupiedCells = [];
+
+    // Figure out which two grid cells the tile occupies
+    if (tile.angle % 180 === 0) {
+        // Horizontal (normal or upside down)
+        occupiedCells.push({ row: row, col: col });
+        occupiedCells.push({ row: row, col: col + 1 });
+    } else {
+        // Vertical
+        occupiedCells.push({ row: row, col: col });
+        occupiedCells.push({ row: row + 1, col: col });
+    }
+
+    // Check bounds
+    for (let cell of occupiedCells) {
+        if (cell.row < 0 || cell.row >= gridSize || cell.col < 0 || cell.col >= gridSize) {
+            return false; // Out of grid
+        }
+    }
+
+    // Check collisions
+    for (let placed of placedTiles.getChildren()) {
+        if (Phaser.Geom.Intersects.RectangleToRectangle(tile.getBounds(), placed.getBounds())) {
+            return false; // Overlaps
+        }
+    }
+
+    return true;
+}
+
 function snapTileToGrid(tile, centerX, centerY, gridSize, tileSize) {
     const gridStartX = centerX - (gridSize * tileSize) / 2;
     const gridStartY = centerY - (gridSize * tileSize) / 2;
 
-    const localX = tile.x - gridStartX;
-    const localY = tile.y - gridStartY;
+    let localX = tile.x - gridStartX;
+    let localY = tile.y - gridStartY;
 
-    const snappedX = Math.floor(localX / tileSize) * tileSize + tileSize/2 + gridStartX;
-    const snappedY = Math.floor(localY / tileSize) * tileSize + tileSize/2 + gridStartY;
+    // Find top-left corner of where tile should snap
+    let col = Math.floor(localX / tileSize);
+    let row = Math.floor(localY / tileSize);
 
-    tile.x = snappedX;
-    tile.y = snappedY;
+    // Snap center to top-left cell
+    tile.x = gridStartX + col * tileSize + tileSize / 2;
+    tile.y = gridStartY + row * tileSize + tileSize / 2;
 }
 
