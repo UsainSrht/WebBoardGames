@@ -186,7 +186,7 @@ io.on("connection", (socket) => {
         }
     }
     setTimeout(() => {
-      if (players[userId].socketId) return; // still connected
+      if ("socketId" in players[userId] && players[userId].socketId) return; // still connected
       else {
         delete players[userId]; // delete player if not connected
       }
