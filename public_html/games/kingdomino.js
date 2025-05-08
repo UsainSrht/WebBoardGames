@@ -1,41 +1,3 @@
-
-const config = {
-    type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight*0.95,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    },
-    transparent: true,
-    parent: 'game-board',
-    scene: KingdominoScene
-};
-
-const game = new Phaser.Game(config);
-
-const onChangeScreen = () => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    game.scale.resize(width, height);
-
-    game.scene.scenes.forEach(scene => {
-        if (scene.scene.isActive() && scene.resize) {
-            scene.resize(width, height);
-        }
-    });
-};
-
-const _orientation = screen.orientation || screen.mozOrientation || screen.msOrientation;
-_orientation.addEventListener('change', () => {
-    onChangeScreen();
-});
-
-window.addEventListener('resize', () => {
-    onChangeScreen();
-});
-
 class KingdominoScene extends Phaser.Scene {
     constructor() {
         super({ key: 'KingdominoScene' });
@@ -361,3 +323,40 @@ class KingdominoScene extends Phaser.Scene {
     }
     
 }
+
+const config = {
+    type: Phaser.AUTO,
+    width: window.innerWidth,
+    height: window.innerHeight*0.95,
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    transparent: true,
+    parent: 'game-board',
+    scene: KingdominoScene
+};
+
+const game = new Phaser.Game(config);
+
+const onChangeScreen = () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    game.scale.resize(width, height);
+
+    game.scene.scenes.forEach(scene => {
+        if (scene.scene.isActive() && scene.resize) {
+            scene.resize(width, height);
+        }
+    });
+};
+
+const _orientation = screen.orientation || screen.mozOrientation || screen.msOrientation;
+_orientation.addEventListener('change', () => {
+    onChangeScreen();
+});
+
+window.addEventListener('resize', () => {
+    onChangeScreen();
+});
