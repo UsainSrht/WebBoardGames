@@ -248,16 +248,16 @@ class KingdominoScene extends Phaser.Scene {
         this.placedTiles = this.add.group();  // tiles locked on the grid
     
         // Player grid
-        this.mainGrid = drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
+        this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
     
         // Other players (no interactivity needed)
-        this.secondGrid = drawPlayerGrid(this, config.width/2, 110, 'Player 2', 5, 30);
-        this.thirdGrid = drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
-        this.fourthGrid = drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
+        this.secondGrid = this.drawPlayerGrid(this, config.width/2, 110, 'Player 2', 5, 30);
+        this.thirdGrid = this.drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
+        this.fourthGrid = this.drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
     
         socket.on("kingdomino-game-start", (tiles) => {
             gameBoard.removeChild(loadingLabel);
-            createTestTiles(this, tiles);
+            this.createTestTiles(this, tiles);
         });
     
         // Input listeners
@@ -297,15 +297,15 @@ class KingdominoScene extends Phaser.Scene {
                 const centerY = this.scale.height - this.scale.height / 4;
         
                 if (
-                    isInsideGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize) &&
-                    canPlaceTile(this.grabbedTile, this.placedTiles, centerX, centerY, gridSize, tileSize)
+                    this.isInsideGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize) &&
+                    this.canPlaceTile(this.grabbedTile, this.placedTiles, centerX, centerY, gridSize, tileSize)
                 ) {
                     console.log('Placed tile into grid');
                     this.grabbedTile.disableInteractive(); // Lock it
                     this.freeTiles.remove(this.grabbedTile);
                     this.placedTiles.add(this.grabbedTile);
         
-                    snapTileToGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize);
+                    this.snapTileToGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize);
                 }
                 this.grabbedTile = null;
             }
