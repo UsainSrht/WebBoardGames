@@ -12,7 +12,8 @@ const config = {
     scene: {
         preload: preload,
         create: create,
-        update: update
+        update: update,
+        resize: resize
     }
 };
 
@@ -23,7 +24,7 @@ const onChangeScreen = () => {
     game.scale.resize(window.innerWidth, window.innerHeight);
     if (game.scene.scenes.length > 0) {
         let currentScene = game.scene.scenes[0];
-        //currentScene.resize();
+        currentScene.resize();
     }
 }
 
@@ -157,7 +158,10 @@ function create() {
 
     this.input.on('pointerup', (pointer) => {
         if (this.grabbedTile) {
-            if (isInsideGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100) &&
+            const centerX = this.scale.width / 2;
+            const centerY = this.scale.height - this.scale.height / 4; // or however you position the grid
+            const tileSize = this.scale.width / 10; // dynamically calculated tile size
+            if (isInsideGrid(this.grabbedTile, centerX, centerY, 5, tileSize) &&
                 canPlaceTile(this.grabbedTile, this.placedTiles, config.width/2, config.height-300, 5, 100)) {
                 
                 console.log('Placed tile into grid');
@@ -168,7 +172,7 @@ function create() {
                 // Snap
                 snapTileToGrid(this.grabbedTile, config.width/2, config.height-300, 5, 100);
             } else {
-                console.log('Invalid placement');
+                //console.log('Invalid placement');
             }
             this.grabbedTile = null;
         }
@@ -345,12 +349,9 @@ function snapTileToGrid(tile, centerX, centerY, gridSize, tileSize) {
     let localX = tile.x - gridStartX;
     let localY = tile.y - gridStartY;
 
-    // Find top-left corner of where tile should snap
     let col = Math.floor(localX / tileSize);
     let row = Math.floor(localY / tileSize);
 
-    // Snap center to top-left cell
     tile.x = gridStartX + col * tileSize + tileSize / 2;
     tile.y = gridStartY + row * tileSize + tileSize / 2;
 }
-
