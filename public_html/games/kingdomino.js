@@ -98,9 +98,14 @@ function create() {
                                 </svg>`;
     gameBoard.appendChild(loadingLabel);
 
-    this.add.rectangle(0, 0, config.width, config.height)
-        .setOrigin(0)
-        .setStrokeStyle(1, 0xffffff);
+    this.backgroundRect = this.add.rectangle(
+        0,
+        0,
+        this.scale.width,
+        this.scale.height
+    )
+    .setOrigin(0)
+    .setStrokeStyle(1, 0xffffff);
 
     this.add.text(5, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
 
@@ -109,12 +114,12 @@ function create() {
     this.placedTiles = this.add.group();  // tiles locked on the grid
 
     // Player grid
-    drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
+    this.mainGrid = drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
 
     // Other players (no interactivity needed)
-    drawPlayerGrid(this, config.width/2, 110, 'Player 2', 5, 30);
-    drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
-    drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
+    this.secondGrid = drawPlayerGrid(this, config.width/2, 110, 'Player 2', 5, 30);
+    this.thirdGrid = drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
+    this.fourthGrid = drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
 
     socket.on("kingdomino-game-start", (tiles) => {
         gameBoard.removeChild(loadingLabel);
@@ -172,33 +177,96 @@ function create() {
     socket.emit("kingdomino-create-finish");
 }
 
-function drawPlayerGrid(scene, startX, startY, playerName, gridSize, tileSize, placedGroup = null) {
-    startX -= (gridSize * tileSize) / 2;
-    startY -= (gridSize * tileSize) / 2;
-    const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff } });
+function resize(width, height) {
+    this.backgroundRect.setSize(width, height);
+    this.mainGrid.setSize(width, height);
+    this.secondGrid.setSize(width, height);
+    this.thirdGrid.setSize(width, height);
+    this.fourthGrid.setSize(width, height);
+}
 
+function drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, placedGroup = null) {
+    const container = scene.add.container(); // Acts like a group
+    const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff } });
+    container.add(graphics);
+
+    const gridWidth = gridSize * tileSize;
+    const gridHeight = gridSize * tileSize;
+    const startX = centerX - gridWidth / 2;
+    const startY = centerY - gridHeight / 2;
+
+    // Grid lines
     for (let row = 0; row <= gridSize; row++) {
-        graphics.lineBetween(startX, startY + row * tileSize, startX + gridSize * tileSize, startY + row * tileSize);
+        graphics.lineBetween(startX, startY + row * tileSize, startX + gridWidth, startY + row * tileSize);
     }
     for (let col = 0; col <= gridSize; col++) {
-        graphics.lineBetween(startX + col * tileSize, startY, startX + col * tileSize, startY + gridSize * tileSize);
+        graphics.lineBetween(startX + col * tileSize, startY, startX + col * tileSize, startY + gridHeight);
     }
 
-    scene.add.text(startX + (gridSize * tileSize) / 2, startY - 20, playerName, { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
+    // Player name
+    const nameText = scene.add.text(centerX, startY - 20, playerName, { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
+    container.add(nameText);
 
-    // Castle (locked 1x1 tile)
-    const castleX = startX + 2 * tileSize;
-    const castleY = startY + 2 * tileSize;
-    const castle = scene.add.rectangle(castleX + tileSize/2, castleY + tileSize/2, tileSize, tileSize, 0x8888ff)
+    // Castle
+    const castleX = startX + 2 * tileSize + tileSize / 2;
+    const castleY = startY + 2 * tileSize + tileSize / 2;
+
+    const castleTile = scene.add.rectangle(castleX, castleY, tileSize, tileSize, 0x8888ff)
         .setStrokeStyle(2, 0xffffff)
         .setOrigin(0.5);
-    scene.add.image(castleX + tileSize/2, castleY + tileSize/2, 'castle')
+    const castleImage = scene.add.image(castleX, castleY, 'castle')
         .setOrigin(0.5)
         .setDisplaySize(tileSize, tileSize);
 
+    container.add([castleTile, castleImage]);
+
     if (placedGroup) {
-        placedGroup.add(castle); // Treat the castle as a placed object
+        placedGroup.add(castleTile);
     }
+
+    return {
+        container,
+        graphics,
+        nameText,
+        castleTile,
+        castleImage,
+        gridSize,
+        centerX,
+        centerY,
+        playerName
+    };
+}
+
+function resizePlayerGrid(gridObject, newTileSize) {
+    const {
+        graphics, nameText, castleTile, castleImage, gridSize, centerX, centerY
+    } = gridObject;
+
+    graphics.clear();
+    graphics.lineStyle(1, 0xffffff);
+
+    const gridWidth = gridSize * newTileSize;
+    const gridHeight = gridSize * newTileSize;
+    const startX = centerX - gridWidth / 2;
+    const startY = centerY - gridHeight / 2;
+
+    // Redraw grid
+    for (let row = 0; row <= gridSize; row++) {
+        graphics.lineBetween(startX, startY + row * newTileSize, startX + gridWidth, startY + row * newTileSize);
+    }
+    for (let col = 0; col <= gridSize; col++) {
+        graphics.lineBetween(startX + col * newTileSize, startY, startX + col * newTileSize, startY + gridHeight);
+    }
+
+    // Update name
+    nameText.setPosition(centerX, startY - 20);
+
+    // Update castle
+    const castleX = startX + 2 * newTileSize + newTileSize / 2;
+    const castleY = startY + 2 * newTileSize + newTileSize / 2;
+
+    castleTile.setPosition(castleX, castleY).setSize(newTileSize, newTileSize);
+    castleImage.setPosition(castleX, castleY).setDisplaySize(newTileSize, newTileSize);
 }
 
 function createTestTiles(scene, tiles) {
@@ -211,8 +279,8 @@ function createTestTiles(scene, tiles) {
             .setInteractive();
         let text = scene.add.text(0, 0, tileNumber, { fontSize: '18px', color: '#000000' }).setOrigin(0.5);
         let image = scene.add.image(0, 0, tiles[tileNumber].asset)
-            .setOrigin(0.5)
-            .setScale(200 / originalWidth, 100 / originalHeight);
+            .setOrigin(0.5);
+        image.setScale(200 / image.width, 100 / image.height);
         tile.setData('number', tileNumber);
         tile.setData('data', tiles[tileNumber]);
         tile.add([rectangle, image, text]);
