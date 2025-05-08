@@ -10,7 +10,7 @@ const eventBus = new EventEmitter();
 const gameDatas = {
   "rock-paper-scissors": { min: 2, max: 12, name: "Rock Paper Scissors" },
   "dice": { min: 2, max: 12, name: "Dice" },
-  "kingdomino": { min: 2, max: 4, name: "Kingdomino" },
+  "kingdomino": { min: 1, max: 4, name: "Kingdomino" },
   "uno": { min: 2, max: 10, name: "Uno" }
 };
 

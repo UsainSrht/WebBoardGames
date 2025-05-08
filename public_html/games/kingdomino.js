@@ -19,6 +19,7 @@ const config = {
 const game = new Phaser.Game(config);
 
 const onChangeScreen = () => {
+    console.log("Resizing game to " + window.innerWidth + "x" + window.innerHeight);
     game.scale.resize(window.innerWidth, window.innerHeight);
     if (game.scene.scenes.length > 0) {
         let currentScene = game.scene.scenes[0];
@@ -204,14 +205,14 @@ function createTestTiles(scene, tiles) {
     let keys = Object.keys(tiles);
     for (let i = 0; i < keys.length; i++) {
         let tileNumber = keys[i];
-        let tile = scene.add.container(50 + (i%12)*105, 50 + Math.floor(i/12)*100); 
-        let rectangle = scene.add.rectangle(0,0, 100, 50, 0x00ff00) // 1x2 vertical
+        let tile = scene.add.container(50 + (i%12)*205, 50 + Math.floor(i/12)*105); 
+        let rectangle = scene.add.rectangle(0,0, 200, 100, 0x00ff00) // 1x2 vertical
             .setStrokeStyle(2, 0x000000)
             .setInteractive();
         let text = scene.add.text(0, 0, tileNumber, { fontSize: '18px', color: '#000000' }).setOrigin(0.5);
         let image = scene.add.image(0, 0, tiles[tileNumber].asset)
             .setOrigin(0.5)
-            .setDisplaySize(100, 50); // Adjust size to fit the rectangle
+            .setScale(200 / originalWidth, 100 / originalHeight);
         tile.setData('number', tileNumber);
         tile.setData('data', tiles[tileNumber]);
         tile.add([rectangle, image, text]);
