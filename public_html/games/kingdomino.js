@@ -203,15 +203,20 @@ class KingdominoScene extends Phaser.Scene {
     snapTileToGrid(tile, centerX, centerY, gridSize, tileSize) {
         const gridStartX = centerX - (gridSize * tileSize) / 2;
         const gridStartY = centerY - (gridSize * tileSize) / 2;
-    
+
         let localX = tile.x - gridStartX;
         let localY = tile.y - gridStartY;
-    
+
         let col = Math.floor(localX / tileSize);
         let row = Math.floor(localY / tileSize);
-    
-        tile.x = gridStartX + col * tileSize; // <- align by top-left
-        tile.y = gridStartY + row * tileSize;
+
+        // calculate the world‐space position of the cell's top‐left
+        const cellX = gridStartX + col * tileSize;
+        const cellY = gridStartY + row * tileSize;
+
+        // now offset by half the tile's display size (so its center lines up)
+        tile.x = cellX + tile.displayWidth  / 2;
+        tile.y = cellY + tile.displayHeight / 2;
     }
     
     update() {
