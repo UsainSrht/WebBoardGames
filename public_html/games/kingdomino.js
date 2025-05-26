@@ -218,6 +218,34 @@ class KingdominoScene extends Phaser.Scene {
         tile.x = cellX + tile.displayWidth  / 2;
         tile.y = cellY + tile.displayHeight / 2;
     }
+
+    updatePreview(pointer) {
+        if (!this.grabbedTile) {
+            this.previewHighlight.setVisible(false);
+            return;
+        }
+
+        const gridSize = this.mainGrid.gridSize;
+        const tileSize = 100;
+        const centerX = this.mainGrid.centerX;
+        const centerY = this.mainGrid.centerY;
+
+        const tempTile = this.grabbedTile;
+        tempTile.x = pointer.x;
+        tempTile.y = pointer.y;
+
+        const valid = this.canPlaceTile(tempTile, this.placedTiles, centerX, centerY, gridSize, tileSize);
+
+        if (this.isInsideGrid(tempTile, centerX, centerY, gridSize, tileSize)) {
+            this.snapTileToGrid(this.previewHighlight, centerX, centerY, gridSize, tileSize);
+            this.previewHighlight.setVisible(true);
+            this.previewHighlight.setFillStyle(valid ? 0x00ff00 : 0xff0000, 0.3);
+            this.previewHighlight.setSize(tempTile.displayWidth, tempTile.displayHeight);
+            this.previewHighlight.setAngle(tempTile.angle);
+        } else {
+            this.previewHighlight.setVisible(false);
+        }
+    }
     
     update() {
         // game loop
@@ -254,6 +282,9 @@ class KingdominoScene extends Phaser.Scene {
     
         // Player grid
         this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
+
+
+        this.previewHighlight = this.add.rectangle(0, 0, 200, 100, 0x00ff00, 0.3).setVisible(false).setDepth(0);
     
         // Other players (no interactivity needed)
         this.secondGrid = this.drawPlayerGrid(this, config.width/2, 110, 'Player 2', 5, 30);
@@ -279,6 +310,8 @@ class KingdominoScene extends Phaser.Scene {
                         if (tile.getBounds().contains(pointer.x, pointer.y)) {
                             console.log('Picked up free tile');
                             this.grabbedTile = tile;
+                            this.grabbedTile.setData('startX', this.grabbedTile.x);
+                            this.grabbedTile.setData('startY', this.grabbedTile.y);
                             this.children.bringToTop(tile);
                             break;
                         }
@@ -291,6 +324,7 @@ class KingdominoScene extends Phaser.Scene {
             if (this.grabbedTile) {
                 this.grabbedTile.x = pointer.x;
                 this.grabbedTile.y = pointer.y;
+                this.updatePreview(pointer);
             }
         });
     
@@ -311,11 +345,15 @@ class KingdominoScene extends Phaser.Scene {
                     this.placedTiles.add(this.grabbedTile);
         
                     this.snapTileToGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize);
+                } else {
+                    // Snap back to original place if invalid
+                    this.grabbedTile.x = this.grabbedTile.input.dragStartX;
+                    this.grabbedTile.y = this.grabbedTile.input.dragStartY;
                 }
                 this.grabbedTile = null;
             }
         });
-    
+
         socket.emit("kingdomino-create-finish");
     }
     
