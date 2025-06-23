@@ -1,3 +1,5 @@
+import TilePlacementSystem from './kingdomino/tile_system.js';
+
 class KingdominoScene extends Phaser.Scene {
     constructor() {
         super({ key: 'KingdominoScene' });
@@ -111,6 +113,7 @@ class KingdominoScene extends Phaser.Scene {
     }
     
     resizePlayerGrid(gridObject, newTileSize) {
+        console.log("Resizing player grid to new tile size:", newTileSize);
         const {
             graphics, nameText, castleTile, castleImage, gridSize, centerX, centerY
         } = gridObject;
@@ -159,102 +162,6 @@ class KingdominoScene extends Phaser.Scene {
             tile.add([rectangle, image, text]);
             //scene.add.existing(tile);
             scene.freeTiles.add(tile);
-        }
-    }
-    
-    isInsideGrid(tile, centerX, centerY, gridSize, tileSize) {
-        const gridStartX = centerX - (gridSize * tileSize) / 2;
-        const gridStartY = centerY - (gridSize * tileSize) / 2;
-        const gridEndX = gridStartX + gridSize * tileSize;
-        const gridEndY = gridStartY + gridSize * tileSize;
-    
-        return (tile.x > gridStartX && tile.x < gridEndX && tile.y > gridStartY && tile.y < gridEndY);
-    }
-    
-    canPlaceTile(tile, placedTiles, centerX, centerY, gridSize, tileSize) {
-        const gridStartX = centerX - (gridSize * tileSize) / 2;
-        const gridStartY = centerY - (gridSize * tileSize) / 2;
-    
-        let localX = tile.x - gridStartX;
-        let localY = tile.y - gridStartY;
-    
-        let col = Math.floor(localX / tileSize);
-        let row = Math.floor(localY / tileSize);
-    
-        let occupiedCells = [];
-    
-        // Figure out which two grid cells the tile occupies
-        if (tile.angle % 180 === 0) {
-            // Horizontal (normal or upside down)
-            occupiedCells.push({ row: row, col: col });
-            occupiedCells.push({ row: row, col: col + 1 });
-        } else {
-            // Vertical
-            occupiedCells.push({ row: row, col: col });
-            occupiedCells.push({ row: row + 1, col: col });
-        }
-    
-        // Check bounds
-        for (let cell of occupiedCells) {
-            if (cell.row < 0 || cell.row >= gridSize || cell.col < 0 || cell.col >= gridSize) {
-                return false; // Out of grid
-            }
-        }
-    
-        // Check collisions
-        for (let placed of placedTiles.getChildren()) {
-            if (Phaser.Geom.Intersects.RectangleToRectangle(tile.getBounds(), placed.getBounds())) {
-                return false; // Overlaps
-            }
-        }
-    
-        return true;
-    }
-    
-    snapTileToGrid(tile, centerX, centerY, gridSize, tileSize) {
-        const gridStartX = centerX - (gridSize * tileSize) / 2;
-        const gridStartY = centerY - (gridSize * tileSize) / 2;
-
-        let localX = tile.x - gridStartX;
-        let localY = tile.y - gridStartY;
-
-        let col = Math.floor(localX / tileSize);
-        let row = Math.floor(localY / tileSize);
-
-        // calculate the world‐space position of the cell's top‐left
-        const cellX = gridStartX + col * tileSize;
-        const cellY = gridStartY + row * tileSize;
-
-        // now offset by half the tile's display size (so its center lines up)
-        tile.x = cellX + tile.displayWidth  / 2;
-        tile.y = cellY + tile.displayHeight / 2;
-    }
-
-    updatePreview(pointer) {
-        if (!this.grabbedTile) {
-            this.previewHighlight.setVisible(false);
-            return;
-        }
-
-        const gridSize = this.mainGrid.gridSize;
-        const tileSize = 100;
-        const centerX = this.mainGrid.centerX;
-        const centerY = this.mainGrid.centerY;
-
-        const tempTile = this.grabbedTile;
-        tempTile.x = pointer.x;
-        tempTile.y = pointer.y;
-
-        const valid = this.canPlaceTile(tempTile, this.placedTiles, centerX, centerY, gridSize, tileSize);
-
-        if (this.isInsideGrid(tempTile, centerX, centerY, gridSize, tileSize)) {
-            this.snapTileToGrid(this.previewHighlight, centerX, centerY, gridSize, tileSize);
-            this.previewHighlight.setVisible(true);
-            this.previewHighlight.setFillStyle(valid ? 0x00ff00 : 0xff0000, 0.3);
-            this.previewHighlight.setSize(tempTile.displayWidth, tempTile.displayHeight);
-            this.previewHighlight.setAngle(tempTile.angle);
-        } else {
-            this.previewHighlight.setVisible(false);
         }
     }
     

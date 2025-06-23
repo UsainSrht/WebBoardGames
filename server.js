@@ -296,7 +296,7 @@ function startGame(room, game) {
   } else if (game === "dice") {
     //load dice
   } else if (game === "kingdomino") {
-    const kingdomino = require('./games/kingdomino');
+    const kingdomino = require('./games/kingdomino/kingdomino.js');
     gameScript = kingdomino(io, eventBus, room, rooms[room], getDetailedPlayerMap(room));
   } else {
     console.log("Game not implemented yet!" + game);
