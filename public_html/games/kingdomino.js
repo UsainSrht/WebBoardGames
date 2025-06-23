@@ -187,13 +187,10 @@ class KingdominoScene extends Phaser.Scene {
     
         this.add.text(5, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
     
-        // Create groups
-        this.freeTiles = this.add.group();    // tiles you can pick
         this.placedTiles = this.add.group();  // tiles locked on the grid
     
         // Player grid
         this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
-
 
         this.previewHighlight = this.add.rectangle(0, 0, 200, 100, 0x00ff00, 0.3).setVisible(false).setDepth(0);
     
@@ -207,63 +204,7 @@ class KingdominoScene extends Phaser.Scene {
             this.createTestTiles(this, tiles);
         });
     
-        // Input listeners
-        this.input.on('pointerdown', (pointer) => {
-            if (pointer.rightButtonDown()) {
-                if (this.grabbedTile) {
-                    this.grabbedTile.angle += 90;
-                }
-            } else {
-                if (!this.grabbedTile) {
-                    const tiles = this.freeTiles.getChildren();
-                    for (let i = tiles.length - 1; i >= 0; i--) { // Topmost first
-                        const tile = tiles[i];
-                        if (tile.getBounds().contains(pointer.x, pointer.y)) {
-                            console.log('Picked up free tile');
-                            this.grabbedTile = tile;
-                            this.grabbedTile.setData('startX', this.grabbedTile.x);
-                            this.grabbedTile.setData('startY', this.grabbedTile.y);
-                            this.children.bringToTop(tile);
-                            break;
-                        }
-                    }
-                }
-            }
-        });
-    
-        this.input.on('pointermove', (pointer) => {
-            if (this.grabbedTile) {
-                this.grabbedTile.x = pointer.x;
-                this.grabbedTile.y = pointer.y;
-                this.updatePreview(pointer);
-            }
-        });
-    
-        this.input.on('pointerup', (pointer) => {
-            if (this.grabbedTile) {
-                const gridSize = 5;
-                const tileSize = this.scale.width / 10; // dynamically calculated
-                const centerX = this.scale.width / 2;
-                const centerY = this.scale.height - this.scale.height / 4;
-        
-                if (
-                    this.isInsideGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize) &&
-                    this.canPlaceTile(this.grabbedTile, this.placedTiles, centerX, centerY, gridSize, tileSize)
-                ) {
-                    console.log('Placed tile into grid');
-                    this.grabbedTile.disableInteractive(); // Lock it
-                    this.freeTiles.remove(this.grabbedTile);
-                    this.placedTiles.add(this.grabbedTile);
-        
-                    this.snapTileToGrid(this.grabbedTile, centerX, centerY, gridSize, tileSize);
-                } else {
-                    // Snap back to original place if invalid
-                    this.grabbedTile.x = this.grabbedTile.getData('startX');
-                    this.grabbedTile.y = this.grabbedTile.getData('startY');
-                }
-                this.grabbedTile = null;
-            }
-        });
+        this.tilePlacementSystem = new TilePlacementSystem(this, playerGrid);
 
         socket.emit("kingdomino-create-finish");
     }
