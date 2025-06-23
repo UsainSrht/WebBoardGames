@@ -17,15 +17,18 @@ class TilePlacementSystem {
     }
     
     initializeGridOccupancy() {
-        // Create a 5x5 grid to track occupied spaces
+        // Create a grid to track occupied spaces
         const grid = [];
         for (let row = 0; row < this.gridSize; row++) {
             grid[row] = [];
             for (let col = 0; col < this.gridSize; col++) {
-                // Mark castle position as occupied (center of 5x5 grid)
-                grid[row][col] = (row === 2 && col === 2) ? 'castle' : null;
+                grid[row][col] = null;
             }
         }
+        // Mark castle position as occupied
+        const castleRow = Math.floor(this.gridSize / 2);
+        const castleCol = Math.floor(this.gridSize / 2);
+        grid[castleRow][castleCol] = 'castle'; // Mark castle position
         return grid;
     }
     
@@ -169,6 +172,7 @@ class TilePlacementSystem {
         if (startRow + height > this.gridSize || startCol + width > this.gridSize) {
             return false; // Would go outside grid
         }
+        console.log(`Checking placement at (${startRow}, ${startCol}) for size ${height}x${width}`);
         
         for (let row = startRow; row < startRow + height; row++) {
             for (let col = startCol; col < startCol + width; col++) {
