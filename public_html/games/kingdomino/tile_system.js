@@ -7,6 +7,7 @@ class TilePlacementSystem {
         this.isRotated = false;
         this.gridOccupancy = this.initializeGridOccupancy();
         
+        console.log("playergrid" + playerGrid + " subs " + playerGrid.gridSize + " " + playerGrid.tileSize);
         // Grid properties
         this.gridSize = playerGrid.gridSize;
         this.tileSize = playerGrid.tileSize;
