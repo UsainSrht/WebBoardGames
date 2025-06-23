@@ -106,6 +106,7 @@ class KingdominoScene extends Phaser.Scene {
             castleTile,
             castleImage,
             gridSize,
+            tileSize,
             centerX,
             centerY,
             playerName
@@ -170,9 +171,8 @@ class KingdominoScene extends Phaser.Scene {
         socket.on("kingdomino-game-start", (tiles) => {
             gameBoard.removeChild(loadingLabel);
             this.createTestTiles(this, tiles);
+            this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
         });
-    
-        this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
 
         socket.emit("kingdomino-create-finish");
     }

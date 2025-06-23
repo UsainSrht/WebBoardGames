@@ -9,7 +9,7 @@ class TilePlacementSystem {
         
         // Grid properties
         this.gridSize = playerGrid.gridSize;
-        this.tileSize = 40; // Adjust based on your grid tile size
+        this.tileSize = playerGrid.tileSize;
         this.gridStartX = playerGrid.centerX - (this.gridSize * this.tileSize) / 2;
         this.gridStartY = playerGrid.centerY - (this.gridSize * this.tileSize) / 2;
         
