@@ -5,8 +5,6 @@ class TilePlacementSystem {
         this.draggedTile = null;
         this.originalPosition = { x: 0, y: 0 };
         this.isRotated = false;
-        console.log("playergrid" + playerGrid + " subs " + playerGrid.gridSize + " " + playerGrid.tileSize);
-        this.gridOccupancy = this.initializeGridOccupancy();
         
         // Grid properties
         this.gridSize = playerGrid.gridSize;
@@ -14,12 +12,12 @@ class TilePlacementSystem {
         this.gridStartX = playerGrid.centerX - (this.gridSize * this.tileSize) / 2;
         this.gridStartY = playerGrid.centerY - (this.gridSize * this.tileSize) / 2;
         
+        this.gridOccupancy = this.initializeGridOccupancy();
         this.setupTileInteractions();
     }
     
     initializeGridOccupancy() {
         // Create a grid to track occupied spaces
-        console.log("g" + this.gridSize + " t" + this.tileSize);
         const grid = [];
         for (let row = 0; row < this.gridSize; row++) {
             grid[row] = [];
