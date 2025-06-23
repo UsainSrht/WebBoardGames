@@ -112,39 +112,6 @@ class KingdominoScene extends Phaser.Scene {
         };
     }
     
-    resizePlayerGrid(gridObject, newTileSize) {
-        console.log("Resizing player grid to new tile size:", newTileSize);
-        const {
-            graphics, nameText, castleTile, castleImage, gridSize, centerX, centerY
-        } = gridObject;
-    
-        graphics.clear();
-        graphics.lineStyle(1, 0xffffff);
-    
-        const gridWidth = gridSize * newTileSize;
-        const gridHeight = gridSize * newTileSize;
-        const startX = centerX - gridWidth / 2;
-        const startY = centerY - gridHeight / 2;
-    
-        // Redraw grid
-        for (let row = 0; row <= gridSize; row++) {
-            graphics.lineBetween(startX, startY + row * newTileSize, startX + gridWidth, startY + row * newTileSize);
-        }
-        for (let col = 0; col <= gridSize; col++) {
-            graphics.lineBetween(startX + col * newTileSize, startY, startX + col * newTileSize, startY + gridHeight);
-        }
-    
-        // Update name
-        nameText.setPosition(centerX, startY - 20);
-    
-        // Update castle
-        const castleX = startX + 2 * newTileSize + newTileSize / 2;
-        const castleY = startY + 2 * newTileSize + newTileSize / 2;
-    
-        castleTile.setPosition(castleX, castleY).setSize(newTileSize, newTileSize);
-        castleImage.setPosition(castleX, castleY).setDisplaySize(newTileSize, newTileSize);
-    }
-    
     createTestTiles(scene, tiles) {
         let keys = Object.keys(tiles);
         for (let i = 0; i < keys.length; i++) {
@@ -185,9 +152,10 @@ class KingdominoScene extends Phaser.Scene {
         .setOrigin(0)
         .setStrokeStyle(1, 0xffffff);
     
-        this.add.text(5, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
+        this.add.text(50, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
     
-        this.placedTiles = this.add.group();  // tiles locked on the grid
+        this.freeTiles = this.add.group();
+        this.placedTiles = this.add.group();
     
         // Player grid
         this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
@@ -204,7 +172,7 @@ class KingdominoScene extends Phaser.Scene {
             this.createTestTiles(this, tiles);
         });
     
-        this.tilePlacementSystem = new TilePlacementSystem(this, playerGrid);
+        this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
 
         socket.emit("kingdomino-create-finish");
     }
