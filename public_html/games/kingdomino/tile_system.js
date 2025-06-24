@@ -84,21 +84,22 @@ class TilePlacementSystem {
     }
     
     rotateTile(tile) {
-        const rectangle = tile.list[0];
-        const image = tile.list[1];
+        //const rectangle = tile.list[0];
+        //const image = tile.list[1];
         
         // Rotate 90 degrees
-        tile.setRotation(tile.rotation + Math.PI / 2);
+        const radian90deg = Math.PI / 2;
+        tile.setRotation(tile.rotation === radian90deg ? 0 : radian90deg);
         this.isRotated = !this.isRotated;
         
-        // Update the visual representation
+        /*// Update the visual representation
         if (this.isRotated) {
             // 2x1 becomes 1x2 when rotated
             rectangle.setSize(200, 100);
         } else {
             // Back to 2x1
             rectangle.setSize(100, 200);
-        }
+        }*/
         
         console.log('Rotated tile, isRotated:', this.isRotated);
     }
@@ -214,13 +215,13 @@ class TilePlacementSystem {
         const rectangle = tile.list[0];
         const image = tile.list[1];
         
-        if (this.isRotated) {
+        /*if (this.isRotated) {
             rectangle.setSize(this.tileSize, this.tileSize * 2);
             image.setDisplaySize(this.tileSize, this.tileSize * 2);
         } else {
             rectangle.setSize(this.tileSize * 2, this.tileSize);
             image.setDisplaySize(this.tileSize * 2, this.tileSize);
-        }
+        }*/
         
         // Lock the tile in place
         this.lockTileInPlace(tile);
@@ -265,9 +266,9 @@ class TilePlacementSystem {
         this.isRotated = false;
         
         // Reset appearance
-        const rectangle = tile.list[0];
-        rectangle.setSize(200, 100); // Original size
-        rectangle.setStrokeStyle(2, 0x000000); // Original stroke
+        //const rectangle = tile.list[0];
+        //rectangle.setSize(200, 100); // Original size
+        //rectangle.setStrokeStyle(2, 0x000000); // Original stroke
         
         // Reset depth
         tile.setDepth(0);
