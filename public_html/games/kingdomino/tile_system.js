@@ -34,9 +34,9 @@ class TilePlacementSystem {
     
     setupTileInteractions() {
         // Set up interactions for all free tiles
-        this.scene.freeTiles.children.entries.forEach(tile => {
-            this.makeTileInteractive(tile);
-        });
+        //this.scene.freeTiles.children.entries.forEach(tile => {
+        //    this.makeTileInteractive(tile);
+        //});
     }
     
     makeTileInteractive(tile) {

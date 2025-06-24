@@ -128,9 +128,110 @@ class KingdominoScene extends Phaser.Scene {
             tile.setData('number', tileNumber);
             tile.setData('data', tiles[tileNumber]);
             tile.add([rectangle, image, text]);
-            //scene.add.existing(tile);
             scene.freeTiles.add(tile);
         }
+    }
+
+    createTileStack(scene, count) {
+        for (let i = 0; i < count; i++) {
+            let flippedTile = scene.add.container(450, 250 + i*2); 
+            let rectangle = scene.add.rectangle(0,0, 200, 100, 0x00ff00) // 1x2 vertical
+                .setStrokeStyle(2, 0x000000)
+                .setInteractive();
+            let image = scene.add.image(0, 0, 'background')
+                .setOrigin(0.5);
+            image.setScale(200 / image.width, 100 / image.height);
+            flippedTile.add([rectangle, image, text]);
+            scene.tileStack.add(flippedTile);
+        }
+    }
+
+    drawTiles(scene, drawnTiles) {
+        drawnTiles.forEach((tileData, index) => {
+            // Starting position (tile stack position - adjust these coordinates to match your stack)
+            const startX = 450; // Adjust to your tile stack X position
+            const startY = 250; // Adjust to your tile stack Y position
+            
+            // Final position
+            const finalX = 700 + index * 205;
+            const finalY = 250;
+            
+            // Create tile container at starting position
+            const tile = scene.add.container(startX, startY);
+            
+            // Create tile elements
+            const rectangle = scene.add.rectangle(0, 0, 200, 100, 0x00ff00)
+                .setStrokeStyle(2, 0x000000)
+                .setInteractive();
+            
+            const text = scene.add.text(0, 0, tileData.number, { fontSize: '24px', color: '#ffffff' })
+                .setOrigin(0.5)
+                .setAlpha(1);
+            
+            // Back of tile (shown initially)
+            const backImage = scene.add.image(0, 0, 'background')
+                .setOrigin(0.5);
+            backImage.setScale(200 / backImage.width, 100 / backImage.height);
+            
+            // Front of tile (hidden initially)
+            const frontImage = scene.add.image(0, 0, tileData.asset)
+                .setOrigin(0.5)
+                .setAlpha(0);
+            frontImage.setScale(200 / frontImage.width, 100 / frontImage.height);
+            
+            // Set tile data
+            tile.setData('number', tileData.number);
+            tile.setData('data', tileData);
+            tile.add([rectangle, backImage, frontImage, text]);
+            
+            // Animation sequence
+            const animationDelay = index * 200; // Stagger each tile by 200ms
+            
+            // 1. Move tile from stack to position
+            scene.tweens.add({
+                targets: tile,
+                x: finalX,
+                y: finalY,
+                duration: 600,
+                ease: 'Power2.easeOut',
+                delay: animationDelay,
+                onComplete: () => {
+                    // 2. Wait a bit, then flip the tile
+                    scene.time.delayedCall(300, () => {
+                        this.flipTile(scene, tile, backImage, frontImage, text, tileData);
+                    });
+                }
+            });
+            
+            // Make interactive after animations complete
+            scene.time.delayedCall(animationDelay + 600 + 300 + 400, () => {
+                scene.tilePlacementSystem.makeTileInteractive(tile);
+            });
+        });
+    }
+
+    flipTile(scene, tile, backImage, frontImage, text, tileData) {
+        // Flip animation - scale X to 0, switch images, scale back to 1
+        scene.tweens.add({
+            targets: [tile],
+            scaleX: 0,
+            duration: 200,
+            ease: 'Power2.easeIn',
+            onComplete: () => {
+                // Switch from back to front at the middle of flip
+                backImage.setAlpha(0);
+                frontImage.setAlpha(1);
+                text.setAlpha(0);
+                
+                // Scale back up
+                scene.tweens.add({
+                    targets: [tile],
+                    scaleX: 1,
+                    duration: 200,
+                    ease: 'Power2.easeOut'
+                });
+            }
+        });
     }
     
     update() {
@@ -153,10 +254,12 @@ class KingdominoScene extends Phaser.Scene {
         .setOrigin(0)
         .setStrokeStyle(1, 0xffffff);
     
-        this.add.text(50, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
+        this.add.text(150, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
     
         this.freeTiles = this.add.group();
         this.placedTiles = this.add.group();
+        this.tileStack = this.add.group();
+
     
         // Player grid
         this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
@@ -168,10 +271,15 @@ class KingdominoScene extends Phaser.Scene {
         this.thirdGrid = this.drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
         this.fourthGrid = this.drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
     
-        socket.on("kingdomino-game-start", (tiles) => {
+        socket.on("kingdomino-game-start", (tileCount) => {
             gameBoard.removeChild(loadingLabel);
-            this.createTestTiles(this, tiles);
             this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
+
+            
+        });
+
+        socket.on("kingdomino-draw-tiles", (drawnTiles) => {
+            this.drawTiles(this, drawnTiles);
         });
 
         socket.emit("kingdomino-create-finish");
@@ -189,7 +297,7 @@ class KingdominoScene extends Phaser.Scene {
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
-    height: window.innerHeight*0.95,
+    height: window.innerHeight,
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
