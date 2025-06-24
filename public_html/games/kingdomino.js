@@ -141,7 +141,7 @@ class KingdominoScene extends Phaser.Scene {
             let image = scene.add.image(0, 0, 'background')
                 .setOrigin(0.5);
             image.setScale(200 / image.width, 100 / image.height);
-            flippedTile.add([rectangle, image, text]);
+            flippedTile.add([rectangle, image]);
             scene.tileStack.add(flippedTile);
         }
     }
@@ -157,7 +157,8 @@ class KingdominoScene extends Phaser.Scene {
             const finalY = 250;
             
             // Remove the tile from the stack
-            scene.tileStack.removeLast();
+            const lastTile = scene.tileStack.getLast();
+            scene.tileStack.remove(lastTile);
 
             // Create tile container at starting position
             const tile = scene.add.container(startX, startY);
@@ -289,10 +290,10 @@ class KingdominoScene extends Phaser.Scene {
     
     resize(width, height) {
         this.backgroundRect.setSize(width, height);
-        this.mainGrid.setSize(width, height);
-        this.secondGrid.setSize(width, height);
-        this.thirdGrid.setSize(width, height);
-        this.fourthGrid.setSize(width, height);
+        //this.mainGrid.setSize(width, height);
+        //this.secondGrid.setSize(width, height);
+        //this.thirdGrid.setSize(width, height);
+        //this.fourthGrid.setSize(width, height);
     }
 }
 
