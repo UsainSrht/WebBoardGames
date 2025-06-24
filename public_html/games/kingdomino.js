@@ -156,6 +156,9 @@ class KingdominoScene extends Phaser.Scene {
             const finalX = 700 + index * 205;
             const finalY = 250;
             
+            // Remove the tile from the stack
+            scene.tileStack.removeLast();
+
             // Create tile container at starting position
             const tile = scene.add.container(startX, startY);
             
@@ -260,7 +263,6 @@ class KingdominoScene extends Phaser.Scene {
         this.placedTiles = this.add.group();
         this.tileStack = this.add.group();
 
-    
         // Player grid
         this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
 
@@ -275,7 +277,7 @@ class KingdominoScene extends Phaser.Scene {
             gameBoard.removeChild(loadingLabel);
             this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
 
-            
+            this.createTileStack(this, tileCount);
         });
 
         socket.on("kingdomino-draw-tiles", (drawnTiles) => {
