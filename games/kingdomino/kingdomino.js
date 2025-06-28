@@ -1,7 +1,8 @@
 module.exports = (io, eventBus, room, roomData, players) => {
     console.log(`Initializing kingdomino for room: ${room}`);
 
-    const colors = ["red", "blue", "green", "yellow"];
+    const colorNames = ["red", "blue", "green", "yellow"];
+    const colors = [0xff0000,0x0000ff,0x00ff00,0xffff00];
     const tiles = {
         1: { number: 1, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
         2: { number: 2, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
@@ -62,7 +63,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
 
     function initForPlayer(userId, socket, name) {
-        playerGameData[userId] = { name: name, move: null, score: 0 };
+        playerGameData[userId] = { name: name, color: null, score: 0 };
 
         socket.on("kingdomino-create-finish", () => {
             if (!readyPlayers.includes(userId)) {
@@ -87,7 +88,26 @@ module.exports = (io, eventBus, room, roomData, players) => {
             gameTiles.push(shuffledKeys[i]);
         }
 
-        io.to(room).emit("kingdomino-game-start", totalTiles);
+        // Assign unique colors to players
+        const assignedColors = [...colors];
+        let playerIndex = 0;
+        for (let userId in playerGameData) {
+            // Get a random color from the remaining colors
+            const randomColorIndex = Math.floor(Math.random() * assignedColors.length);
+            const color = assignedColors.splice(randomColorIndex, 1)[0];
+            
+            playerGameData[userId].color = color;
+            playerIndex++;
+        }
+
+        const gameGata = {
+            tileCount: totalTiles,
+            players: playerGameData,
+            turnStartTime: Date.now(),
+            currentPlayerIndex: 0
+        };
+
+        io.to(room).emit("kingdomino-game-start", gameGata);
         drawNextTiles();
     }
 

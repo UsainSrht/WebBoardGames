@@ -254,13 +254,18 @@
 
         function tryJoinURLRoom() {
             let params = new URLSearchParams(window.location.search);
-            let roomCode = params.get("room");
             if (params.has("room")) {
+                let roomCode = params.get("room");
                 joinRoom(roomCode);
             } else {
                 //redirect to home page
                 window.location.href = "/index.html";
             }
+        }
+
+        function getURLRoomCode() {
+            let params = new URLSearchParams(window.location.search);
+            return params.get("room");
         }
 
         function joinRoom(roomCode) {
@@ -285,8 +290,12 @@
             if (!room) {
                 tryJoinURLRoom();
             } else {
-                joinRoom(room);
-                //socket.emit("request-room-data", room);
+                const urlRoomCode = getURLRoomCode();
+                if (urlRoomCode && urlRoomCode !== room) {
+                    tryJoinURLRoom();
+                } else {
+                    joinRoom(room);
+                }
             }
         });
 

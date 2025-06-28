@@ -1,8 +1,15 @@
 import TilePlacementSystem from './kingdomino/tile_system.js';
+import TitleEffect from './kingdomino/title_effect.js';
 
 class KingdominoScene extends Phaser.Scene {
     constructor() {
         super({ key: 'KingdominoScene' });
+        this.players = [];
+        this.currentPlayerIndex = 0;
+        this.turnTimeLimit = 30000; // 30 seconds per turn
+        this.turnStartTime = 0;
+        this.playerListContainer = null;
+        this.turnProgressBar = null;
     }
 
     preload() {
@@ -21,6 +28,10 @@ class KingdominoScene extends Phaser.Scene {
 
         this.load.image('castle', './images/kingdomino/castle.png');
         this.load.image('background', './images/kingdomino/background.png');
+        this.load.image('pawn-red', './images/kingdomino/pawn-red.png');
+        this.load.image('pawn-blue', './images/kingdomino/pawn-blue.png');
+        this.load.image('pawn-green', './images/kingdomino/pawn-green.png');
+        this.load.image('pawn-yellow', './images/kingdomino/pawn-yellow.png');
     
         this.load.image('1', './images/kingdomino/1.png');
         this.load.image('3', './images/kingdomino/3.png');
@@ -60,7 +71,133 @@ class KingdominoScene extends Phaser.Scene {
         socket.emit("kingdomino-preload-finish");
     }
 
-    drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, placedGroup = null) {
+    showTitleEffect(text, iconKey, targetX, targetY, options) {
+        return this.titleEffect.show(text, iconKey, targetX, targetY, options);
+    }
+
+    createPlayerList() {
+        // Create container for player list in bottom left
+        this.playerListContainer = this.add.container(20, this.scale.height - 20);
+        
+        // Background for player list
+        const listBackground = this.add.rectangle(0, 0, 250, this.players.length * 60 + 20, 0x000000, 0.7)
+            .setOrigin(0, 1)
+            .setStrokeStyle(2, 0xffffff);
+        
+        this.playerListContainer.add(listBackground);
+        
+        // Create player entries
+        Object.values(this.players).forEach((player, index) => {
+            this.createPlayerEntry(player, index);
+        });
+        
+        this.updatePlayerListHighlight();
+    }
+    
+    createPlayerEntry(player, index) {
+        const yOffset = -(index * 60 + 40);
+        
+        // Player container
+        const playerContainer = this.add.container(10, yOffset);
+        
+        // Player color indicator
+        const colorIndicator = this.add.circle(15, 0, 12, player.color);
+        
+        // Player name
+        const nameText = this.add.text(35, -5, player.name, { 
+            fontSize: '14px', 
+            color: '#ffffff',
+            fontFamily: 'Arial'
+        });
+        
+        // Turn indicator background (invisible by default)
+        const turnIndicator = this.add.rectangle(0, 0, 230, 50, 0xffff00, 0.2)
+            .setOrigin(0, 0.5)
+            .setVisible(false);
+        
+        // Time progress bar background
+        const progressBg = this.add.rectangle(35, 15, 180, 8, 0x333333)
+            .setOrigin(0, 0.5);
+        
+        // Time progress bar fill
+        const progressFill = this.add.rectangle(35, 15, 180, 8, 0x00ff00)
+            .setOrigin(0, 0.5);
+        
+        // Store references for updates
+        player.ui = {
+            container: playerContainer,
+            turnIndicator: turnIndicator,
+            progressBg: progressBg,
+            progressFill: progressFill,
+            nameText: nameText,
+            colorIndicator: colorIndicator
+        };
+        
+        playerContainer.add([turnIndicator, colorIndicator, nameText, progressBg, progressFill]);
+        this.playerListContainer.add(playerContainer);
+    }
+    
+    updatePlayerListHighlight() {
+        Object.values(this.players).forEach((player, index) => {
+            const isCurrentPlayer = index === this.currentPlayerIndex;
+            player.ui.turnIndicator.setVisible(isCurrentPlayer);
+            
+            if (isCurrentPlayer) {
+                player.ui.nameText.setColor('#000000');
+                player.ui.progressFill.setVisible(true);
+            } else {
+                player.ui.nameText.setColor('#ffffff');
+                player.ui.progressFill.setVisible(false);
+            }
+        });
+    }
+    
+    updateTurnProgress() {
+        if (this.players.length === 0) return;
+        
+        const currentTime = this.time.now;
+        const elapsed = currentTime - this.turnStartTime;
+        const progress = Math.max(0, 1 - (elapsed / this.turnTimeLimit));
+        
+        const currentPlayer = this.players[this.currentPlayerIndex];
+        if (currentPlayer && currentPlayer.ui) {
+            const progressWidth = 180 * progress;
+            currentPlayer.ui.progressFill.setDisplaySize(progressWidth, 8);
+            
+            // Change color based on remaining time
+            if (progress > 0.5) {
+                currentPlayer.ui.progressFill.setFillStyle(0x00ff00); // Green
+            } else if (progress > 0.25) {
+                currentPlayer.ui.progressFill.setFillStyle(0xffff00); // Yellow
+            } else {
+                currentPlayer.ui.progressFill.setFillStyle(0xff0000); // Red
+            }
+        }
+        
+        // Auto-advance turn when time runs out
+        if (elapsed >= this.turnTimeLimit) {
+            this.nextTurn();
+        }
+    }
+    
+    nextTurn() {
+        this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
+        this.turnStartTime = this.time.now;
+        this.updatePlayerListHighlight();
+        
+        // Notify server of turn change
+        socket.emit("kingdomino-turn-change", {
+            currentPlayerIndex: this.currentPlayerIndex,
+            playerId: this.players[this.currentPlayerIndex].id
+        });
+    }
+    
+    canPlayerAct(playerId) {
+        const currentPlayer = this.players[this.currentPlayerIndex];
+        return currentPlayer && currentPlayer.id === playerId;
+    }
+
+    drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, color, placedGroup = null) {
         const container = scene.add.container(); // Acts like a group
         const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff } });
         container.add(graphics);
@@ -86,7 +223,7 @@ class KingdominoScene extends Phaser.Scene {
         const castleX = startX + 2 * tileSize + tileSize / 2;
         const castleY = startY + 2 * tileSize + tileSize / 2;
     
-        const castleTile = scene.add.rectangle(castleX, castleY, tileSize, tileSize, 0x8888ff)
+        const castleTile = scene.add.rectangle(castleX, castleY, tileSize, tileSize, color)
             .setStrokeStyle(2, 0xffffff)
             .setOrigin(0.5);
         const castleImage = scene.add.image(castleX, castleY, 'castle')
@@ -134,7 +271,7 @@ class KingdominoScene extends Phaser.Scene {
 
     createTileStack(scene, count) {
         for (let i = 0; i < count; i++) {
-            let flippedTile = scene.add.container(450, 250 + i*2); 
+            let flippedTile = scene.add.container(450, 250 + i*1); 
             let rectangle = scene.add.rectangle(0,0, 200, 100, 0x00ff00) // 1x2 vertical
                 .setStrokeStyle(2, 0x000000)
                 .setInteractive();
@@ -189,26 +326,26 @@ class KingdominoScene extends Phaser.Scene {
             tile.add([rectangle, backImage, frontImage, text]);
             
             // Animation sequence
-            const animationDelay = index * 200; // Stagger each tile by 200ms
+            const animationDelay = index * 300; // Stagger each tile by 200ms
             
             // 1. Move tile from stack to position
             scene.tweens.add({
                 targets: tile,
                 x: finalX,
                 y: finalY,
-                duration: 600,
+                duration: 700,
                 ease: 'Power2.easeOut',
                 delay: animationDelay,
                 onComplete: () => {
                     // 2. Wait a bit, then flip the tile
-                    scene.time.delayedCall(300, () => {
+                    scene.time.delayedCall(600, () => {
                         this.flipTile(scene, tile, backImage, frontImage, text, tileData);
                     });
                 }
             });
             
             // Make interactive after animations complete
-            scene.time.delayedCall(animationDelay + 600 + 300 + 400, () => {
+            scene.time.delayedCall(animationDelay + 300 + 700 + 600, () => {
                 scene.tilePlacementSystem.makeTileInteractive(tile);
             });
         });
@@ -237,9 +374,20 @@ class KingdominoScene extends Phaser.Scene {
             }
         });
     }
+
+    getColorName(color) {
+        switch (color) {
+            case 0xff0000: return 'red';
+            case 0x00ff00: return 'green';
+            case 0x0000ff: return 'blue';
+            case 0xffff00: return 'yellow';
+            default: return 'unknown';
+        }
+    }
     
     update() {
-        // game loop
+        // Update turn progress bar
+        this.updateTurnProgress();
     }
     
     create() {
@@ -264,25 +412,73 @@ class KingdominoScene extends Phaser.Scene {
         this.placedTiles = this.add.group();
         this.tileStack = this.add.group();
 
-        // Player grid
-        this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, 'YOU', 5, 100, this.placedTiles);
-
         this.previewHighlight = this.add.rectangle(0, 0, 200, 100, 0x00ff00, 0.3).setVisible(false).setDepth(0);
-    
-        // Other players (no interactivity needed)
-        this.secondGrid = this.drawPlayerGrid(this, config.width/2, 110, 'Player 2', 5, 30);
-        this.thirdGrid = this.drawPlayerGrid(this, 180, config.height/2, 'Player 3', 5, 30);
-        this.fourthGrid = this.drawPlayerGrid(this, config.width-180, config.height/2, 'Player 4', 5, 30);
-    
-        socket.on("kingdomino-game-start", (tileCount) => {
-            gameBoard.removeChild(loadingLabel);
-            this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
 
-            this.createTileStack(this, tileCount);
+        // Socket event listeners
+        socket.on("kingdomino-game-start", (gameData) => {
+            gameBoard.removeChild(loadingLabel);
+            
+            // Initialize players from server data
+            this.players = gameData.players;
+
+            this.myData = this.players[localStorage.getItem('userId')];
+            this.myColorName = this.getColorName(this.myData.color);
+
+            // Player grid
+            this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles);
+        
+            // Other players (no interactivity needed)
+            if (this.players.length > 1) {
+                this.secondGrid = this.drawPlayerGrid(this, config.width/2, 110, this.players[1].name, this.players[1].color, 5, 30);
+            }
+            if (this.players.length > 2) {
+                this.thirdGrid = this.drawPlayerGrid(this, 180, config.height/2, this.players[2].name, this.players[2].color, 5, 30);
+            }
+            if (this.players.length > 3) {
+                this.fourthGrid = this.drawPlayerGrid(this, config.width-180, config.height/2, this.players[3].name, this.players[3].color, 5, 30);
+            }
+
+            this.titleEffect = new TitleEffect(this);
+            const iconKey = 'pawn-' + this.myColorName;
+            const targetX = 0;
+            const targetY = config.height;
+            this.showTitleEffect('You are ' + this.myColorName, iconKey, targetX, targetY, {
+                fontSize: '42px',
+                animationDuration: 800,
+                displayDuration: 1200,
+                fadeOutDuration: 1500
+            });
+            
+            this.currentPlayerIndex = gameData.currentPlayerIndex;
+            this.turnStartTime = gameData.turnStartTime;
+            
+            this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
+            this.createTileStack(this, gameData.tileCount);
+            this.createPlayerList();
         });
 
         socket.on("kingdomino-draw-tiles", (drawnTiles) => {
             this.drawTiles(this, drawnTiles);
+        });
+        
+        socket.on("kingdomino-players-update", (playersData) => {
+            this.players = playersData;
+            if (this.playerListContainer) {
+                this.playerListContainer.destroy();
+                this.createPlayerList();
+            }
+        });
+        
+        socket.on("kingdomino-turn-update", (turnData) => {
+            this.currentPlayerIndex = turnData.currentPlayerIndex;
+            this.turnStartTime = this.time.now;
+            this.updatePlayerListHighlight();
+        });
+        
+        socket.on("kingdomino-tile-placed", (placementData) => {
+            // Handle multiplayer tile placement
+            // This would update other players' grids
+            console.log('Tile placed by player:', placementData);
         });
 
         socket.emit("kingdomino-create-finish");
@@ -290,10 +486,11 @@ class KingdominoScene extends Phaser.Scene {
     
     resize(width, height) {
         this.backgroundRect.setSize(width, height);
-        //this.mainGrid.setSize(width, height);
-        //this.secondGrid.setSize(width, height);
-        //this.thirdGrid.setSize(width, height);
-        //this.fourthGrid.setSize(width, height);
+        
+        // Reposition player list
+        if (this.playerListContainer) {
+            this.playerListContainer.setPosition(20, height - 20);
+        }
     }
 }
 
