@@ -13,7 +13,6 @@ class TilePlacementSystem {
         this.gridStartY = playerGrid.centerY - (this.gridSize * this.tileSize) / 2;
         
         this.gridOccupancy = this.initializeGridOccupancy();
-        this.setupTileInteractions();
     }
     
     initializeGridOccupancy() {
@@ -30,13 +29,6 @@ class TilePlacementSystem {
         const castleCol = Math.floor(this.gridSize / 2);
         grid[castleRow][castleCol] = 'castle'; // Mark castle position
         return grid;
-    }
-    
-    setupTileInteractions() {
-        // Set up interactions for all free tiles
-        //this.scene.freeTiles.children.entries.forEach(tile => {
-        //    this.makeTileInteractive(tile);
-        //});
     }
     
     makeTileInteractive(tile) {
@@ -57,6 +49,45 @@ class TilePlacementSystem {
                 this.updateDraggedTile(tile, pointer);
             }
         });
+    }
+
+    makeTileSelectable(tile, selectable) {
+        const rectangle = tile.list[0]; // The rectangle is the first child
+
+        if (selectable) {
+            rectangle.setInteractive();
+            
+            rectangle.on('pointerdown', (pointer, localX, localY, event) => {
+                // Check if it's the current player's turn
+                if (this.canPlayerAct(this.currentUserId)) {
+                    this.selectTile(tile);
+                    event.stopPropagation();
+                }
+            });
+        } else {
+            rectangle.disableInteractive();
+        }
+    }
+
+    selectTile(tile) {
+        // Check if tile is already selected
+        if (tile.getData('isSelected')) {
+            return;
+        }
+        
+        // Mark tile as selected
+        tile.setData('isSelected', true);
+        tile.setData('selectedBy', this.currentUserId);
+        
+        // Visual feedback for selection
+        const rectangle = tile.list[0];
+        rectangle.setStrokeStyle(4, 0xff0000); // Red border for selected
+        rectangle.setTint(0xcccccc); // Slightly gray out
+        
+        // Disable interaction for this tile
+        this.makeTileSelectable(tile, false);
+        
+        socket.emit('kingdomino-select-tile', tile.getData('number'), tile.getData('drawn-index'));
     }
     
     startDragging(tile, pointer) {
@@ -225,6 +256,8 @@ class TilePlacementSystem {
         
         // Lock the tile in place
         this.lockTileInPlace(tile);
+
+        socket.emit('kingdomino-place-tile', tile.getData('number'), row, col, this.isRotated);
         
         console.log(`Placed tile ${tile.getData('number')} at grid position (${row}, ${col})`);
     }

@@ -3,6 +3,8 @@ module.exports = (io, eventBus, room, roomData, players) => {
 
     const colorNames = ["red", "blue", "green", "yellow"];
     const colors = [0xff0000,0x0000ff,0x00ff00,0xffff00];
+    const tileSelectTurntime = 10000; // 10 seconds for tile selection
+    const tilePlaceTurnTime = 15000; // 15 seconds for tile placement
     const tiles = {
         1: { number: 1, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
         2: { number: 2, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
@@ -57,13 +59,15 @@ module.exports = (io, eventBus, room, roomData, players) => {
     const playerGameData = {};
     const readyPlayers = [];
 
+    let i = 1;
     for (let userId in players) {
         const socket = io.sockets.sockets.get(players[userId].socketId);
-        initForPlayer(userId, socket, players[userId].name);
+        initForPlayer(userId, socket, players[userId].name, i);
+        i++;
     }
 
-    function initForPlayer(userId, socket, name) {
-        playerGameData[userId] = { name: name, color: null, score: 0 };
+    function initForPlayer(userId, socket, name, index) {
+        playerGameData[userId] = { name: name, color: null, selectedTile: 0, turnIndex: index, score: 0 };
 
         socket.on("kingdomino-create-finish", () => {
             if (!readyPlayers.includes(userId)) {
@@ -72,6 +76,18 @@ module.exports = (io, eventBus, room, roomData, players) => {
                 console.log("All players are ready, starting kingdomino for room: " + room);
                     startGame();
                 }
+            }
+        });
+
+        socket.on("kingdomino-select-tile", (tileNumber, drawnIndex) => {
+            if (currentPlayerIndex === playerGameData[userId].turnIndex) {
+                selectTile(userId, tileNumber, drawnIndex);
+            }
+        });
+
+        socket.on("kingdomino-place-tile", (tileNumber, row, col, isRotated) => {
+            if (currentPlayerIndex === playerGameData[userId].turnIndex) {
+                placeTile(userId, tileNumber, row, col, isRotated);
             }
         });
     }
@@ -90,25 +106,97 @@ module.exports = (io, eventBus, room, roomData, players) => {
 
         // Assign unique colors to players
         const assignedColors = [...colors];
-        let playerIndex = 0;
         for (let userId in playerGameData) {
             // Get a random color from the remaining colors
             const randomColorIndex = Math.floor(Math.random() * assignedColors.length);
             const color = assignedColors.splice(randomColorIndex, 1)[0];
             
             playerGameData[userId].color = color;
-            playerIndex++;
         }
 
         const gameGata = {
             tileCount: totalTiles,
             players: playerGameData,
             turnStartTime: Date.now(),
-            currentPlayerIndex: 0
+            currentPlayerIndex: 1
         };
 
         io.to(room).emit("kingdomino-game-start", gameGata);
+        nextTurn();
         drawNextTiles();
+    }
+
+    let isTileSelecting = true;
+    let currentPlayerIndex = 1;
+    let turnTimer = null;
+    let isWaitingForPlayer = false;
+
+    function nextTurn() {
+        // Clear any existing timer
+        if (turnTimer) {
+            clearTimeout(turnTimer);
+            turnTimer = null;
+        }
+
+        const turnStartTime = Date.now();
+        const turnEndTime = turnStartTime + (isTileSelecting ? tileSelectTurntime : tilePlaceTurnTime);
+
+        // Emit current turn info
+        io.to(room).emit("kingdomino-turn-info", currentPlayerIndex, turnStartTime, turnEndTime);
+        
+        // Set flag that we're waiting for player action
+        isWaitingForPlayer = true;
+        
+        // Start 15-second timer for automatic turn advance
+        turnTimer = setTimeout(() => {
+            if (isWaitingForPlayer) {
+                advanceToNextPlayer();
+            }
+        }, 15000);
+    }
+
+    function advanceToNextPlayer() {
+        isWaitingForPlayer = false;
+        currentPlayerIndex++;
+        if (currentPlayerIndex > readyPlayers.length) {
+            currentPlayerIndex = 1;
+        }
+        nextTurn();
+    }
+
+    function selectTile(userId, tileNumber, drawnIndex) {
+        if (gameTiles.includes(tileNumber) && isTileSelecting && playerGameData.filter(player => player.selectedTile === tileNumber).length === 0) {
+            playerGameData[userId].selectedTile = tileNumber;
+            
+            io.to(room).emit("kingdomino-tile-selected", userId, tileNumber, drawnIndex);
+
+            // Check if all players have selected their tiles
+            const selectedTiles = Object.values(playerGameData).filter(player => player.selectedTile > 0).length;
+            if (selectedTiles >= readyPlayers.length) {
+                isTileSelecting = false;
+                io.to(room).emit("kingdomino-tile-selection-end");
+                advanceToNextPlayer();
+            }
+        }
+    }
+
+    function placeTile(userId, tileNumber, row, col, isRotated) {
+        if (gameTiles.includes(tileNumber) && isTileSelecting && playerGameData[userId].selectedTile === tileNumber) {
+            // Validate tile placement logic here
+            // For simplicity, we assume the placement is valid
+            
+            playerGameData[userId].selectedTile = 0; // Reset selected tile
+            
+            io.to(room).emit("kingdomino-tile-placed", userId, tileNumber, row, col, isRotated);
+            
+            // Check if all players have placed their tiles
+            const placedTiles = Object.values(playerGameData).filter(player => player.selectedTile === 0).length;
+            if (placedTiles >= readyPlayers.length) {
+                isTileSelecting = true; // Reset for next round
+                drawNextTiles();
+                advanceToNextPlayer();
+            }
+        }
     }
 
     function drawNextTiles() {
