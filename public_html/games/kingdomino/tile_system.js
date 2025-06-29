@@ -31,45 +31,78 @@ class TilePlacementSystem {
         return grid;
     }
     
-    makeTileInteractive(tile) {
+    makeTileDraggable(tile, draggable) {
         const rectangle = tile.list[0]; // The rectangle is the first child
         
-        rectangle.on('pointerdown', (pointer, localX, localY, event) => {
-            this.startDragging(tile, pointer);
-            event.stopPropagation();
-        });
-        
-        rectangle.on('pointerup', (pointer, localX, localY, event) => {
-            this.stopDragging(tile, pointer);
-            event.stopPropagation();
-        });
-        
-        rectangle.on('pointermove', (pointer, localX, localY, event) => {
-            if (this.draggedTile === tile) {
-                this.updateDraggedTile(tile, pointer);
-            }
-        });
-    }
+        if (draggable) {
 
-    makeTileSelectable(tile, selectable) {
-        const rectangle = tile.list[0]; // The rectangle is the first child
+            rectangle.setInteractive({ cursor: 'grab' });
 
-        if (selectable) {
-            rectangle.setInteractive();
-            
             rectangle.on('pointerdown', (pointer, localX, localY, event) => {
-                // Check if it's the current player's turn
-                if (this.canPlayerAct(this.currentUserId)) {
-                    this.selectTile(tile);
-                    event.stopPropagation();
+                this.startDragging(tile, pointer);
+                event.stopPropagation();
+            });
+            
+            rectangle.on('pointerup', (pointer, localX, localY, event) => {
+                this.stopDragging(tile, pointer);
+                event.stopPropagation();
+            });
+            
+            rectangle.on('pointermove', (pointer, localX, localY, event) => {
+                if (this.draggedTile === tile) {
+                    this.updateDraggedTile(tile, pointer);
                 }
             });
+
         } else {
             rectangle.disableInteractive();
         }
     }
 
+    makeTileSelectable(tile, selectable) {
+        console.log('makeTileSelectable', tile.getData('data').number, selectable);
+        const rectangle = tile.list[0]; // The rectangle is the first child
+
+        if (selectable) {
+            rectangle.setInteractive({ cursor: 'pointer' });
+            
+            rectangle.on('pointerdown', (pointer, localX, localY, event) => {
+                this.selectTile(tile);
+                event.stopPropagation();
+            });
+
+            //todo make hover look good
+            // Hover enter - add glow effect
+            rectangle.on('pointerover', () => {
+                // Add a subtle glow by changing fill and stroke
+                rectangle.setFillStyle(Phaser.Display.Color.Interpolate.ColorWithColor(
+                    Phaser.Display.Color.ValueToColor(this.scene.myData.color),
+                    Phaser.Display.Color.ValueToColor(0xffffff),
+                    100, 20
+                ));
+                
+                // Add a brighter stroke for glow effect
+                rectangle.setStrokeStyle(3, 0xffffff, 0.8);
+            });
+
+            // Hover exit - restore original appearance
+            rectangle.on('pointerout', () => {
+                rectangle.setFillStyle(this.scene.myData.color);
+                rectangle.setStrokeStyle(rectangle.lineWidth, 0x342ddb, rectangle.strokeAlpha);
+            });
+        } else {
+            rectangle.disableInteractive();
+
+            //remove listeners
+        }
+    }
+
     selectTile(tile) {
+
+        if (!this.scene.isMyTurn() || !this.scene.isTileSelecting) {
+            return;
+        }
+
         // Check if tile is already selected
         if (tile.getData('isSelected')) {
             return;
@@ -82,16 +115,19 @@ class TilePlacementSystem {
         // Visual feedback for selection
         const rectangle = tile.list[0];
         rectangle.setStrokeStyle(4, 0xff0000); // Red border for selected
-        rectangle.setTint(0xcccccc); // Slightly gray out
         
         // Disable interaction for this tile
         this.makeTileSelectable(tile, false);
         
-        socket.emit('kingdomino-select-tile', tile.getData('number'), tile.getData('drawn-index'));
+        socket.emit('kingdomino-select-tile', tile.getData('data').number, tile.getData('drawn-index'));
     }
     
     startDragging(tile, pointer) {
         if (this.draggedTile !== null) return; // Already dragging something
+
+        if (!this.scene.isMyTurn() || this.scene.isTileSelecting) {
+            return
+        }
         
         this.draggedTile = tile;
         this.originalPosition = { x: tile.x, y: tile.y };
@@ -111,7 +147,7 @@ class TilePlacementSystem {
             }
         });
         
-        console.log('Started dragging tile:', tile.getData('number'));
+        console.log('Started dragging tile:', tile.getData('data').number);
     }
     
     rotateTile(tile) {
@@ -221,22 +257,23 @@ class TilePlacementSystem {
         // Calculate the center position of the tile on the grid
         let centerX, centerY;
         
+        const tileNumber = tile.getData('data').number;
         if (this.isRotated) {
             // 1x2 tile (vertical)
             centerX = this.gridStartX + (col + 0.5) * this.tileSize;
             centerY = this.gridStartY + (row + 1) * this.tileSize;
             
             // Mark grid cells as occupied
-            this.gridOccupancy[row][col] = tile.getData('number');
-            this.gridOccupancy[row + 1][col] = tile.getData('number');
+            this.gridOccupancy[row][col] = tileNumber;
+            this.gridOccupancy[row + 1][col] = tileNumber;
         } else {
             // 2x1 tile (horizontal)
             centerX = this.gridStartX + (col + 1) * this.tileSize;
             centerY = this.gridStartY + (row + 0.5) * this.tileSize;
             
             // Mark grid cells as occupied
-            this.gridOccupancy[row][col] = tile.getData('number');
-            this.gridOccupancy[row][col + 1] = tile.getData('number');
+            this.gridOccupancy[row][col] = tileNumber;
+            this.gridOccupancy[row][col + 1] = tileNumber;
         }
         
         // Snap tile to grid position
@@ -257,14 +294,12 @@ class TilePlacementSystem {
         // Lock the tile in place
         this.lockTileInPlace(tile);
 
-        socket.emit('kingdomino-place-tile', tile.getData('number'), row, col, this.isRotated);
+        socket.emit('kingdomino-place-tile', tile.getData('data').number, row, col, this.isRotated);
         
-        console.log(`Placed tile ${tile.getData('number')} at grid position (${row}, ${col})`);
+        console.log(`Placed tile ${tile.getData('data').number} at grid position (${row}, ${col})`);
     }
     
     lockTileInPlace(tile) {
-        // Remove from free tiles group
-        this.scene.freeTiles.remove(tile);
         
         // Add to placed tiles group (you might want to create this group)
         if (!this.scene.placedTiles) {
@@ -320,7 +355,7 @@ class TilePlacementSystem {
     // Method to remove a placed tile (for debugging or game mechanics)
     removePlacedTile(tileNumber) {
         const placedTile = this.scene.placedTiles.children.entries.find(
-            tile => tile.getData('number') === tileNumber
+            tile => tile.getData('data').number === tileNumber
         );
         
         if (placedTile) {

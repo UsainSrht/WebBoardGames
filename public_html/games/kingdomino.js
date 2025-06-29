@@ -10,6 +10,8 @@ class KingdominoScene extends Phaser.Scene {
         this.currentTurnEndTime = 0;
         this.playerListContainer = null;
         this.turnProgressBar = null;
+        this.isTileSelecting = true;
+        this.drawnTiles = [];
     }
 
     preload() {
@@ -87,14 +89,15 @@ class KingdominoScene extends Phaser.Scene {
         this.playerListContainer.add(listBackground);
         
         // Create player entries
-        Object.values(this.players).forEach((player, index) => {
-            this.createPlayerEntry(player, index);
+        Object.values(this.players).forEach(player => {
+            this.createPlayerEntry(player);
         });
         
         this.updatePlayerListHighlight();
     }
     
-    createPlayerEntry(player, index) {
+    createPlayerEntry(player) {
+        const index = player.turnIndex;
         const yOffset = -(index * 60 + 40);
         
         // Player container
@@ -138,8 +141,8 @@ class KingdominoScene extends Phaser.Scene {
     }
     
     updatePlayerListHighlight() {
-        Object.values(this.players).forEach((player, index) => {
-            const isCurrentPlayer = index === this.currentPlayerIndex;
+        Object.values(this.players).forEach(player => {
+            const isCurrentPlayer = player.turnIndex === this.currentPlayerIndex;
             player.ui.turnIndicator.setVisible(isCurrentPlayer);
             
             if (isCurrentPlayer) {
@@ -151,17 +154,22 @@ class KingdominoScene extends Phaser.Scene {
             }
         });
     }
+
+    isMyTurn() {
+        return this.myData.turnIndex === this.currentPlayerIndex;
+    }
     
     updateTurnProgress() {
         if (this.players.length === 0) return;
         
-        const remaining = this.currentTurnEndTime - this.time.now;
-        const progress = Math.max(0, 1 - (remaining / (this.currentTurnEndTime - this.currentTurnStartTime)));
+        const remaining = Math.max(0, this.currentTurnEndTime - Date.now());
+        const progress = Math.max(0, (remaining / (this.currentTurnEndTime - this.currentTurnStartTime)));
         
-        const currentPlayer = this.players[this.currentPlayerIndex];
+        const currentPlayer = Object.values(this.players).filter(player => player.turnIndex === this.currentPlayerIndex)[0];
         if (currentPlayer && currentPlayer.ui) {
             const progressWidth = 180 * progress;
-            currentPlayer.ui.progressFill.setDisplaySize(progressWidth, 8);
+
+            currentPlayer.ui.progressFill.displayWidth = progressWidth;
             
             // Change color based on remaining time
             if (progress > 0.5) {
@@ -172,11 +180,6 @@ class KingdominoScene extends Phaser.Scene {
                 currentPlayer.ui.progressFill.setFillStyle(0xff0000); // Red
             }
         }
-    }
-    
-    canPlayerAct(playerId) {
-        const currentPlayer = this.players[this.currentPlayerIndex];
-        return currentPlayer && currentPlayer.id === playerId;
     }
 
     drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, color, placedGroup = null) {
@@ -244,10 +247,8 @@ class KingdominoScene extends Phaser.Scene {
             let image = scene.add.image(0, 0, tiles[tileNumber].asset)
                 .setOrigin(0.5);
             image.setScale(200 / image.width, 100 / image.height);
-            tile.setData('number', tileNumber);
             tile.setData('data', tiles[tileNumber]);
             tile.add([rectangle, image, text]);
-            scene.freeTiles.add(tile);
         }
     }
 
@@ -266,6 +267,7 @@ class KingdominoScene extends Phaser.Scene {
     }
 
     drawTiles(scene, drawnTiles) {
+        this.drawnTiles.length = 0; // Reset drawn tiles array
         drawnTiles.forEach((tileData, index) => {
             // Starting position (tile stack position - adjust these coordinates to match your stack)
             const startX = 450; // Adjust to your tile stack X position
@@ -303,11 +305,12 @@ class KingdominoScene extends Phaser.Scene {
             frontImage.setScale(200 / frontImage.width, 100 / frontImage.height);
             
             // Set tile data
-            tile.setData('number', tileData.number);
             tile.setData('data', tileData);
             tile.setData('drawn-index', index);
             tile.add([rectangle, backImage, frontImage, text]);
             
+            this.drawnTiles.push(tile);
+
             // Animation sequence
             const animationDelay = index * 300; // Stagger each tile by 200ms
             
@@ -321,15 +324,10 @@ class KingdominoScene extends Phaser.Scene {
                 delay: animationDelay,
                 onComplete: () => {
                     // 2. Wait a bit, then flip the tile
-                    scene.time.delayedCall(600, () => {
+                    scene.time.delayedCall(1000, () => {
                         this.flipTile(scene, tile, backImage, frontImage, text, tileData);
                     });
                 }
-            });
-            
-            // Make interactive after animations complete
-            scene.time.delayedCall(animationDelay + 300 + 700 + 600, () => {
-                //scene.tilePlacementSystem.makeTileInteractive(tile);
             });
         });
     }
@@ -391,7 +389,6 @@ class KingdominoScene extends Phaser.Scene {
     
         this.add.text(150, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
     
-        this.freeTiles = this.add.group();
         this.placedTiles = this.add.group();
         this.tileStack = this.add.group();
         this.placedPawns = this.add.group();
@@ -409,28 +406,30 @@ class KingdominoScene extends Phaser.Scene {
             this.myColorName = this.getColorName(this.myData.color);
 
             // Player grid
-            this.mainGrid = this.drawPlayerGrid(this, config.width/2, config.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles);
+            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles);
         
             // Other players (no interactivity needed)
             const playerKeys = Object.keys(this.players);
+            playerKeys.splice(playerKeys.indexOf(localStorage.getItem('userId')), 1); // Remove current player from the list
             const playerSize = playerKeys.length;
+            if (playerSize > 0) {
+                //no guarantee that user is the first in the list -- fix
+                const player = this.players[playerKeys[0]];
+                this.secondGrid = this.drawPlayerGrid(this, this.scale.width/2, 110, player.name, 5, 30, player.color);
+            }
             if (playerSize > 1) {
                 const player = this.players[playerKeys[1]];
-                this.secondGrid = this.drawPlayerGrid(this, config.width/2, 110, player.name, 5, 30, player.color);
+                this.thirdGrid = this.drawPlayerGrid(this, 180, this.scale.height/2, player.name, 5, 30, player.color);
             }
             if (playerSize > 2) {
                 const player = this.players[playerKeys[2]];
-                this.thirdGrid = this.drawPlayerGrid(this, 180, config.height/2, player.name, 5, 30, player.color);
-            }
-            if (playerSize > 3) {
-                const player = this.players[playerKeys[3]];
-                this.fourthGrid = this.drawPlayerGrid(this, config.width-180, config.height/2, player.name, 5, 30, player.color);
+                this.fourthGrid = this.drawPlayerGrid(this, this.scale.width-180, this.scale.height/2, player.name, 5, 30, player.color);
             }
 
             this.titleEffect = new TitleEffect(this);
             const iconKey = 'pawn-' + this.myColorName;
             const targetX = 0;
-            const targetY = config.height;
+            const targetY = this.scale.height;
             this.showTitleEffect('You are ' + this.myColorName, iconKey, targetX, targetY, {
                 fontSize: '42px',
                 animationDuration: 800,
@@ -463,11 +462,41 @@ class KingdominoScene extends Phaser.Scene {
             this.currentTurnStartTime = turnStartTime;
             this.currentTurnEndTime = turnEndTime;
             this.updatePlayerListHighlight();
+
+            if (this.isMyTurn()) {
+                this.showTitleEffect('Your turn', 'pawn-' + this.myColorName, this.scale.width / 2, this.scale.height / 2, {
+                    fontSize: '32px',
+                    animationDuration: 800,
+                    displayDuration: 1200,
+                    fadeOutDuration: 1500
+                });
+
+                if (this.isTileSelecting) {
+                    this.drawnTiles.forEach(tile => {
+                        //add delays
+                        this.tilePlacementSystem.makeTileSelectable(tile, !tile.getData('isSelected'));
+                    });
+                } else {
+                    this.drawnTiles.filter(tile => tile.getData('data').number === this.myData.selectedTile).forEach(tile => {
+                        this.tilePlacementSystem.makeTileDraggable(tile, true)
+                    });
+                }
+            } else {
+                if (this.isTileSelecting) {
+                    this.drawnTiles.forEach(tile => {
+                        this.tilePlacementSystem.makeTileSelectable(tile, false);
+                    });
+                }
+            }
         });
         
         socket.on("kingdomino-tile-selected", (userId, tileNumber, drawnIndex) => {
             
-            const pawn = this.add.image(700 + drawnIndex * 205, 250, 'pawn-' + this.getColorName(this.players[userId].color));
+            this.players[userId].selectedTile = tileNumber;
+
+            const pawn = this.add.image(700 + drawnIndex * 205, 300, 'pawn-' + this.getColorName(this.players[userId].color));
+            pawn.setDisplaySize(50,50);
+            pawn.setData('tileNumber', tileNumber);
             this.placedPawns.add(pawn);
 
             console.log(`Tile ${tileNumber} selected by user ${userId}`);
@@ -475,13 +504,20 @@ class KingdominoScene extends Phaser.Scene {
 
         socket.on("kingdomino-tile-placed", (userId, tileNumber, row, col, isRotated) => {
             
-            
+            this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => tile.destroy());
 
-            console.log(`Tile ${tileNumber} placed by user ${userId} at coordinates ${tileCoordinates}`);
+            this.placedPawns.getChildren().forEach(pawn => {
+                if (pawn.getData('tileNumber') === tileNumber) {
+                    this.placedPawns.remove(pawn, true);
+                }
+            });
+
+            console.log(`Tile ${tileNumber} placed by user ${userId} at coordinates ${row}, ${col} (rotated: ${isRotated})`);
         });
 
         socket.on("kingdomino-tile-selection-end", () => {
-            this.showTitleEffect('Tile selection ended', null, config.width / 2, config.height / 2, {
+            this.isTileSelecting = false;
+            this.showTitleEffect('Tile selection ended', null, this.scale.width / 2, this.scale.height / 2, {
                 fontSize: '32px',
                 animationDuration: 800,
                 displayDuration: 1200,
@@ -490,7 +526,8 @@ class KingdominoScene extends Phaser.Scene {
         });
 
         socket.on("kingdomino-tile-selection-start", () => {
-            this.showTitleEffect('Tile selection started', null, config.width / 2, config.height / 2, {
+            this.isTileSelecting = true;
+            this.showTitleEffect('Tile selection started', null, this.scale.width / 2, this.scale.height / 2, {
                 fontSize: '32px',
                 animationDuration: 800,
                 displayDuration: 1200,
@@ -513,14 +550,14 @@ class KingdominoScene extends Phaser.Scene {
 
 const config = {
     type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
     scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: window.innerWidth,
+        height: window.innerHeight,
+        parent: 'game-board',
     },
     transparent: true,
-    parent: 'game-board',
     scene: KingdominoScene
 };
 

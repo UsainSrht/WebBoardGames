@@ -99,7 +99,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
         
         totalTiles = readyPlayers.length * 12;
 
-        const shuffledKeys = Object.keys(cloneAndShuffleKeys(tiles));
+        const shuffledKeys = Object.keys(tiles).sort(() => Math.random() - 0.5);
         for (let i = 0; i < totalTiles; i++) {
             gameTiles.push(shuffledKeys[i]);
         }
@@ -122,8 +122,9 @@ module.exports = (io, eventBus, room, roomData, players) => {
         };
 
         io.to(room).emit("kingdomino-game-start", gameGata);
-        nextTurn();
+        io.to(room).emit("kingdomino-tile-selection-start");
         drawNextTiles();
+        nextTurn();
     }
 
     let isTileSelecting = true;
@@ -132,6 +133,9 @@ module.exports = (io, eventBus, room, roomData, players) => {
     let isWaitingForPlayer = false;
 
     function nextTurn() {
+
+        console.log('turn index:', currentPlayerIndex, 'isTileSelecting:', isTileSelecting);
+
         // Clear any existing timer
         if (turnTimer) {
             clearTimeout(turnTimer);
@@ -150,9 +154,34 @@ module.exports = (io, eventBus, room, roomData, players) => {
         // Start 15-second timer for automatic turn advance
         turnTimer = setTimeout(() => {
             if (isWaitingForPlayer) {
+                if (isTileSelecting) {
+                    selectRandomTile();
+                } else {
+                    placeRandomTile();
+                }
                 advanceToNextPlayer();
             }
-        }, 15000);
+        }, isTileSelecting ? tileSelectTurntime : tilePlaceTurnTime);
+    }
+
+    function selectRandomTile() {
+        const userId = Object.keys(playerGameData).find(id => playerGameData[id].turnIndex === currentPlayerIndex);
+        const availableTiles = drawnTiles.filter(tile => tile && !Object.values(playerGameData).some(player => player.selectedTile === tile.number));
+        const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
+        selectTile(userId, randomTile.number, drawnTiles.indexOf(randomTile));
+    }
+
+    function placeRandomTile() {
+        const userId = Object.keys(playerGameData).find(id => playerGameData[id].turnIndex === currentPlayerIndex);
+        const playerData = playerGameData[userId];
+        const selectedTile = playerData.selectedTile;
+        if (selectedTile > 0) {
+            // For simplicity, we assume a random valid position
+            const row = Math.floor(Math.random() * 5); // Assuming a 5x5 grid
+            const col = Math.floor(Math.random() * 5);
+            const isRotated = Math.random() < 0.5; // Randomly rotate tile
+            placeTile(userId, selectedTile, row, col, isRotated);
+        }
     }
 
     function advanceToNextPlayer() {
@@ -165,7 +194,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
 
     function selectTile(userId, tileNumber, drawnIndex) {
-        if (gameTiles.includes(tileNumber) && isTileSelecting && playerGameData.filter(player => player.selectedTile === tileNumber).length === 0) {
+        if (drawnTiles.filter(tile => tile.number === tileNumber).length === 1 && isTileSelecting && Object.values(playerGameData).filter(player => player.selectedTile === tileNumber).length === 0) {
             playerGameData[userId].selectedTile = tileNumber;
             
             io.to(room).emit("kingdomino-tile-selected", userId, tileNumber, drawnIndex);
@@ -177,11 +206,13 @@ module.exports = (io, eventBus, room, roomData, players) => {
                 io.to(room).emit("kingdomino-tile-selection-end");
                 advanceToNextPlayer();
             }
+        } else {
+            console.log('invalid tile selection attempt:', userId, tileNumber, drawnIndex);
         }
     }
 
     function placeTile(userId, tileNumber, row, col, isRotated) {
-        if (gameTiles.includes(tileNumber) && isTileSelecting && playerGameData[userId].selectedTile === tileNumber) {
+        if (!isTileSelecting && playerGameData[userId].selectedTile === tileNumber) {
             // Validate tile placement logic here
             // For simplicity, we assume the placement is valid
             
@@ -193,42 +224,23 @@ module.exports = (io, eventBus, room, roomData, players) => {
             const placedTiles = Object.values(playerGameData).filter(player => player.selectedTile === 0).length;
             if (placedTiles >= readyPlayers.length) {
                 isTileSelecting = true; // Reset for next round
+                io.to(room).emit("kingdomino-tile-selection-start");
                 drawNextTiles();
                 advanceToNextPlayer();
             }
+        } else {
+            console.log('invalid tile placement attempt:', userId, tileNumber, row, col, isRotated);
         }
     }
 
+    const drawnTiles = [];
     function drawNextTiles() {
-        const drawnTiles = [];
+        drawnTiles.length = 0; // Clear previous drawn tiles
         for (let i = 0; i < totalTiles/12; i++) {
             const tileNumber = gameTiles.pop();
             drawnTiles.push(tiles[tileNumber]);
         }
         io.to(room).emit("kingdomino-draw-tiles", drawnTiles);
-    }
-
-    // Fisher-Yates shuffle algorithm
-    function shuffleArray(array) {
-        const shuffled = [...array];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-        }
-        return shuffled;
-    }
-
-    // Clone object and shuffle its keys
-    function cloneAndShuffleKeys(obj) {
-        const keys = Object.keys(obj);
-        const shuffledKeys = shuffleArray(keys);
-        
-        const shuffledObj = {};
-        shuffledKeys.forEach(key => {
-            shuffledObj[key] = obj[key];
-        });
-        
-        return shuffledObj;
     }
 
 };
