@@ -133,7 +133,8 @@ module.exports = (io, eventBus, room, roomData, players) => {
     let isWaitingForPlayer = false;
 
     function nextTurn() {
-
+        //3 selecting turn when 2 player exists, fix that
+        //end turn system, currently able to do more moves in his turn befoe passing
         console.log('turn index:', currentPlayerIndex, 'isTileSelecting:', isTileSelecting);
 
         // Clear any existing timer
@@ -204,8 +205,9 @@ module.exports = (io, eventBus, room, roomData, players) => {
             if (selectedTiles >= readyPlayers.length) {
                 isTileSelecting = false;
                 io.to(room).emit("kingdomino-tile-selection-end");
-                advanceToNextPlayer();
             }
+
+            advanceToNextPlayer();
         } else {
             console.log('invalid tile selection attempt:', userId, tileNumber, drawnIndex);
         }
@@ -226,8 +228,9 @@ module.exports = (io, eventBus, room, roomData, players) => {
                 isTileSelecting = true; // Reset for next round
                 io.to(room).emit("kingdomino-tile-selection-start");
                 drawNextTiles();
-                advanceToNextPlayer();
             }
+            
+            advanceToNextPlayer();
         } else {
             console.log('invalid tile placement attempt:', userId, tileNumber, row, col, isRotated);
         }
@@ -235,12 +238,28 @@ module.exports = (io, eventBus, room, roomData, players) => {
 
     const drawnTiles = [];
     function drawNextTiles() {
+        if (gameTiles.length < totalTiles / 12) {
+            console.log("Not enough tiles left to draw, game ends.");
+            endGame();
+            return;
+        }
+
         drawnTiles.length = 0; // Clear previous drawn tiles
         for (let i = 0; i < totalTiles/12; i++) {
             const tileNumber = gameTiles.pop();
             drawnTiles.push(tiles[tileNumber]);
         }
         io.to(room).emit("kingdomino-draw-tiles", drawnTiles);
+    }
+
+    function endGame() {
+        // Calculate scores and emit final results
+        const scores = {};
+        for (let userId in playerGameData) {
+            const playerData = playerGameData[userId];
+            scores[userId] = playerData.score; // Assuming score is calculated elsewhere
+        }
+        io.to(room).emit("kingdomino-game-end", scores);
     }
 
 };

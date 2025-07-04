@@ -32,6 +32,7 @@ class TilePlacementSystem {
     }
     
     makeTileDraggable(tile, draggable) {
+        console.log('makeTileDraggable', tile.getData('data').number, draggable);
         const rectangle = tile.list[0]; // The rectangle is the first child
         
         if (draggable) {
@@ -56,6 +57,10 @@ class TilePlacementSystem {
 
         } else {
             rectangle.disableInteractive();
+
+            rectangle.off('pointerdown');
+            rectangle.off('pointerup');
+            rectangle.off('pointermove');
         }
     }
 
@@ -94,6 +99,9 @@ class TilePlacementSystem {
             rectangle.disableInteractive();
 
             //remove listeners
+            rectangle.off('pointerdown');
+            rectangle.off('pointerover');
+            rectangle.off('pointerout');
         }
     }
 
@@ -301,10 +309,6 @@ class TilePlacementSystem {
     
     lockTileInPlace(tile) {
         
-        // Add to placed tiles group (you might want to create this group)
-        if (!this.scene.placedTiles) {
-            this.scene.placedTiles = this.scene.add.group();
-        }
         this.scene.placedTiles.add(tile);
         
         // Remove interactivity

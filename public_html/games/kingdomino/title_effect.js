@@ -23,6 +23,9 @@ class TitleEffect {
         
         // Create icon
         const icon = this.scene.add.image(0, -40, iconKey);
+        if (!iconKey) {
+            icon.setVisible(false);
+        }
         icon.setScale(config.iconScale);
         icon.setOrigin(0.5);
         

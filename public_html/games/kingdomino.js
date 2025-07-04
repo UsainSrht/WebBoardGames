@@ -12,6 +12,7 @@ class KingdominoScene extends Phaser.Scene {
         this.turnProgressBar = null;
         this.isTileSelecting = true;
         this.drawnTiles = [];
+        this.turnCount = 0;
     }
 
     preload() {
@@ -306,6 +307,7 @@ class KingdominoScene extends Phaser.Scene {
             
             // Set tile data
             tile.setData('data', tileData);
+            console.log(index, ' tileData:', tileData);
             tile.setData('drawn-index', index);
             tile.add([rectangle, backImage, frontImage, text]);
             
@@ -432,9 +434,9 @@ class KingdominoScene extends Phaser.Scene {
             const targetY = this.scale.height;
             this.showTitleEffect('You are ' + this.myColorName, iconKey, targetX, targetY, {
                 fontSize: '42px',
-                animationDuration: 800,
-                displayDuration: 1200,
-                fadeOutDuration: 1500
+                animationDuration: 400,
+                displayDuration: 1000,
+                fadeOutDuration: 400
             });
             
             this.currentPlayerIndex = gameData.currentPlayerIndex;
@@ -464,12 +466,14 @@ class KingdominoScene extends Phaser.Scene {
             this.updatePlayerListHighlight();
 
             if (this.isMyTurn()) {
-                this.showTitleEffect('Your turn', 'pawn-' + this.myColorName, this.scale.width / 2, this.scale.height / 2, {
-                    fontSize: '32px',
-                    animationDuration: 800,
-                    displayDuration: 1200,
-                    fadeOutDuration: 1500
-                });
+                if (this.turnCount !== 0) {
+                    this.showTitleEffect('Your turn', 'pawn-' + this.myColorName, this.scale.width / 2, this.scale.height / 2, {
+                        fontSize: '32px',
+                        animationDuration: 400,
+                        displayDuration: 1000,
+                        fadeOutDuration: 400
+                    });
+                }
 
                 if (this.isTileSelecting) {
                     this.drawnTiles.forEach(tile => {
@@ -478,7 +482,7 @@ class KingdominoScene extends Phaser.Scene {
                     });
                 } else {
                     this.drawnTiles.filter(tile => tile.getData('data').number === this.myData.selectedTile).forEach(tile => {
-                        this.tilePlacementSystem.makeTileDraggable(tile, true)
+                        this.tilePlacementSystem.makeTileDraggable(tile, true);
                     });
                 }
             } else {
@@ -486,8 +490,14 @@ class KingdominoScene extends Phaser.Scene {
                     this.drawnTiles.forEach(tile => {
                         this.tilePlacementSystem.makeTileSelectable(tile, false);
                     });
+                } else {
+                    /*this.drawnTiles.forEach(tile => {
+                        this.tilePlacementSystem.makeTileDraggable(tile, false);
+                    });*/
                 }
             }
+
+            this.turnCount++;
         });
         
         socket.on("kingdomino-tile-selected", (userId, tileNumber, drawnIndex) => {
@@ -504,7 +514,10 @@ class KingdominoScene extends Phaser.Scene {
 
         socket.on("kingdomino-tile-placed", (userId, tileNumber, row, col, isRotated) => {
             
-            this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => tile.destroy());
+            this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => {
+                tile.destroy();
+                this.drawnTiles.splice(this.drawnTiles.indexOf(tile), 1);
+            });
 
             this.placedPawns.getChildren().forEach(pawn => {
                 if (pawn.getData('tileNumber') === tileNumber) {
@@ -517,22 +530,24 @@ class KingdominoScene extends Phaser.Scene {
 
         socket.on("kingdomino-tile-selection-end", () => {
             this.isTileSelecting = false;
-            this.showTitleEffect('Tile selection ended', null, this.scale.width / 2, this.scale.height / 2, {
+            /*this.showTitleEffect('Tile selection ended', null, this.scale.width / 2, this.scale.height / 2, {
                 fontSize: '32px',
-                animationDuration: 800,
-                displayDuration: 1200,
-                fadeOutDuration: 1500
-            });
+                animationDuration: 400,
+                displayDuration: 1000,
+                fadeOutDuration: 400
+            });*/
+            showToast('Tile selection ended.');
         });
 
         socket.on("kingdomino-tile-selection-start", () => {
             this.isTileSelecting = true;
-            this.showTitleEffect('Tile selection started', null, this.scale.width / 2, this.scale.height / 2, {
+            /*this.showTitleEffect('Tile selection started', null, this.scale.width / 2, this.scale.height / 2, {
                 fontSize: '32px',
-                animationDuration: 800,
-                displayDuration: 1200,
-                fadeOutDuration: 1500
-            });
+                animationDuration: 400,
+                displayDuration: 1000,
+                fadeOutDuration: 400
+            });*/
+            showToast('Tile selection started.');
         });
 
         socket.emit("kingdomino-create-finish");
