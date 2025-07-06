@@ -131,8 +131,11 @@ module.exports = (io, eventBus, room, roomData, players) => {
     let currentPlayerIndex = 1;
     let turnTimer = null;
     let isWaitingForPlayer = false;
+    let gameEnded = false;
 
     function nextTurn() {
+        if (gameEnded) return;
+
         //3 selecting turn when 2 player exists, fix that
         //end turn system, currently able to do more moves in his turn befoe passing
         console.log('turn index:', currentPlayerIndex, 'isTileSelecting:', isTileSelecting);
@@ -253,6 +256,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
 
     function endGame() {
+        gameEnded = true;
         // Calculate scores and emit final results
         const scores = {};
         for (let userId in playerGameData) {

@@ -118,7 +118,7 @@ class TilePlacementSystem {
         
         // Mark tile as selected
         tile.setData('isSelected', true);
-        tile.setData('selectedBy', this.currentUserId);
+        tile.setData('selectedBy', this.scene.myUserId);
         
         // Visual feedback for selection
         const rectangle = tile.list[0];
@@ -288,8 +288,8 @@ class TilePlacementSystem {
         tile.setPosition(centerX, centerY);
         
         // Scale tile to fit grid
-        const rectangle = tile.list[0];
-        const image = tile.list[1];
+        //const rectangle = tile.list[0];
+        //const image = tile.list[1];
         
         /*if (this.isRotated) {
             rectangle.setSize(this.tileSize, this.tileSize * 2);
@@ -298,6 +298,8 @@ class TilePlacementSystem {
             rectangle.setSize(this.tileSize * 2, this.tileSize);
             image.setDisplaySize(this.tileSize * 2, this.tileSize);
         }*/
+
+        this.scene.placedTiles.add(tile);
         
         // Lock the tile in place
         this.lockTileInPlace(tile);
@@ -308,8 +310,6 @@ class TilePlacementSystem {
     }
     
     lockTileInPlace(tile) {
-        
-        this.scene.placedTiles.add(tile);
         
         // Remove interactivity
         const rectangle = tile.list[0];
@@ -324,8 +324,6 @@ class TilePlacementSystem {
         
         // Store placement data
         tile.setData('placed', true);
-        tile.setData('gridRow', this.getGridPosition(tile.x, tile.y).row);
-        tile.setData('gridCol', this.getGridPosition(tile.x, tile.y).col);
         tile.setData('isRotated', this.isRotated);
     }
     

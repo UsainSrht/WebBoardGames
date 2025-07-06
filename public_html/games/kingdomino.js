@@ -183,7 +183,7 @@ class KingdominoScene extends Phaser.Scene {
         }
     }
 
-    drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, color, placedGroup = null) {
+    drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, color, placedGroup, userId) {
         const container = scene.add.container(); // Acts like a group
         const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff } });
         container.add(graphics);
@@ -232,7 +232,10 @@ class KingdominoScene extends Phaser.Scene {
             tileSize,
             centerX,
             centerY,
-            playerName
+            playerName,
+            color,
+            placedGroup,
+            userId
         };
     }
     
@@ -280,7 +283,7 @@ class KingdominoScene extends Phaser.Scene {
             
             // Remove the tile from the stack
             const lastTile = scene.tileStack.getLast();
-            scene.tileStack.remove(lastTile);
+            scene.tileStack.remove(lastTile, true, true); // Remove from scene and destroy
 
             // Create tile container at starting position
             const tile = scene.add.container(startX, startY);
@@ -358,6 +361,64 @@ class KingdominoScene extends Phaser.Scene {
         });
     }
 
+    placeOtherPlayersTile(userId, tile, row, col, isRotated) {
+        console.log(`Placing tile for user ${userId} at row ${row}, col ${col}, rotated: ${isRotated}`);
+        const player = this.players[userId];
+        if (!player) return;
+        
+        let targetGrid = null;
+        if (this.secondGrid && this.secondGrid.userId === userId) {
+            targetGrid = this.secondGrid;
+        } else if (this.thirdGrid && this.thirdGrid.userId === userId) {
+            targetGrid = this.thirdGrid;
+        } else if (this.fourthGrid && this.fourthGrid.userId === userId) {
+            targetGrid = this.fourthGrid;
+        }
+        if (!targetGrid) return;
+        
+        // Calculate position on the target grid
+        const gridStartX = targetGrid.centerX - (targetGrid.gridSize * targetGrid.tileSize) / 2;
+        const gridStartY = targetGrid.centerY - (targetGrid.gridSize * targetGrid.tileSize) / 2;
+        
+        let centerX, centerY;
+        
+        if (isRotated) {
+            // 1x2 tile (vertical)
+            centerX = gridStartX + (col + 0.5) * targetGrid.tileSize;
+            centerY = gridStartY + (row + 1) * targetGrid.tileSize;
+            tile.setRotation(Math.PI / 2);
+        } else {
+            // 2x1 tile (horizontal)
+            centerX = gridStartX + (col + 1) * targetGrid.tileSize;
+            centerY = gridStartY + (row + 0.5) * targetGrid.tileSize;
+        }
+
+        tile.setPosition(centerX, centerY);
+
+        // Scale tile to fit grid
+        const rectangle = tile.list[0];
+        const image = tile.list[1];
+
+        // Get the original tile dimensions (assuming they were created with a standard size)
+        const originalTileWidth = isRotated ? this.mainGrid.tileSize : this.mainGrid.tileSize * 2;
+        const originalTileHeight = isRotated ? this.mainGrid.tileSize * 2 : this.mainGrid.tileSize;
+        
+        // Calculate new dimensions for target grid
+        const newTileWidth = isRotated ? targetGrid.tileSize : targetGrid.tileSize * 2;
+        const newTileHeight = isRotated ? targetGrid.tileSize * 2 : targetGrid.tileSize;
+        
+        // Calculate scale factors
+        const scaleX = newTileWidth / originalTileWidth;
+        const scaleY = newTileHeight / originalTileHeight;
+        
+        // Apply scaling
+        tile.setScale(scaleX, scaleY);
+
+        targetGrid.placedGroup.add(tile);
+
+        this.tilePlacementSystem.lockTileInPlace(tile);
+    }
+
     getColorName(color) {
         switch (color) {
             case 0xff0000: return 'red';
@@ -392,6 +453,10 @@ class KingdominoScene extends Phaser.Scene {
         this.add.text(150, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
     
         this.placedTiles = this.add.group();
+        this.placedTiles2ndGrid = this.add.group();
+        this.placedTiles3rdGrid = this.add.group();
+        this.placedTiles4thGrid = this.add.group();
+
         this.tileStack = this.add.group();
         this.placedPawns = this.add.group();
 
@@ -404,28 +469,31 @@ class KingdominoScene extends Phaser.Scene {
             // Initialize players from server data
             this.players = gameData.players;
 
-            this.myData = this.players[localStorage.getItem('userId')];
+            this.myUserId = localStorage.getItem('userId');
+            this.myData = this.players[this.myUserId];
             this.myColorName = this.getColorName(this.myData.color);
 
             // Player grid
-            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles);
+            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles, );
         
             // Other players (no interactivity needed)
             const playerKeys = Object.keys(this.players);
-            playerKeys.splice(playerKeys.indexOf(localStorage.getItem('userId')), 1); // Remove current player from the list
+            playerKeys.splice(playerKeys.indexOf(this.myUserId), 1); // Remove current player from the list
             const playerSize = playerKeys.length;
             if (playerSize > 0) {
-                //no guarantee that user is the first in the list -- fix
-                const player = this.players[playerKeys[0]];
-                this.secondGrid = this.drawPlayerGrid(this, this.scale.width/2, 110, player.name, 5, 30, player.color);
+                const userId = playerKeys[0];
+                const player = this.players[userId];
+                this.secondGrid = this.drawPlayerGrid(this, this.scale.width/2, 110, player.name, 5, 30, player.color, this.placedTiles2ndGrid, userId);
             }
             if (playerSize > 1) {
-                const player = this.players[playerKeys[1]];
-                this.thirdGrid = this.drawPlayerGrid(this, 180, this.scale.height/2, player.name, 5, 30, player.color);
+                const userId = playerKeys[1];
+                const player = this.players[userId];
+                this.thirdGrid = this.drawPlayerGrid(this, 180, this.scale.height/2, player.name, 5, 30, player.color, this.placedTiles3rdGrid, userId);
             }
             if (playerSize > 2) {
-                const player = this.players[playerKeys[2]];
-                this.fourthGrid = this.drawPlayerGrid(this, this.scale.width-180, this.scale.height/2, player.name, 5, 30, player.color);
+                const userId = playerKeys[2];
+                const player = this.players[userId];
+                this.fourthGrid = this.drawPlayerGrid(this, this.scale.width-180, this.scale.height/2, player.name, 5, 30, player.color, this.placedTiles4thGrid, userId);
             }
 
             this.titleEffect = new TitleEffect(this);
@@ -504,28 +572,38 @@ class KingdominoScene extends Phaser.Scene {
             
             this.players[userId].selectedTile = tileNumber;
 
+            const tile = this.drawnTiles.find(t => t.getData('data').number === tileNumber);
+            if (!tile) return;
+            tile.setData('isSelected', true);
+            tile.setData('selectedBy', userId);
+
             const pawn = this.add.image(700 + drawnIndex * 205, 300, 'pawn-' + this.getColorName(this.players[userId].color));
             pawn.setDisplaySize(50,50);
             pawn.setData('tileNumber', tileNumber);
             this.placedPawns.add(pawn);
 
-            console.log(`Tile ${tileNumber} selected by user ${userId}`);
+            console.log(`Tile ${tileNumber} selected by ${this.players[userId].name}`);
         });
 
         socket.on("kingdomino-tile-placed", (userId, tileNumber, row, col, isRotated) => {
             
             this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => {
-                tile.destroy();
+                if (userId !== this.myUserId) {
+                    this.placeOtherPlayersTile(userId, tile, row, col, isRotated);
+                } else {
+                    // our tile, do nothing
+                }
+                //tile.destroy();  
                 this.drawnTiles.splice(this.drawnTiles.indexOf(tile), 1);
             });
 
             this.placedPawns.getChildren().forEach(pawn => {
                 if (pawn.getData('tileNumber') === tileNumber) {
-                    this.placedPawns.remove(pawn, true);
+                    this.placedPawns.remove(pawn, true, true);
                 }
             });
 
-            console.log(`Tile ${tileNumber} placed by user ${userId} at coordinates ${row}, ${col} (rotated: ${isRotated})`);
+            console.log(`Tile ${tileNumber} placed by user ${this.players[userId].name} at coordinates ${row}, ${col} (rotated: ${isRotated})`);
         });
 
         socket.on("kingdomino-tile-selection-end", () => {
@@ -550,6 +628,16 @@ class KingdominoScene extends Phaser.Scene {
             showToast('Tile selection started.');
         });
 
+        socket.on("kingdomino-game-end", (scores) => {
+            this.showTitleEffect('Game ended!', null, this.scale.width / 2, this.scale.height / 2, {
+                fontSize: '32px',
+                animationDuration: 400,
+                displayDuration: 1000,
+                fadeOutDuration: 400
+            });
+            showToast('Game ended.');
+        });
+
         socket.emit("kingdomino-create-finish");
     }
     
@@ -560,16 +648,18 @@ class KingdominoScene extends Phaser.Scene {
         if (this.playerListContainer) {
             this.playerListContainer.setPosition(20, height - 20);
         }
+
+        
     }
 }
 
 const config = {
     type: Phaser.AUTO,
     scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: window.innerWidth,
-        height: window.innerHeight,
+        width: 1920,
+        height: 1080,
         parent: 'game-board',
     },
     transparent: true,
@@ -581,21 +671,39 @@ const game = new Phaser.Game(config);
 const onChangeScreen = () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
-
-    game.scale.resize(width, height);
-
-    game.scene.scenes.forEach(scene => {
-        if (scene.scene.isActive() && scene.resize) {
-            scene.resize(width, height);
-        }
-    });
+    
+    console.log('Screen changed:', width, height);
+    
+    // Use refresh() for FIT mode - it handles everything automatically
+    game.scale.refresh();
+    
+    // Optional: Force a small delay to ensure DOM has updated
+    setTimeout(() => {
+        game.scale.refresh();
+    }, 10);
 };
 
-const _orientation = screen.orientation || screen.mozOrientation || screen.msOrientation;
-_orientation.addEventListener('change', () => {
-    onChangeScreen();
+// Handle window resize (browser resize, dev tools, etc.)
+window.addEventListener('resize', onChangeScreen);
+
+// Handle orientation change (mobile devices)
+if (screen.orientation) {
+    screen.orientation.addEventListener('change', onChangeScreen);
+} else if (screen.mozOrientation) {
+    screen.addEventListener('mozorientationchange', onChangeScreen);
+} else if (screen.msOrientation) {
+    screen.addEventListener('msorientationchange', onChangeScreen);
+}
+
+// Optional: Handle visibility change to ensure proper scaling when tab becomes visible
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        // Small delay to ensure page is fully visible
+        setTimeout(onChangeScreen, 100);
+    }
 });
 
-window.addEventListener('resize', () => {
+// Optional: Force initial scale check after a short delay
+setTimeout(() => {
     onChangeScreen();
-});
+}, 100);
