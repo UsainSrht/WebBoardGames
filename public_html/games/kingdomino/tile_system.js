@@ -4,7 +4,7 @@ class TilePlacementSystem {
         this.playerGrid = playerGrid;
         this.draggedTile = null;
         this.originalPosition = { x: 0, y: 0 };
-        this.isRotated = false;
+        this.currentPosition = { x: -1, y: -1 };
         
         // Grid properties
         this.gridSize = playerGrid.gridSize;
@@ -139,7 +139,6 @@ class TilePlacementSystem {
         
         this.draggedTile = tile;
         this.originalPosition = { x: tile.x, y: tile.y };
-        this.isRotated = false;
         
         // Bring tile to front
         tile.setDepth(1000);
@@ -159,24 +158,12 @@ class TilePlacementSystem {
     }
     
     rotateTile(tile) {
-        //const rectangle = tile.list[0];
-        //const image = tile.list[1];
-        
         // Rotate 90 degrees
-        const radian90deg = Math.PI / 2;
-        tile.setRotation(tile.rotation === radian90deg ? 0 : radian90deg);
-        this.isRotated = !this.isRotated;
-        
-        /*// Update the visual representation
-        if (this.isRotated) {
-            // 2x1 becomes 1x2 when rotated
-            rectangle.setSize(200, 100);
-        } else {
-            // Back to 2x1
-            rectangle.setSize(100, 200);
-        }*/
-        
-        console.log('Rotated tile, isRotated:', this.isRotated);
+        const degToRadian = Math.PI / 180;
+        const currentDegree = tile.getData('rotation') || 0;
+        const newDegree = (currentDegree + 90) % 360;
+        tile.setData('rotation', newDegree);
+        tile.setRotation(newDegree * degToRadian);
     }
     
     updateDraggedTile(tile, pointer) {
@@ -185,15 +172,35 @@ class TilePlacementSystem {
         
         // Check for valid placement and provide visual feedback
         const gridPos = this.getGridPosition(pointer.worldX, pointer.worldY);
-        if (gridPos && this.isValidPlacement(gridPos.row, gridPos.col)) {
+        if (!gridPos) {
+            this.invalidPlacement(tile);
+            return;
+        }
+
+        if (gridPos.row === this.currentPosition.x && gridPos.col === this.currentPosition.y) {
+            return; // No change in position, skip further checks
+        }
+        this.currentPosition = { x: gridPos.row, y: gridPos.col };
+
+        if (this.isValidPlacement(gridPos.row, gridPos.col, tile)) {
             // Show valid placement (green tint)
             const rectangle = tile.list[0];
             rectangle.setStrokeStyle(3, 0x00ff00);
+            const offset = this.getCenterOffset(tile);
+            this.scene.previewHighlight.setVisible(true).setPosition(
+                this.gridStartX + (gridPos.col + offset.x) * this.tileSize,
+                this.gridStartY + (gridPos.row + offset.y) * this.tileSize
+            ).setRotation(tile.rotation);
         } else {
-            // Show invalid placement (red tint)
-            const rectangle = tile.list[0];
-            rectangle.setStrokeStyle(3, 0xff0000);
+            this.invalidPlacement(tile);
         }
+    }
+
+    invalidPlacement(tile) {
+        // Show invalid placement (red tint)
+        const rectangle = tile.list[0];
+        rectangle.setStrokeStyle(3, 0xff0000);
+        this.scene.previewHighlight.setVisible(false);
     }
     
     stopDragging(tile, pointer) {
@@ -201,7 +208,7 @@ class TilePlacementSystem {
         
         const gridPos = this.getGridPosition(pointer.worldX, pointer.worldY);
         
-        if (gridPos && this.isValidPlacement(gridPos.row, gridPos.col)) {
+        if (gridPos && this.isValidPlacement(gridPos.row, gridPos.col, tile)) {
             // Valid placement - snap to grid
             this.placeTileOnGrid(tile, gridPos.row, gridPos.col);
         } else {
@@ -210,9 +217,12 @@ class TilePlacementSystem {
         }
         
         this.draggedTile = null;
+        this.currentPosition = { x: -1, y: -1 };
         
         // Remove keyboard listener
         this.scene.input.keyboard.off('keydown-R');
+
+        this.scene.previewHighlight.setVisible(false);
     }
     
     getGridPosition(worldX, worldY) {
@@ -231,82 +241,95 @@ class TilePlacementSystem {
         
         return { row, col };
     }
-    
-    isValidPlacement(row, col) {
-        // Check if the tile can be placed at this position
-        if (this.isRotated) {
-            // 1x2 tile (vertical)
-            return this.canPlaceTile(row, col, 2, 1);
+
+    getSize(tile) {
+        // Determine the size of the tile based on its rotation
+        // sizes here are the number that should be added to the current grild position to check if its outside.
+        const rotation = tile.getData('rotation') || 0;
+        if (rotation === 0) {
+            return { width: 1, height: 0 };
+        } else if (rotation === 90) {
+            return { width: 0, height: 1 };
+        } else if (rotation === 180) {
+            return { width: -1, height: 0 };
+        } else if (rotation === 270) {
+            return { width: 0, height: -1 };
         } else {
-            // 2x1 tile (horizontal)
-            return this.canPlaceTile(row, col, 1, 2);
+            return null;
         }
     }
     
-    canPlaceTile(startRow, startCol, height, width) {
+    isValidPlacement(row, col, tile) {
+        const size = this.getSize(tile);
+        return this.canPlaceTile(row, col, size.width, size.height);
+    }
+    
+    canPlaceTile(startRow, startCol, width, height) {
+        console.log('canPlaceTile', startRow, startCol, width, height);
+
         // Check if all required cells are available
-        if (startRow + height > this.gridSize || startCol + width > this.gridSize) {
+        if (startRow + height > this.gridSize-1 || startCol + width > this.gridSize-1 ||
+            startRow + height < 0 || startCol + width < 0
+        ) {
+            console.log('Tile placement would go outside the grid');
             return false; // Would go outside grid
         }
-        console.log(`Checking placement at (${startRow}, ${startCol}) for size ${height}x${width}`);
         
-        for (let row = startRow; row < startRow + height; row++) {
-            for (let col = startCol; col < startCol + width; col++) {
-                if (this.gridOccupancy[row][col] !== null) {
-                    return false; // Cell is occupied
-                }
-            }
+        if (this.gridOccupancy[startRow][startCol] !== null || 
+            this.gridOccupancy[startRow + height][startCol + width] !== null
+        ) {
+            console.log('Tile placement overlaps with occupied space');
+            return false; // occupied space
         }
-        
+
+        console.log('Tile placement is valid');
         return true;
+    }
+
+    getCenterOffset(tile) {
+        // Calculate the center offset based on tile rotation
+        const rotation = tile.getData('rotation') || 0;
+        if (rotation === 0) {
+            return { x: 1, y: 0.5 };
+        } else if (rotation === 90) {
+            return { x: 0.5, y: 1 };
+        } else if (rotation === 180) {
+            return { x: 0, y: 0.5 };
+        } else if (rotation === 270) {
+            return { x: 0.5, y: 0 };
+        } else {
+            return null;
+        }
     }
     
     placeTileOnGrid(tile, row, col) {
-        // Calculate the center position of the tile on the grid
-        let centerX, centerY;
-        
+
         const tileNumber = tile.getData('data').number;
-        if (this.isRotated) {
-            // 1x2 tile (vertical)
-            centerX = this.gridStartX + (col + 0.5) * this.tileSize;
-            centerY = this.gridStartY + (row + 1) * this.tileSize;
-            
-            // Mark grid cells as occupied
-            this.gridOccupancy[row][col] = tileNumber;
-            this.gridOccupancy[row + 1][col] = tileNumber;
-        } else {
-            // 2x1 tile (horizontal)
-            centerX = this.gridStartX + (col + 1) * this.tileSize;
-            centerY = this.gridStartY + (row + 0.5) * this.tileSize;
-            
-            // Mark grid cells as occupied
-            this.gridOccupancy[row][col] = tileNumber;
+        const rotation = tile.getData('rotation') || 0;
+        if (rotation === 0) {
             this.gridOccupancy[row][col + 1] = tileNumber;
-        }
-        
-        // Snap tile to grid position
-        tile.setPosition(centerX, centerY);
-        
-        // Scale tile to fit grid
-        //const rectangle = tile.list[0];
-        //const image = tile.list[1];
-        
-        /*if (this.isRotated) {
-            rectangle.setSize(this.tileSize, this.tileSize * 2);
-            image.setDisplaySize(this.tileSize, this.tileSize * 2);
+        } else if (rotation === 90) {
+            this.gridOccupancy[row + 1][col] = tileNumber;
+        } else if (rotation === 180) {
+            this.gridOccupancy[row][col - 1] = tileNumber;
+        } else if (rotation === 270) {
+            this.gridOccupancy[row - 1][col] = tileNumber;
         } else {
-            rectangle.setSize(this.tileSize * 2, this.tileSize);
-            image.setDisplaySize(this.tileSize * 2, this.tileSize);
-        }*/
+            console.error('Invalid tile rotation:', rotation);
+        }
+        this.gridOccupancy[row][col] = tileNumber;
+
+        const offset = this.getCenterOffset(tile);
+        const centerX = this.gridStartX + (col + offset.x) * this.tileSize;
+        const centerY = this.gridStartY + (row + offset.y) * this.tileSize;
+        tile.setPosition(centerX, centerY);
 
         this.scene.placedTiles.add(tile);
         
         // Lock the tile in place
         this.lockTileInPlace(tile);
 
-        socket.emit('kingdomino-place-tile', tile.getData('data').number, row, col, this.isRotated);
-        
-        console.log(`Placed tile ${tile.getData('data').number} at grid position (${row}, ${col})`);
+        socket.emit('kingdomino-place-tile', tile.getData('data').number, row, col, rotation);
     }
     
     lockTileInPlace(tile) {
@@ -324,7 +347,8 @@ class TilePlacementSystem {
         
         // Store placement data
         tile.setData('placed', true);
-        tile.setData('isRotated', this.isRotated);
+
+        this.scene.previewHighlight.setVisible(false);
     }
     
     returnTileToOriginalPosition(tile) {
@@ -333,7 +357,7 @@ class TilePlacementSystem {
         
         // Reset rotation
         tile.setRotation(0);
-        this.isRotated = false;
+        tile.setData('rotation', 0);
         
         // Reset appearance
         //const rectangle = tile.list[0];
@@ -351,33 +375,6 @@ class TilePlacementSystem {
         console.log('Grid Occupancy:');
         for (let row = 0; row < this.gridSize; row++) {
             console.log(this.gridOccupancy[row]);
-        }
-    }
-    
-    // Method to remove a placed tile (for debugging or game mechanics)
-    removePlacedTile(tileNumber) {
-        const placedTile = this.scene.placedTiles.children.entries.find(
-            tile => tile.getData('data').number === tileNumber
-        );
-        
-        if (placedTile) {
-            const row = placedTile.getData('gridRow');
-            const col = placedTile.getData('gridCol');
-            const isRotated = placedTile.getData('isRotated');
-            
-            // Clear grid occupancy
-            if (isRotated) {
-                this.gridOccupancy[row][col] = null;
-                this.gridOccupancy[row + 1][col] = null;
-            } else {
-                this.gridOccupancy[row][col] = null;
-                this.gridOccupancy[row][col + 1] = null;
-            }
-            
-            // Remove tile
-            placedTile.destroy();
-            
-            console.log(`Removed tile ${tileNumber} from grid`);
         }
     }
 }

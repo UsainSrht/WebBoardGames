@@ -268,6 +268,7 @@ class KingdominoScene extends Phaser.Scene {
             flippedTile.add([rectangle, image]);
             scene.tileStack.add(flippedTile);
         }
+        this.tilesLeftText = scene.add.text(450, 330, `Tiles left: ${count}`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
     }
 
     drawTiles(scene, drawnTiles) {
@@ -284,6 +285,7 @@ class KingdominoScene extends Phaser.Scene {
             // Remove the tile from the stack
             const lastTile = scene.tileStack.getLast();
             scene.tileStack.remove(lastTile, true, true); // Remove from scene and destroy
+            this.tilesLeftText.text = `Tiles left: ${scene.tileStack.getLength()}`;
 
             // Create tile container at starting position
             const tile = scene.add.container(startX, startY);
@@ -361,8 +363,7 @@ class KingdominoScene extends Phaser.Scene {
         });
     }
 
-    placeOtherPlayersTile(userId, tile, row, col, isRotated) {
-        console.log(`Placing tile for user ${userId} at row ${row}, col ${col}, rotated: ${isRotated}`);
+    placeOtherPlayersTile(userId, tile, row, col, rotation) {
         const player = this.players[userId];
         if (!player) return;
         
@@ -461,6 +462,7 @@ class KingdominoScene extends Phaser.Scene {
         this.placedPawns = this.add.group();
 
         this.previewHighlight = this.add.rectangle(0, 0, 200, 100, 0x00ff00, 0.3).setVisible(false).setDepth(0);
+        this.previewTile = this.add.container(0,0).setVisible(false);
 
         // Socket event listeners
         socket.on("kingdomino-game-start", (gameData) => {
@@ -474,7 +476,7 @@ class KingdominoScene extends Phaser.Scene {
             this.myColorName = this.getColorName(this.myData.color);
 
             // Player grid
-            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles, );
+            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles, this.myUserId);
         
             // Other players (no interactivity needed)
             const playerKeys = Object.keys(this.players);
@@ -585,11 +587,11 @@ class KingdominoScene extends Phaser.Scene {
             console.log(`Tile ${tileNumber} selected by ${this.players[userId].name}`);
         });
 
-        socket.on("kingdomino-tile-placed", (userId, tileNumber, row, col, isRotated) => {
+        socket.on("kingdomino-tile-placed", (userId, tileNumber, row, col, rotation) => {
             
             this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => {
                 if (userId !== this.myUserId) {
-                    this.placeOtherPlayersTile(userId, tile, row, col, isRotated);
+                    this.placeOtherPlayersTile(userId, tile, row, col, rotation);
                 } else {
                     // our tile, do nothing
                 }
@@ -602,8 +604,6 @@ class KingdominoScene extends Phaser.Scene {
                     this.placedPawns.remove(pawn, true, true);
                 }
             });
-
-            console.log(`Tile ${tileNumber} placed by user ${this.players[userId].name} at coordinates ${row}, ${col} (rotated: ${isRotated})`);
         });
 
         socket.on("kingdomino-tile-selection-end", () => {

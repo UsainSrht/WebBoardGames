@@ -69,6 +69,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     function initForPlayer(userId, socket, name, index) {
         playerGameData[userId] = { name: name, color: null, selectedTile: 0, turnIndex: index, score: 0 };
 
+        //todo add ready players info on loading screen
         socket.on("kingdomino-create-finish", () => {
             if (!readyPlayers.includes(userId)) {
                 readyPlayers.push(userId);
