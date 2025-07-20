@@ -32,7 +32,7 @@ class TilePlacementSystem {
     }
     
     makeTileDraggable(tile, draggable) {
-        console.log('makeTileDraggable', tile.getData('data').number, draggable);
+        //console.log('makeTileDraggable', tile.getData('data').number, draggable);
         const rectangle = tile.list[0]; // The rectangle is the first child
         
         if (draggable) {
@@ -65,7 +65,7 @@ class TilePlacementSystem {
     }
 
     makeTileSelectable(tile, selectable) {
-        console.log('makeTileSelectable', tile.getData('data').number, selectable);
+        //console.log('makeTileSelectable', tile.getData('data').number, selectable);
         const rectangle = tile.list[0]; // The rectangle is the first child
 
         if (selectable) {
@@ -154,7 +154,7 @@ class TilePlacementSystem {
             }
         });
         
-        console.log('Started dragging tile:', tile.getData('data').number);
+        //console.log('Started dragging tile:', tile.getData('data').number);
     }
     
     rotateTile(tile) {
@@ -186,7 +186,7 @@ class TilePlacementSystem {
             // Show valid placement (green tint)
             const rectangle = tile.list[0];
             rectangle.setStrokeStyle(3, 0x00ff00);
-            const offset = this.getCenterOffset(tile);
+            const offset = this.getCenterOffset(tile.getData('rotation') || 0);
             this.scene.previewHighlight.setVisible(true).setPosition(
                 this.gridStartX + (gridPos.col + offset.x) * this.tileSize,
                 this.gridStartY + (gridPos.row + offset.y) * this.tileSize
@@ -265,30 +265,28 @@ class TilePlacementSystem {
     }
     
     canPlaceTile(startRow, startCol, width, height) {
-        console.log('canPlaceTile', startRow, startCol, width, height);
+        //console.log('canPlaceTile', startRow, startCol, width, height);
 
         // Check if all required cells are available
         if (startRow + height > this.gridSize-1 || startCol + width > this.gridSize-1 ||
             startRow + height < 0 || startCol + width < 0
         ) {
-            console.log('Tile placement would go outside the grid');
+            //console.log('Tile placement would go outside the grid');
             return false; // Would go outside grid
         }
         
         if (this.gridOccupancy[startRow][startCol] !== null || 
             this.gridOccupancy[startRow + height][startCol + width] !== null
         ) {
-            console.log('Tile placement overlaps with occupied space');
+            //console.log('Tile placement overlaps with occupied space');
             return false; // occupied space
         }
 
-        console.log('Tile placement is valid');
+        //console.log('Tile placement is valid');
         return true;
     }
 
-    getCenterOffset(tile) {
-        // Calculate the center offset based on tile rotation
-        const rotation = tile.getData('rotation') || 0;
+    getCenterOffset(rotation) {
         if (rotation === 0) {
             return { x: 1, y: 0.5 };
         } else if (rotation === 90) {
@@ -319,7 +317,7 @@ class TilePlacementSystem {
         }
         this.gridOccupancy[row][col] = tileNumber;
 
-        const offset = this.getCenterOffset(tile);
+        const offset = this.getCenterOffset(tile.getData('rotation') || 0);
         const centerX = this.gridStartX + (col + offset.x) * this.tileSize;
         const centerY = this.gridStartY + (row + offset.y) * this.tileSize;
         tile.setPosition(centerX, centerY);
@@ -367,7 +365,7 @@ class TilePlacementSystem {
         // Reset depth
         tile.setDepth(0);
         
-        console.log('Returned tile to original position');
+        //console.log('Returned tile to original position');
     }
     
     // Utility method to check current grid state

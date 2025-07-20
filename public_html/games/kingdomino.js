@@ -368,7 +368,9 @@ class KingdominoScene extends Phaser.Scene {
         if (!player) return;
         
         let targetGrid = null;
-        if (this.secondGrid && this.secondGrid.userId === userId) {
+        if (this.mainGrid && this.mainGrid.userId === userId) {
+            targetGrid = this.mainGrid;
+        } else if (this.secondGrid && this.secondGrid.userId === userId) {
             targetGrid = this.secondGrid;
         } else if (this.thirdGrid && this.thirdGrid.userId === userId) {
             targetGrid = this.thirdGrid;
@@ -381,25 +383,13 @@ class KingdominoScene extends Phaser.Scene {
         const gridStartX = targetGrid.centerX - (targetGrid.gridSize * targetGrid.tileSize) / 2;
         const gridStartY = targetGrid.centerY - (targetGrid.gridSize * targetGrid.tileSize) / 2;
         
-        let centerX, centerY;
-        
-        if (isRotated) {
-            // 1x2 tile (vertical)
-            centerX = gridStartX + (col + 0.5) * targetGrid.tileSize;
-            centerY = gridStartY + (row + 1) * targetGrid.tileSize;
-            tile.setRotation(Math.PI / 2);
-        } else {
-            // 2x1 tile (horizontal)
-            centerX = gridStartX + (col + 1) * targetGrid.tileSize;
-            centerY = gridStartY + (row + 0.5) * targetGrid.tileSize;
-        }
+        const offset = this.tilePlacementSystem.getCenterOffset(rotation || 0);
+        const centerX = gridStartX + (col + offset.x) * targetGrid.tileSize;
+        const centerY = gridStartY + (row + offset.y) * targetGrid.tileSize;
 
         tile.setPosition(centerX, centerY);
 
-        // Scale tile to fit grid
-        const rectangle = tile.list[0];
-        const image = tile.list[1];
-
+        const isRotated = rotation === 90 || rotation === 270;
         // Get the original tile dimensions (assuming they were created with a standard size)
         const originalTileWidth = isRotated ? this.mainGrid.tileSize : this.mainGrid.tileSize * 2;
         const originalTileHeight = isRotated ? this.mainGrid.tileSize * 2 : this.mainGrid.tileSize;
@@ -592,8 +582,8 @@ class KingdominoScene extends Phaser.Scene {
             this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => {
                 if (userId !== this.myUserId) {
                     this.placeOtherPlayersTile(userId, tile, row, col, rotation);
-                } else {
-                    // our tile, do nothing
+                } else if (!tile.getData('placed')) {
+                    this.tilePlacementSystem.placeTileOnGrid(tile, row, col);
                 }
                 //tile.destroy();  
                 this.drawnTiles.splice(this.drawnTiles.indexOf(tile), 1);

@@ -5,6 +5,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     const colors = [0xff0000,0x0000ff,0x00ff00,0xffff00];
     const tileSelectTurntime = 10000; // 10 seconds for tile selection
     const tilePlaceTurnTime = 15000; // 15 seconds for tile placement
+    const gridSize = 5;
     const tiles = {
         1: { number: 1, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
         2: { number: 2, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
@@ -86,9 +87,9 @@ module.exports = (io, eventBus, room, roomData, players) => {
             }
         });
 
-        socket.on("kingdomino-place-tile", (tileNumber, row, col, isRotated) => {
+        socket.on("kingdomino-place-tile", (tileNumber, row, col, rotation) => {
             if (currentPlayerIndex === playerGameData[userId].turnIndex) {
-                placeTile(userId, tileNumber, row, col, isRotated);
+                placeTile(userId, tileNumber, row, col, rotation);
             }
         });
     }
@@ -113,6 +114,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
             const color = assignedColors.splice(randomColorIndex, 1)[0];
             
             playerGameData[userId].color = color;
+            playerGameData[userId].gridOccupancy = initializeGridOccupancy();
         }
 
         const gameGata = {
@@ -169,6 +171,22 @@ module.exports = (io, eventBus, room, roomData, players) => {
         }, isTileSelecting ? tileSelectTurntime : tilePlaceTurnTime);
     }
 
+    function initializeGridOccupancy() {
+        // Create a grid to track occupied spaces
+        const grid = [];
+        for (let row = 0; row < gridSize; row++) {
+            grid[row] = [];
+            for (let col = 0; col < gridSize; col++) {
+                grid[row][col] = null;
+            }
+        }
+        // Mark castle position as occupied
+        const castleRow = Math.floor(gridSize / 2);
+        const castleCol = Math.floor(gridSize / 2);
+        grid[castleRow][castleCol] = 'castle'; // Mark castle position
+        return grid;
+    }
+
     function selectRandomTile() {
         const userId = Object.keys(playerGameData).find(id => playerGameData[id].turnIndex === currentPlayerIndex);
         const availableTiles = drawnTiles.filter(tile => tile && !Object.values(playerGameData).some(player => player.selectedTile === tile.number));
@@ -177,15 +195,59 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
 
     function placeRandomTile() {
+        console.log('placing random tile');
         const userId = Object.keys(playerGameData).find(id => playerGameData[id].turnIndex === currentPlayerIndex);
         const playerData = playerGameData[userId];
         const selectedTile = playerData.selectedTile;
         if (selectedTile > 0) {
-            // For simplicity, we assume a random valid position
-            const row = Math.floor(Math.random() * 5); // Assuming a 5x5 grid
-            const col = Math.floor(Math.random() * 5);
-            const isRotated = Math.random() < 0.5; // Randomly rotate tile
-            placeTile(userId, selectedTile, row, col, isRotated);
+            
+            const rotations = [0, 90, 180, 270];
+            let rotation = rotations[Math.floor(Math.random() * rotations.length)];
+            for (let i = 0; i < rotations.length; i++) {
+                const size = getSize(rotation);
+                for (let row = 0; row < gridSize; row++) {
+                    for (let col = 0; col < gridSize; col++) {
+                        if (canPlaceTile(row, col, size.width, size.height, playerData.gridOccupancy)) {
+                            placeTile(userId, selectedTile, row, col, rotation);
+                            return;
+                        }
+                    }
+                }
+                rotation = (rotation + 90) % 360;
+            }
+
+        }
+    }
+
+    function canPlaceTile(startRow, startCol, width, height, gridOccupancy) {
+
+        // Check if all required cells are available
+        if (startRow + height > gridSize-1 || startCol + width > gridSize-1 ||
+            startRow + height < 0 || startCol + width < 0
+        ) {
+            return false; // Would go outside grid
+        }
+        
+        if (gridOccupancy[startRow][startCol] !== null || 
+            gridOccupancy[startRow + height][startCol + width] !== null
+        ) {
+            return false; // occupied space
+        }
+
+        return true;
+    }
+
+    function getSize(rotation) {
+        if (rotation === 0) {
+            return { width: 1, height: 0 };
+        } else if (rotation === 90) {
+            return { width: 0, height: 1 };
+        } else if (rotation === 180) {
+            return { width: -1, height: 0 };
+        } else if (rotation === 270) {
+            return { width: 0, height: -1 };
+        } else {
+            return null;
         }
     }
 
@@ -217,14 +279,14 @@ module.exports = (io, eventBus, room, roomData, players) => {
         }
     }
 
-    function placeTile(userId, tileNumber, row, col, isRotated) {
+    function placeTile(userId, tileNumber, row, col, rotation) {
         if (!isTileSelecting && playerGameData[userId].selectedTile === tileNumber) {
             // Validate tile placement logic here
             // For simplicity, we assume the placement is valid
             
             playerGameData[userId].selectedTile = 0; // Reset selected tile
             
-            io.to(room).emit("kingdomino-tile-placed", userId, tileNumber, row, col, isRotated);
+            io.to(room).emit("kingdomino-tile-placed", userId, tileNumber, row, col, rotation);
             
             // Check if all players have placed their tiles
             const placedTiles = Object.values(playerGameData).filter(player => player.selectedTile === 0).length;
@@ -236,7 +298,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
             
             advanceToNextPlayer();
         } else {
-            console.log('invalid tile placement attempt:', userId, tileNumber, row, col, isRotated);
+            console.log('invalid tile placement attempt:', userId, tileNumber, row, col, rotation);
         }
     }
 
