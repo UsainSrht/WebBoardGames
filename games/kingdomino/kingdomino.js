@@ -195,6 +195,7 @@ module.exports = (io, eventBus, room, roomData, players) => {
     }
 
     function placeRandomTile() {
+        //todo console warns about invalid placements and it does place over other tiles sometimes
         console.log('placing random tile');
         const userId = Object.keys(playerGameData).find(id => playerGameData[id].turnIndex === currentPlayerIndex);
         const playerData = playerGameData[userId];

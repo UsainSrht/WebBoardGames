@@ -283,9 +283,12 @@ class KingdominoScene extends Phaser.Scene {
             const finalY = 250;
             
             // Remove the tile from the stack
-            const lastTile = scene.tileStack.getLast();
-            scene.tileStack.remove(lastTile, true, true); // Remove from scene and destroy
-            this.tilesLeftText.text = `Tiles left: ${scene.tileStack.getLength()}`;
+            const children = scene.tileStack.getChildren();
+            if (children.length > 0) {
+                const lastTile = children[children.length - 1];
+                scene.tileStack.remove(lastTile, true, true); // Remove from scene and destroy
+            } 
+            this.tilesLeftText.text = `Tiles left: ${children.length}`;
 
             // Create tile container at starting position
             const tile = scene.add.container(startX, startY);
@@ -388,6 +391,9 @@ class KingdominoScene extends Phaser.Scene {
         const centerY = gridStartY + (row + offset.y) * targetGrid.tileSize;
 
         tile.setPosition(centerX, centerY);
+
+        const degToRad = Math.PI / 180;
+        tile.setRotation((rotation || 0) * degToRad);
 
         const isRotated = rotation === 90 || rotation === 270;
         // Get the original tile dimensions (assuming they were created with a standard size)
