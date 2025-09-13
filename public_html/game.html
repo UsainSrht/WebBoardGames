@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
             background-color: #344055;
@@ -54,7 +55,7 @@
                                     <img src="./images/rock-paper-scissors.png" alt="Rock Paper Scissors" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Rock Paper Scissors</span>
                                 </button>
-                                <button id="game-dice" onclick="selectGame('dice')"  class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                                <button id="game-dice" onclick="selectGame('dice')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
                                     <img src="./images/dice.png" alt="Dice" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Dice</span>
                                 </button>
@@ -62,8 +63,10 @@
                                     <img src="./images/kingdomino.png" alt="kingdomino" class="w-1/2 mx-auto mt-2">
                                     <span class="text-sm">Kingdomino</span>
                                 </button>
-                                <button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>
-                                <button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>
+                                <button id="game-hamsterball" onclick="selectGame('hamsterball')" class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white">
+                                    <img src="./images/hamsterball.png" alt="hamsterball" class="w-1/2 mx-auto mt-2">
+                                    <span class="text-sm">Hamsterball</span>
+                                </button><button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>
                                 <button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>
                                 <button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>
                                 <button class="bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white"></button>

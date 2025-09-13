@@ -11,7 +11,9 @@ const gameDatas = {
   "rock-paper-scissors": { min: 2, max: 12, name: "Rock Paper Scissors" },
   "dice": { min: 2, max: 12, name: "Dice" },
   "kingdomino": { min: 1, max: 4, name: "Kingdomino" },
-  "uno": { min: 2, max: 10, name: "Uno" }
+  "uno": { min: 2, max: 10, name: "Uno" },
+  "hamsterball": { min: 1, max: 12, name: "Hamsterball"},
+  "chess": { min: 2, max: 2, name: "Chess" }
 };
 
 const app = express();
@@ -298,8 +300,11 @@ function startGame(room, game) {
   } else if (game === "kingdomino") {
     const kingdomino = require('./games/kingdomino/kingdomino.js');
     gameScript = kingdomino(io, eventBus, room, rooms[room], getDetailedPlayerMap(room));
+  } else if (game === "hamsterball") {
+    const hamsterball = require('./games/hamsterball.js');
+    gameScript = hamsterball(io, eventBus, room, rooms[room], getDetailedPlayerMap(room));
   } else {
-    console.log("Game not implemented yet!" + game);
+    console.error("Game not implemented yet! " + game);
   }
 }
 
