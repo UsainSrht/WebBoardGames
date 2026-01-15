@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Play board games online with friends. Real-time multiplayer gaming experience.">
+    <title>Web Board Games - Play Together Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
+            min-height: 100vh;
+        }
+        .hero-gradient {
+            background: radial-gradient(ellipse at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+        }
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25);
+        }
+        .glow-button {
+            position: relative;
+            overflow: hidden;
+        }
+        .glow-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .glow-button:hover::before { left: 100%; }
+        .float-animation { animation: float 6s ease-in-out infinite; }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            33% { transform: translateY(-10px) rotate(2deg); }
+            66% { transform: translateY(-5px) rotate(-1deg); }
+        }
+        .pulse-ring { animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulseRing {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .slide-up {
+            animation: slideUp 0.8s ease-out forwards;
+            opacity: 0;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .delay-100 { animation-delay: 0.1s; }
+        .delay-200 { animation-delay: 0.2s; }
+        .delay-300 { animation-delay: 0.3s; }
+        .delay-400 { animation-delay: 0.4s; }
+        .delay-500 { animation-delay: 0.5s; }
+        .game-card {
+            background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .input-glow:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3); }
+        .particles {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 0;
+        }
+        .particle {
+            position: absolute;
+            width: 4px; height: 4px;
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 50%;
+            animation: particleFloat 15s infinite linear;
+        }
+        @keyframes particleFloat {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="text-white overflow-x-hidden">
+    <!-- Particles Background -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Hero Section -->
+    <div class="hero-gradient min-h-screen flex flex-col relative z-10">
+        <!-- Navigation -->
+        <nav class="p-6 slide-up">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl">🎮</span>
+                    <span class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                        Web Board Games
+                    </span>
+                </div>
+                <div id="user-status" class="flex items-center gap-4">
+                    <div id="connection-status" class="flex items-center gap-2 text-sm text-gray-400">
+                        <span class="w-2 h-2 rounded-full bg-red-500 pulse-ring"></span>
+                        <span>Connecting...</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex items-center justify-center px-4 py-12">
+            <div class="max-w-6xl mx-auto w-full">
+                <div class="grid lg:grid-cols-2 gap-12 items-center">
+                    <!-- Left: Hero Text -->
+                    <div class="text-center lg:text-left">
+                        <h1 class="text-5xl md:text-6xl lg:text-7xl font-extrabold mb-6 slide-up delay-100">
+                            <span class="block">Play Games</span>
+                            <span class="block bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+                                Together Online
+                            </span>
+                        </h1>
+                        <p class="text-xl text-gray-400 mb-8 slide-up delay-200 max-w-lg mx-auto lg:mx-0">
+                            Create a room, invite friends, and enjoy classic board games with real-time multiplayer action.
+                        </p>
+                        
+                        <!-- Stats -->
+                        <div class="flex justify-center lg:justify-start gap-8 mb-8 slide-up delay-300">
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-indigo-400">4+</div>
+                                <div class="text-sm text-gray-500">Games</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-purple-400">12</div>
+                                <div class="text-sm text-gray-500">Max Players</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-pink-400">∞</div>
+                                <div class="text-sm text-gray-500">Fun</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Action Card -->
+                    <div id="action-card" class="slide-up delay-400">
+                        <!-- Nickname Form (shown first) -->
+                        <div id="nickname-section" class="game-card rounded-3xl p-8 max-w-md mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                    <span class="text-3xl">👤</span>
+                                </div>
+                                <h2 class="text-2xl font-bold mb-2">Welcome, Player!</h2>
+                                <p class="text-gray-400">Choose a nickname to get started</p>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div class="relative">
+                                    <input 
+                                        type="text" 
+                                        id="nickname" 
+                                        placeholder="Enter your nickname" 
+                                        maxlength="16"
+                                        class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none input-glow transition-all"
+                                        onkeydown="if(event.key === 'Enter') checkName()"
+                                    >
+                                    <span id="char-count" class="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">0/16</span>
+                                </div>
+                                <p id="nickname-error" class="text-red-400 text-sm hidden"></p>
+                                <button 
+                                    onclick="checkName()" 
+                                    class="glow-button w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-semibold transition-all transform hover:scale-[1.02]"
+                                >
+                                    Continue →
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Room Actions (shown after nickname) -->
+                        <div id="room-section" class="hidden game-card rounded-3xl p-8 max-w-md mx-auto">
+                            <div class="text-center mb-6">
+                                <div class="flex items-center justify-center gap-2 mb-4">
+                                    <span class="text-2xl">👋</span>
+                                    <h2 class="text-2xl font-bold">Hello, <span id="display-name" class="text-indigo-400">Player</span>!</h2>
+                                </div>
+                                <p class="text-gray-400">Create a new room or join an existing one</p>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <button 
+                                    id="create-room-btn"
+                                    onclick="createRoom()" 
+                                    class="glow-button w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-semibold transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3"
+                                >
+                                    <span class="text-xl">🎯</span>
+                                    Create New Room
+                                </button>
+                                
+                                <div class="relative">
+                                    <div class="absolute inset-0 flex items-center">
+                                        <div class="w-full border-t border-white/10"></div>
+                                    </div>
+                                    <div class="relative flex justify-center">
+                                        <span class="px-4 bg-transparent text-gray-500 text-sm">or join existing</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex gap-3">
+                                    <input 
+                                        type="text" 
+                                        id="room-code" 
+                                        placeholder="Room code" 
+                                        maxlength="6"
+                                        class="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none input-glow transition-all uppercase tracking-widest text-center font-mono"
+                                        onkeydown="if(event.key === 'Enter') joinRoom()"
+                                        oninput="this.value = this.value.toUpperCase()"
+                                    >
+                                    <button 
+                                        onclick="joinRoom()" 
+                                        class="px-6 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-semibold transition-all transform hover:scale-[1.02]"
+                                    >
+                                        Join
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <button onclick="changeName()" class="w-full mt-4 text-sm text-gray-500 hover:text-gray-300 transition-colors">
+                                Change nickname
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Games Preview -->
+        <section class="py-16 px-4 relative z-10">
+            <div class="max-w-6xl mx-auto">
+                <h2 class="text-3xl font-bold text-center mb-12 slide-up delay-500">
+                    <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                        Featured Games
+                    </span>
+                </h2>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div class="game-card card-hover rounded-2xl p-6 text-center cursor-pointer">
+                        <div class="text-5xl mb-4 float-animation">🪨</div>
+                        <h3 class="font-semibold mb-1">Rock Paper Scissors</h3>
+                        <p class="text-sm text-gray-500">2-12 players</p>
+                    </div>
+                    <div class="game-card card-hover rounded-2xl p-6 text-center cursor-pointer">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0.5s;">👑</div>
+                        <h3 class="font-semibold mb-1">Kingdomino</h3>
+                        <p class="text-sm text-gray-500">1-4 players</p>
+                    </div>
+                    <div class="game-card card-hover rounded-2xl p-6 text-center cursor-pointer">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 1s;">🐹</div>
+                        <h3 class="font-semibold mb-1">Hamsterball</h3>
+                        <p class="text-sm text-gray-500">1-12 players</p>
+                    </div>
+                    <div class="game-card rounded-2xl p-6 text-center opacity-50">
+                        <div class="text-5xl mb-4">🎲</div>
+                        <h3 class="font-semibold mb-1">More Coming</h3>
+                        <p class="text-sm text-gray-500">Soon™</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="py-6 text-center text-gray-600 text-sm">
+            <p>Made with ❤️ for game nights everywhere</p>
+        </footer>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <script>
+        // Create particles
+        const particlesContainer = document.getElementById('particles');
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            particle.style.left = Math.random() * 100 + '%';
+            particle.style.animationDelay = Math.random() * 15 + 's';
+            particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+            particlesContainer.appendChild(particle);
+        }
+
+        // Socket connection
+        const socket = io();
+        let userId = null;
+        let userName = null;
+
+        // Character counter for nickname
+        const nicknameInput = document.getElementById('nickname');
+        const charCount = document.getElementById('char-count');
+        nicknameInput.addEventListener('input', () => {
+            charCount.textContent = `${nicknameInput.value.length}/16`;
+        });
+
+        // Socket events
+        socket.on('connect', () => updateConnectionStatus(true));
+        socket.on('disconnect', () => updateConnectionStatus(false));
+
+        socket.on('connect-user', (id, name, room) => {
+            userId = id;
+            localStorage.setItem('userId', id);
+            if (room) {
+                window.location.href = `/game.html?room=${room}`;
+            } else if (name) {
+                userName = name;
+                showRoomSection(name);
+            }
+        });
+
+        socket.on('request-user-id', () => {
+            const storedId = localStorage.getItem('userId');
+            socket.emit('send-user-id', storedId);
+        });
+
+        socket.on('error', (error) => showToast(error, 'error'));
+
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connection-status');
+            if (connected) {
+                status.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-emerald-400">Connected</span>`;
+            } else {
+                status.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 pulse-ring"></span><span class="text-red-400">Disconnected</span>`;
+            }
+        }
+
+        function checkName() {
+            const name = nicknameInput.value.trim();
+            const errorEl = document.getElementById('nickname-error');
+            if (name.length < 3) {
+                errorEl.textContent = 'Nickname must be at least 3 characters';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            if (name.length > 16) {
+                errorEl.textContent = 'Nickname must be 16 characters or less';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            errorEl.classList.add('hidden');
+            submitName(name);
+        }
+
+        function submitName(name) {
+            userName = name;
+            socket.emit('submit-name', name, false);
+            showRoomSection(name);
+        }
+
+        function showRoomSection(name) {
+            document.getElementById('nickname-section').classList.add('hidden');
+            document.getElementById('room-section').classList.remove('hidden');
+            document.getElementById('display-name').textContent = name;
+        }
+
+        function changeName() {
+            document.getElementById('room-section').classList.add('hidden');
+            document.getElementById('nickname-section').classList.remove('hidden');
+            nicknameInput.value = userName || '';
+            nicknameInput.focus();
+        }
+
+        function createRoom() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let roomCode = '';
+            for (let i = 0; i < 6; i++) roomCode += chars.charAt(Math.floor(Math.random() * chars.length));
+            socket.emit('create-room', roomCode);
+            window.location.href = `/game.html?room=${roomCode}`;
+        }
+
+        function joinRoom() {
+            const roomCode = document.getElementById('room-code').value.trim().toUpperCase();
+            if (!roomCode) {
+                showToast('Please enter a room code', 'error');
+                return;
+            }
+            if (roomCode.length !== 6) {
+                showToast('Room code must be 6 characters', 'error');
+                return;
+            }
+            window.location.href = `/game.html?room=${roomCode}`;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-emerald-600' : 'bg-indigo-600';
+            toast.className = `${bgColor} px-6 py-3 rounded-xl shadow-lg transform transition-all duration-300 translate-x-full`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-x-full'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-x-full', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    </script>
+</body>
+</html>

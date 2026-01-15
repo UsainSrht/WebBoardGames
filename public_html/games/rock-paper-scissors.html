@@ -1,0 +1,43 @@
+<!-- Rock Paper Scissors Popup -->
+<div id="rps-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 bg-gray-800 p-4 rounded-2xl shadow-lg transition-all duration-500 ease-in-out">
+    <div>
+        <h1 id="countdown-label" class="text-3xl font-bold text-center text-white mb-4">Countdown</h1>
+        <div class="w-full rounded-full h-1 mb-4 bg-gray-700">
+            <div id="countdown-bar" class="h-1 rounded-full bg-blue-500 transition-all duration-1000" style="width: 100%"></div>
+        </div>
+        <h1 class="text-2xl font-bold text-center text-white mb-4">Select Your Move</h1>
+        <div class="flex items-center justify-between p-4">
+            <button id="rps-move-rock" onclick="rpsSelectMove('rock')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-rock.png" alt="Rock" class="w-1/2 mx-auto mt-2">
+                <span class="text-sm">Rock</span>
+            </button>
+            <button id="rps-move-paper" onclick="rpsSelectMove('paper')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-paper.png" alt="Paper" class="w-1/2 mx-auto mt-2">
+                <span class="text-sm">Paper</span>
+            </button>
+            <button id="rps-move-scissors" onclick="rpsSelectMove('scissors')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
+                <img src="./images/rps-scissors.png" alt="Scissors" class="w-1/2 mx-auto mt-2">
+                <span class="text-sm">Scissors</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Left Players -->
+<div id="scoreboard-popup" data-modal-placement="bottom-left" class="fixed bottom-0 left-0 z-50 w-1/4 p-4 overflow-x-hidden overflow-y-auto opacity-90">
+    <div class="relative w-full max-w-2xl max-h-full">
+        <div class="relative rounded-lg shadow-sm bg-gray-700">
+            <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t border-gray-600">
+                <h3 class="text-xl font-medium text-white">
+                    Scoreboard
+                </h3>
+            </div>
+            <div id="scoreboard-players" class="p-4 md:p-5 space-y-1">
+                <div class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-600 rounded-t text-white">
+                    <span>Player</span>
+                    <span>Score</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

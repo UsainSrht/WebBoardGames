@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Room | Web Board Games</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .glow-button {
+            position: relative;
+            overflow: hidden;
+        }
+        .glow-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        .glow-button:hover::before { left: 100%; }
+        .pulse-animation { animation: pulse 2s ease-in-out infinite; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .slide-in-right {
+            animation: slideInRight 0.3s ease-out;
+        }
+        @keyframes slideInRight {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        .wbg-ready { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .wbg-not-ready { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }
+        .animation-pulse { animation: pulse 2s ease-in-out infinite; }
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen">
+    
+    <!-- Game Board -->
+    <div id="game-board" class="w-full h-full absolute top-0 left-0">
+
+        <!-- <canvas id="canvas-board" class="w-full h-full"></canvas> -->
+
+    </div>
+    
+    <!-- Lobby Popup -->
+    <div id="lobby-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 max-w-4xl glass-card p-6 rounded-3xl shadow-2xl transition-all duration-500 ease-in-out">
+        <div>
+            <h1 class="text-3xl font-bold text-center text-white mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Game Lobby</h1>
+            <div class="flex flex-col md:flex-row gap-6">
+                <div class="relative w-full md:w-1/2 flex flex-col">
+                    <h2 class="text-lg font-semibold text-white text-center mb-3 flex items-center justify-center gap-2">
+                        <span>👥</span> Players
+                    </h2>
+                    <div class="overflow-y-auto h-64 scrollbar-thin pr-2">
+                        <div id="lobby-players" class="space-y-2">
+                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
+                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
+                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
+                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button id="ready-button" onclick="toggleReady(this)" class="glow-button wbg-not-ready w-full h-12 rounded-xl flex items-center justify-center font-semibold transition-all hover:scale-[1.02]">
+                            <span class="text-white text-lg">✋ Ready Up</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="hidden md:block border-l border-white/10"></div>
+                <div class="w-full md:w-1/2">
+                    <h2 id="games-label" class="text-lg font-semibold text-center text-white mb-3 flex items-center justify-center gap-2">
+                        <span>🎮</span> Select Game
+                    </h2>
+                    <div class="overflow-y-auto h-80 scrollbar-thin">
+                        <div id="games" class="grid grid-cols-3 gap-3 p-1">
+                            <button id="game-rock-paper-scissors" onclick="selectGame('rock-paper-scissors')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white overflow-hidden group">
+                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🪨</div>
+                                <span class="text-xs">Rock Paper Scissors</span>
+                            </button>
+                            <button id="game-dice" onclick="selectGame('dice')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white overflow-hidden opacity-50 cursor-not-allowed group">
+                                <div class="text-3xl mb-1">🎲</div>
+                                <span class="text-xs">Dice (Soon)</span>
+                            </button>
+                            <button id="game-kingdomino" onclick="selectGame('kingdomino')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
+                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">👑</div>
+                                <span class="text-xs">Kingdomino</span>
+                            </button>
+                            <button id="game-hamsterball" onclick="selectGame('hamsterball')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
+                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🐹</div>
+                                <span class="text-xs">Hamsterball</span>
+                            </button>
+                            <button class="bg-white/5 border-2 border-white/10 rounded-xl aspect-square text-center text-white opacity-30 cursor-not-allowed">
+                                <div class="text-3xl mb-1">🃏</div>
+                                <span class="text-xs">Uno (Soon)</span>
+                            </button>
+                            <button class="bg-white/5 border-2 border-white/10 rounded-xl aspect-square text-center text-white opacity-30 cursor-not-allowed">
+                                <div class="text-3xl mb-1">♟️</div>
+                                <span class="text-xs">Chess (Soon)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Popup -->
+    <div id="settings-popup" class="hidden fixed top-0 left-0 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closePopup('settings-popup', event)">
+        <div class="glass-card rounded-2xl p-8 max-w-md w-full mx-4" onclick="event.stopPropagation();">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <span>⚙️</span> Settings
+                </h2>
+                <button onclick="closePopup('settings-popup')" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>                  
+                </button>
+            </div>
+            <div class="space-y-4">
+                <label class="flex items-center justify-between p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-all">
+                    <div>
+                        <span class="text-white font-medium">Sound Effects</span>
+                        <p class="text-sm text-gray-500">Play sounds during games</p>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" value="" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </div>
+                </label>
+                <label class="flex items-center justify-between p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-all">
+                    <div>
+                        <span class="text-white font-medium">Notifications</span>
+                        <p class="text-sm text-gray-500">Show player join/leave alerts</p>
+                    </div>
+                    <div class="relative">
+                        <input type="checkbox" value="" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- drawer component -->
+    <div id="player-sidebar" class="fixed top-0 right-0 z-40 h-screen p-4 overflow-y-auto transition-transform translate-x-full glass-card w-80 slide-in-right" tabindex="-1" aria-labelledby="drawer-right-label">
+        <!-- Players Section -->
+        <div id="players-section" class="h-1/3 overflow-y-auto scrollbar-thin">
+            <h5 id="drawer-right-label" class="inline-flex items-center mb-4 text-base font-semibold text-white">
+                <span class="mr-2">👥</span> Players
+            </h5>
+            <button type="button" data-drawer-hide="player-sidebar" aria-controls="player-sidebar" class="text-gray-400 bg-white/5 hover:bg-white/10 rounded-lg text-sm w-8 h-8 absolute top-2.5 end-2.5 inline-flex items-center justify-center transition-colors">
+                <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                </svg>
+                <span class="sr-only">Close menu</span>
+            </button>
+            <div id="players" class="space-y-2"></div>
+        </div>
+        
+        <!-- Chat Section -->
+        <div id="chat-section" class="flex flex-col h-2/3 pt-4 border-t border-white/10 mt-4">
+            <h5 id="drawer-right-label-chat" class="inline-flex items-center mb-4 text-base font-semibold text-white">
+                <span class="mr-2">💬</span> Chat
+            </h5>
+            <div id="message-box" class="flex-grow p-3 overflow-y-auto border border-white/10 rounded-xl bg-white/5 scrollbar-thin"></div>
+            <div class="flex items-center mt-3 gap-2">
+                <input id="chat-input" type="text" placeholder="Type a message..." class="flex-grow p-3 border rounded-xl border-white/10 bg-white/5 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 transition-colors" onkeydown="if (event.keyCode == 13) sendChatMessage()" maxlength="200">
+                <button id="send-btn" class="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition-colors" onclick="sendChatMessage()">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- UI Controls -->
+    <div class="fixed top-4 right-4 space-x-3 flex items-center">
+        <!-- Nickname -->
+        <span id="nickname-display" class="text-white text-lg font-medium bg-white/10 px-4 py-2 rounded-xl">Player</span>
+
+        <!-- Room Code -->
+        <button id="room-code-button" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all" onclick="copyRoomCode()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+            </svg>
+            <span id="room-code" class="font-mono font-bold tracking-wider">??????</span>
+        </button>
+
+        <!-- Server Status Icon -->
+        <button class="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all" onclick="ping(this)" title="Check connection">
+            <svg id="server-status-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-500">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
+            </svg>
+        </button>
+
+        <!-- Settings -->
+        <button onclick="openPopup('settings-popup')" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all" title="Settings">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>              
+        </button>
+        
+        <!-- drawer init and toggle -->   
+        <button class="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all" type="button" data-drawer-target="player-sidebar" data-drawer-show="player-sidebar" data-drawer-placement="right" aria-controls="player-sidebar" title="Players & Chat">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-white">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+            </svg>    
+            <!-- Notification Badge -->
+            <span id="notification-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">!</span>
+        </button>
+    </div>
+    <div class="fixed top-4 left-4 flex">
+        <button id="leave-room" class="flex items-center gap-2 px-4 py-2 text-white rounded-xl bg-white/10 hover:bg-red-600 transition-all" onclick="leaveRoomPopup()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+            </svg>
+            <span class="font-medium">Leave</span>
+        </button>
+    </div>
+
+    <!-- Nickname popup -->
+    <div id="nickname-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+        <div class="relative p-4 w-full max-w-md">
+            <div class="glass-card rounded-2xl p-8">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">👤</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-white mb-2">Choose a Nickname</h3>
+                    <p class="text-gray-400">Pick a name for this game session</p>
+                </div>
+                <div class="space-y-4">
+                    <div class="relative">
+                        <input onkeydown="if (event.key === 'Enter') checkName()" type="text" id="nickname" class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 transition-all" placeholder="Enter nickname" maxlength="16" required />
+                    </div>
+                    <p id="nickname-input-reply" class="text-sm text-red-400 hidden"></p>
+                    <button onclick="checkName()" class="glow-button w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-semibold text-white transition-all transform hover:scale-[1.02]">
+                        Continue →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leave Room popup -->
+    <div id="leave-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+        <div class="relative p-4 w-full max-w-sm">
+            <div class="glass-card rounded-2xl p-8 text-center">
+                <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">👋</span>
+                </div>
+                <h3 class="text-2xl font-bold text-white mb-2">Leave Room?</h3>
+                <p class="text-gray-400 mb-6">You'll need to rejoin with the room code</p>
+                <div class="flex gap-4">
+                    <button id="leave-room-cancel" onclick="closeLeaveRoomPopup()" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
+                        Stay
+                    </button>
+                    <button onclick="leaveRoom()" class="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-medium rounded-xl transition-all">
+                        Leave
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kick popup -->
+    <div id="kick-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
+        <div class="relative p-4 w-full max-w-sm">
+            <div class="glass-card rounded-2xl p-8 text-center">
+                <div id="kick-id" class="hidden"></div>
+                <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <span class="text-3xl">🚫</span>
+                </div>
+                <h3 id="kick-name" class="text-xl font-bold text-white mb-2">Kick player?</h3>
+                <p class="text-gray-400 mb-6">They won't be able to rejoin this room</p>
+                <div class="flex gap-4">
+                    <button onclick="closeKickPopup()" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
+                        Cancel
+                    </button>
+                    <button onclick="kickPlayer(document.getElementById('kick-id').innerHTML)" class="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-medium rounded-xl transition-all">
+                        Kick
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast-container" class="fixed top-0 left-0 z-50 p-4 space-y-2 mt-16"></div>
+
+    <script>
+        console.log("game debug start");
+        const socket = io();
+        window.socket = socket; // Make socket globally accessible
+
+        socket.onAny((eventName, ...args) => {
+            console.log(eventName, "in with args: ", args);
+        });
+
+        socket.on("error", (error) => {
+            console.error("Error from server:", error);
+            //showToast(`Error: ${error}`);
+            alert(`Error: ${error}`);
+        });
+
+        function tryJoinURLRoom() {
+            let params = new URLSearchParams(window.location.search);
+            if (params.has("room")) {
+                let roomCode = params.get("room");
+                joinRoom(roomCode);
+            } else {
+                //redirect to home page
+                window.location.href = "/index.html";
+            }
+        }
+
+        function getURLRoomCode() {
+            let params = new URLSearchParams(window.location.search);
+            return params.get("room");
+        }
+
+        function joinRoom(roomCode) {
+            socket.emit("join-room", roomCode);
+        }
+
+        // Server connection status
+        socket.on("connect", () => {
+            document.getElementById("server-status-icon").classList.remove("text-red-500");
+            document.getElementById("server-status-icon").classList.add("text-green-500");
+        });
+
+        socket.on("disconnect", () => {
+            document.getElementById("server-status-icon").classList.remove("text-green-500");
+            document.getElementById("server-status-icon").classList.add("text-red-500");
+        });
+
+        socket.on("connect-user", (userId, name, room) => {
+            localStorage.setItem("userId", userId);
+            document.getElementById("nickname-display").textContent = name || "Guest";
+            document.getElementById("room-code").textContent = room || "?????";
+            if (!room) {
+                tryJoinURLRoom();
+            } else {
+                const urlRoomCode = getURLRoomCode();
+                if (urlRoomCode && urlRoomCode !== room) {
+                    tryJoinURLRoom();
+                } else {
+                    joinRoom(room);
+                }
+            }
+        });
+
+        socket.on("return-to-main-page", () => {
+            window.location.href = "/index.html";
+        });
+
+        let host;
+        let isHost;
+        let started;
+        let game;
+        let minPlayers;
+        let maxPlayers;
+        socket.on("send-room-data", (room, players, receivedHost, isStarted, selectedGame, min, max, gameName) => {
+            document.getElementById("room-code").textContent = room;
+            host = receivedHost;
+            isHost = localStorage.getItem("userId") === host;
+            started = isStarted;
+            game = selectedGame;
+            minPlayers = min;
+            maxPlayers = max;
+            if (!started) showSelectedGame(game, minPlayers, maxPlayers, gameName);
+            updatePlayerList(players);
+        });
+
+        socket.on("request-user-id", () => {
+            const storedId = localStorage.getItem("userId") || null;
+            socket.emit("send-user-id", storedId);
+        });
+
+        socket.on("request-nickname", () => {
+            const nicknamePopup = document.getElementById("nickname-popup");
+            nicknamePopup.classList.remove("hidden");
+            document.getElementById("nickname").focus();
+        });
+
+        function checkName() {
+            let name = document.getElementById('nickname').value;
+
+            if (name.length < 3) {
+                nicknameReply("Minimum nickanme length is 3");
+                return;
+            } else if (name.length > 16) {
+                nicknameReply("Maximum nickanme length is 16");
+                return;
+            }
+
+            submitName(name);
+        }
+
+        function submitName(name) {
+            // name, isInGame
+            socket.emit("submit-name", name, true);
+
+            const nicknameForm = document.getElementById('nickname-popup');
+            nicknameForm.classList.add("hidden");
+        }
+
+        function nicknameReply(message) {
+            let reply = document.getElementById("nickname-input-reply");
+            reply.classList.remove("hidden");
+            reply.innerHTML = message;
+        }
+
+        socket.on("player-joined", (player) => {
+            showToast(`${player} joined.`);
+            sendSystemMessage(`${player} joined the game.`);
+        });
+
+        socket.on("player-left", (player) => {
+            showToast(`${player} left.`);
+            sendSystemMessage(`${player} left the game.`);
+        });
+
+        socket.on("player-kicked", (player) => {
+            showToast(`${player} got kicked.`);
+            sendSystemMessage(`${player} got kicked.`);
+        });
+
+        socket.on("you-got-kicked", () => {
+            alert("You got kicked from the room.");
+            window.location.href = "/index.html";
+        });
+
+        socket.on("player-list", (players) => {
+            updatePlayerList(players);
+        });
+
+        socket.on("chat-message", (message, name) => {
+            const messageBox = document.getElementById("message-box");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add(
+                "p-3", 
+                "bg-white/10", 
+                "rounded-xl", 
+                "mb-2", 
+                "text-white",
+                "break-words"
+            );
+            messageDiv.innerHTML = `<strong class="text-indigo-400">${name}:</strong> ${message}`;
+            messageBox.appendChild(messageDiv);
+            messageBox.scrollTop = messageBox.scrollHeight;
+            if (!isDrawerOpen()) document.getElementById("notification-badge").classList.remove("hidden");
+        });
+
+        socket.on("system-message", (message) => {
+            sendSystemMessage(message);
+        });
+
+        function sendSystemMessage(message) {
+            const messageBox = document.getElementById("message-box");
+            const messageDiv = document.createElement("div");
+            messageDiv.classList.add("p-2", "text-center", "text-gray-500", "text-sm", "italic", "mb-2");
+            messageDiv.innerHTML = message;
+            messageBox.appendChild(messageDiv);
+            messageBox.scrollTop = messageBox.scrollHeight;
+        }
+
+        function sendChatMessage() {
+            const chatInput = document.getElementById("chat-input");
+            let message = chatInput.value.trim();
+            if (message.length > 200) {
+                showToast("Message too long. Max 200 characters.");
+                message = message.substring(0, 200); // Trim to 200 characters
+            }
+            if (message) {
+                socket.emit("chat-message", message);
+                chatInput.value = ""; // Clear the input field
+            }
+        }
+
+        function openPopup(id) {
+            document.getElementById(id).classList.remove('hidden');
+        }
+        function closePopup(id, event) {
+            if (!event || event.target.id === id) {
+                document.getElementById(id).classList.add('hidden');
+            }
+        }
+
+        function updatePlayerList(players) {
+            const playersDiv = document.getElementById("players");
+            playersDiv.innerHTML = "";
+            const lobbyPlayersDiv = document.getElementById("lobby-players");
+            lobbyPlayersDiv.innerHTML = "";
+            players.forEach(player => {
+                for (let name in player) {
+                    let userId = player[name];
+                    const li = document.createElement("div");
+                    li.classList.add(
+                        "flex", "justify-between", "items-center", "p-3",
+                        "bg-gradient-to-r", "from-indigo-600/80", "to-purple-600/80", 
+                        "hover:from-indigo-500/80", "hover:to-purple-500/80",
+                        "text-white", "rounded-xl", "shadow-md", "transition-all", "duration-200"
+                    );
+                    
+                    if (userId === host) {
+                        li.innerHTML = `
+                        <span class="font-medium">${name}</span>
+                        <span class="text-yellow-400" title="Host">👑</span>`;
+                    } else if (isHost) {
+                        li.innerHTML = `
+                        <span class="font-medium">${name}</span>
+                        <button onclick="kickPlayerPopup('${userId}', '${name}')" class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500 transition-all" title="Kick player">
+                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                            </svg>
+                        </button>`;
+                    } else {
+                        li.innerHTML = `<span class="font-medium">${name}</span>`;
+                    }
+                    
+                    playersDiv.appendChild(li);
+
+                    const li2 = document.createElement("div");
+                    li2.id = `lobby-player-${userId}`;
+                    li2.classList.add(
+                        "flex", "justify-between", "items-center", "p-3",
+                        "bg-white/5", "border-2", "border-white/10", "h-12",
+                        "hover:bg-white/10", "transition-all", "duration-200", 
+                        "rounded-xl");
+
+                    li2.innerHTML = `
+                    <span class="text-white font-medium">${name}</span>
+                    <div id='lobby-player-ready-state-${userId}' class="text-red-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                        </svg>    
+                    </div>
+                    `;
+
+                    lobbyPlayersDiv.appendChild(li2);
+                }
+            });
+        }
+
+        function kickPlayer(userId) {
+            socket.emit("kick-player", userId);
+        }
+
+        socket.on("game-selected", (game, minPlayers, maxPlayers, gameName) => {
+            showSelectedGame(game, minPlayers, maxPlayers, gameName);
+        });
+
+        function showSelectedGame(game, minPlayers, maxPlayers, gameName) {
+            const gamesGrid = document.getElementById("games");
+            for (let i = 0; i < gamesGrid.children.length; i++) {
+                const gameButton = gamesGrid.children[i];
+                if (gameButton.id === `game-${game}`) {
+                    gameButton.classList.add("border-emerald-500", "bg-emerald-500/20");
+                    gameButton.classList.remove("border-white/10");
+                } else {
+                    gameButton.classList.add("border-white/10");
+                    gameButton.classList.remove("border-emerald-500", "bg-emerald-500/20");
+                }
+            }
+            const gamesLabel = document.getElementById("games-label");
+            gamesLabel.innerHTML = gameName ? `<span>🎮</span> ${gameName} <span class="text-sm text-gray-400">(${minPlayers}-${maxPlayers} players)</span>` : "<span>🎮</span> Select Game";
+            const readyButton = document.getElementById("ready-button");
+            readyButton.classList.add("animation-pulse");
+        }
+
+        function selectGame(game) {
+            if (!isHost) return;
+            socket.emit("select-game", game);
+        }
+
+        function toggleReady(button) {
+            socket.emit("toggle-ready");
+            button.disabled = true;
+            button.classList.remove("animation-pulse", "wbg-not-ready");
+            button.classList.add("cursor-not-allowed");
+            button.innerHTML = `<svg aria-hidden="true" class="w-8 h-8 text-gray-600 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
+                                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
+                                </svg>`;
+        }
+
+        socket.on("ready-state", (userId, isReady) => {
+            const playerDiv = document.getElementById("lobby-player-" + userId);
+            const readyStateDiv = document.getElementById("lobby-player-ready-state-" + userId);
+            if (playerDiv && readyStateDiv) {
+                if (isReady) {
+                    playerDiv.classList.add("border-emerald-500", "bg-emerald-500/10");
+                    playerDiv.classList.remove("border-white/10");
+                    readyStateDiv.classList.remove("text-red-400");
+                    readyStateDiv.classList.add("text-emerald-400");
+                    readyStateDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                                </svg>`;
+                } else {
+                    playerDiv.classList.remove("border-emerald-500", "bg-emerald-500/10");
+                    playerDiv.classList.add("border-white/10");
+                    readyStateDiv.classList.add("text-red-400");
+                    readyStateDiv.classList.remove("text-emerald-400");
+                    readyStateDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                                </svg>`;
+                }
+            }
+
+            const readyButton = document.getElementById("ready-button");
+            readyButton.classList.remove("cursor-not-allowed");
+            readyButton.disabled = false;
+            if (userId === localStorage.getItem("userId")) {
+                if (isReady) {
+                    readyButton.classList.remove("wbg-not-ready");
+                    readyButton.classList.add("wbg-ready");
+                    readyButton.innerHTML = `<span class="text-white text-lg flex items-center gap-2">✓ Ready!</span>`;
+                } else {
+                    readyButton.classList.remove("wbg-ready");
+                    readyButton.classList.add("animation-pulse", "wbg-not-ready");
+                    readyButton.innerHTML = `<span class="text-white text-lg">✋ Ready Up</span>`;
+                }
+            }
+        });
+
+        // Toast system
+        let toastCounter = 0;
+        const maxToasts = 5;
+
+        function showToast(text, type = 'info') {
+            if (toastCounter >= maxToasts) {
+                const container = document.querySelector('#toast-container');
+                if (container.children[0]) container.children[0].remove();
+            }
+
+            const toast = document.createElement('div');
+            
+            // Different styles based on type
+            let bgClass = 'bg-gradient-to-r from-indigo-600 to-purple-600';
+            if (type === 'error') bgClass = 'bg-gradient-to-r from-red-600 to-rose-600';
+            if (type === 'success') bgClass = 'bg-gradient-to-r from-emerald-600 to-green-600';
+            
+            toast.className = `flex items-center w-full max-w-xs p-4 rounded-xl shadow-lg text-white ${bgClass} text-sm font-medium transition-all duration-300 transform translate-x-full opacity-0`;
+            toast.innerText = text;
+
+            const toastContainer = document.getElementById('toast-container');
+            toastContainer.appendChild(toast);
+
+            // Animate the toast
+            setTimeout(() => {
+                toast.classList.remove('opacity-0', 'translate-x-full');
+                toast.classList.add('opacity-100', 'translate-x-0');
+            }, 10);
+
+            toastCounter++;
+
+            // Automatically fade out after a few seconds
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-full');
+                setTimeout(() => {
+                    toast.remove();
+                    toastCounter--;
+                }, 300);
+            }, 4000);
+        }
+
+        function copyRoomCode() {
+            const roomCode = document.getElementById("room-code").textContent;
+            navigator.clipboard.writeText(roomCode).then(() => {
+                showToast("Room code copied to clipboard!");
+            }).catch(err => {
+                console.error("Failed to copy: ", err);
+            });
+        }
+
+        //Drawer system
+        document.addEventListener("DOMContentLoaded", function () {
+        const drawer = document.getElementById("player-sidebar");
+        const openButton = document.querySelector("[data-drawer-show='player-sidebar']");
+        const closeButton = drawer.querySelector("[data-drawer-hide='player-sidebar']");
+        const notificationBadge = document.getElementById("notification-badge");
+
+        // Function to open the drawer
+        function openDrawer() {
+            drawer.classList.remove("translate-x-full");
+            notificationBadge.classList.add("hidden");
+        }
+
+        // Function to close the drawer
+        function closeDrawer() {
+            drawer.classList.add("translate-x-full");
+        }
+
+        // Event listeners
+        openButton.addEventListener("click", openDrawer);
+        closeButton.addEventListener("click", closeDrawer);
+
+        // Close the drawer when clicking outside of it
+        document.addEventListener("click", function (event) {
+            if (!drawer.contains(event.target) && !openButton.contains(event.target)) {
+                closeDrawer();
+            }});
+        });
+
+        function isDrawerOpen() {
+            const drawer = document.getElementById("player-sidebar");
+            return !drawer.classList.contains("translate-x-full");
+        }
+
+        function leaveRoomPopup() {
+            const leavePopup = document.getElementById("leave-popup");
+            leavePopup.classList.remove("hidden");
+            document.getElementById("leave-room-cancel").focus();
+        }
+
+        function closeLeaveRoomPopup() {
+            const leavePopup = document.getElementById("leave-popup");
+            leavePopup.classList.add("hidden");
+        }
+
+        function leaveRoom() {
+            socket.emit("leave-room");
+            window.location.href = "/index.html";
+        }
+
+        function kickPlayerPopup(userId, name) {
+            const kickPopup = document.getElementById("kick-popup");
+            kickPopup.classList.remove("hidden");
+            document.getElementById("kick-id").innerHTML = userId;
+            document.getElementById("kick-name").innerHTML = `Kick ${name}?`;
+        }
+
+        function closeKickPopup() {
+            const kickPopup = document.getElementById("kick-popup");
+            kickPopup.classList.add("hidden");
+        }
+
+        function ping(button) {
+            if (button) {
+                if (button.disabled) return;
+                button.disabled = true;
+                button.classList.add("cursor-not-allowed");
+            }
+            const start = Date.now();
+            socket.emit("ping", () => {
+                const end = Date.now();
+                const latency = end - start;
+                console.log("Ping: " + latency + "ms");
+                showToast(`🏓 Ping: ${latency}ms`);
+            });
+            // Fixed: Use setTimeout instead of setInterval to prevent memory leak
+            setTimeout(() => {
+                if (button) {
+                    button.disabled = false;
+                    button.classList.remove("cursor-not-allowed");
+                }
+            }, 1000);
+        }
+
+        socket.on("game-started", (game) => {
+            startGame(game);
+        });
+
+        function startGame(game) {
+            const lobbyPopup = document.getElementById("lobby-popup");
+            lobbyPopup.classList.add("hidden");
+
+            loadGameHTML(game);
+        }
+
+        socket.on("back-to-lobby", () => {
+            endGame();
+            //socket.emit("request-room-data", roomcode);
+        });
+
+        function endGame() {
+            const gameBoard = document.getElementById("game-board");
+            gameBoard.innerHTML = ""; // Clear the game board
+
+            const lobbyPopup = document.getElementById("lobby-popup");
+            lobbyPopup.classList.remove("hidden");
+
+            const gameScript = document.getElementById("game-script");
+            if (gameScript) {
+                gameScript.remove(); // Remove the game script if it exists
+            }
+
+            showSelectedGame(null, 0, 0, null);
+
+            const readyButton = document.getElementById("ready-button");
+            readyButton.classList.remove("cursor-not-allowed");
+            readyButton.disabled = false;
+            readyButton.classList.add("animation-pulse", "wbg-not-ready");
+            readyButton.innerHTML = `<span class="text-white text-lg">Ready</span>`;
+
+            const playersDiv = document.getElementById("lobby-players");
+            for (let i = 0; i < playersDiv.children.length; i++) {
+                const playerDiv = playersDiv.children[i];
+                playerDiv.classList.remove("border-green-700");
+                playerDiv.classList.add("border-gray-700");
+            }
+        }
+    </script>
+
+    <script type="module">
+        window.loadGameHTML = async function(game) {
+            const res = await fetch(`/games/${game}.html`);
+            const html = await res.text();
+            document.getElementById('game-board').innerHTML = html;
+
+            // After injecting the HTML, load the script manually
+            const script = document.createElement('script');
+            script.type = 'module';
+            script.id = 'game-script';
+            script.src = `/games/${game}.js`;
+            document.body.appendChild(script);
+        }
+    </script>
+</body>
+</html>
