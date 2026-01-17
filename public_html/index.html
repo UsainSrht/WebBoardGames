@@ -6,7 +6,7 @@
     <meta name="description" content="Play board games online with friends. Real-time multiplayer gaming experience.">
     <title>Web Board Games - Play Together Online</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="/socket-client.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -313,23 +313,39 @@
         socket.on('connect', () => updateConnectionStatus(true));
         socket.on('disconnect', () => updateConnectionStatus(false));
 
-        socket.on('connect-user', (id, name, room) => {
-            userId = id;
-            localStorage.setItem('userId', id);
-            if (room) {
-                window.location.href = `/game.html?room=${room}`;
+        socket.on('connect-user', ({ odId, name, inRoom }) => {
+            userId = odId;
+            localStorage.setItem('userId', odId);
+            // Store name if received from server
+            if (name) {
+                localStorage.setItem('userName', name);
+            }
+            if (inRoom) {
+                // Already in a room - but we don't have room code here, just show room section
+                if (name) {
+                    userName = name;
+                    showRoomSection(name);
+                }
             } else if (name) {
                 userName = name;
                 showRoomSection(name);
+            } else {
+                // Pre-populate with stored name if available
+                const storedName = localStorage.getItem('userName');
+                if (storedName) {
+                    nicknameInput.value = storedName;
+                    charCount.textContent = `${storedName.length}/16`;
+                }
             }
         });
 
         socket.on('request-user-id', () => {
             const storedId = localStorage.getItem('userId');
-            socket.emit('send-user-id', storedId);
+            const storedName = localStorage.getItem('userName');
+            socket.emit('send-user-id', { odId: storedId, name: storedName });
         });
 
-        socket.on('error', (error) => showToast(error, 'error'));
+        socket.on('error', ({ message }) => showToast(message || 'An error occurred', 'error'));
 
         function updateConnectionStatus(connected) {
             const status = document.getElementById('connection-status');
@@ -359,7 +375,9 @@
 
         function submitName(name) {
             userName = name;
-            socket.emit('submit-name', name, false);
+            localStorage.setItem('userName', name);
+            console.log('submitName: stored userName in localStorage:', name);
+            socket.emit('submit-name', { name: name, isInGame: false });
             showRoomSection(name);
         }
 
@@ -380,7 +398,7 @@
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
             let roomCode = '';
             for (let i = 0; i < 6; i++) roomCode += chars.charAt(Math.floor(Math.random() * chars.length));
-            socket.emit('create-room', roomCode);
+            // No need to emit create-room - the Durable Object creates the room when first player joins
             window.location.href = `/game.html?room=${roomCode}`;
         }
 

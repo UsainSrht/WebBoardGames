@@ -83,7 +83,8 @@ class KingdominoScene extends Phaser.Scene {
         this.playerListContainer = this.add.container(20, this.scale.height - 20);
         
         // Background for player list
-        const listBackground = this.add.rectangle(0, 0, 250, this.players.length * 60 + 20, 0x000000, 0.7)
+        const playerCount = Object.keys(this.players).length;
+        const listBackground = this.add.rectangle(0, 0, 250, playerCount * 60 + 20, 0x000000, 0.7)
             .setOrigin(0, 1)
             .setStrokeStyle(2, 0xffffff);
         
@@ -161,7 +162,7 @@ class KingdominoScene extends Phaser.Scene {
     }
     
     updateTurnProgress() {
-        if (this.players.length === 0) return;
+        if (Object.keys(this.players).length === 0) return;
         
         const remaining = Math.max(0, this.currentTurnEndTime - Date.now());
         const progress = Math.max(0, (remaining / (this.currentTurnEndTime - this.currentTurnStartTime)));
@@ -461,11 +462,11 @@ class KingdominoScene extends Phaser.Scene {
         this.previewTile = this.add.container(0,0).setVisible(false);
 
         // Socket event listeners
-        socket.on("kingdomino-game-start", (gameData) => {
+        socket.on("kingdomino-game-start", ({ players: gameDataPlayers, currentPlayerIndex: gameDataCurrentPlayerIndex, turnStartTime: gameDataTurnStartTime, tileCount: gameDataTileCount }) => {
             gameBoard.removeChild(loadingLabel);
             
             // Initialize players from server data
-            this.players = gameData.players;
+            this.players = gameDataPlayers;
 
             this.myUserId = localStorage.getItem('userId');
             this.myData = this.players[this.myUserId];
@@ -505,27 +506,28 @@ class KingdominoScene extends Phaser.Scene {
                 fadeOutDuration: 400
             });
             
-            this.currentPlayerIndex = gameData.currentPlayerIndex;
-            this.turnStartTime = gameData.turnStartTime;
+            this.currentPlayerIndex = gameDataCurrentPlayerIndex;
+            this.turnStartTime = gameDataTurnStartTime;
             
             this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
-            this.createTileStack(this, gameData.tileCount);
+            this.createTileStack(this, gameDataTileCount);
             this.createPlayerList();
         });
 
-        socket.on("kingdomino-draw-tiles", (drawnTiles) => {
+        socket.on("kingdomino-draw-tiles", ({ drawnTiles }) => {
             this.drawTiles(this, drawnTiles);
         });
         
-        socket.on("kingdomino-players-update", (playersData) => {
+        socket.on("kingdomino-players-update", ({ players: playersData }) => {
             this.players = playersData;
+            this.myData = this.players[this.myUserId]; // Update myData reference
             if (this.playerListContainer) {
                 this.playerListContainer.destroy();
                 this.createPlayerList();
             }
         });
         
-        socket.on('kingdomino-turn-info', (turnIndex, turnStartTime, turnEndTime) => {
+        socket.on('kingdomino-turn-info', ({ turnIndex, turnStartTime, turnEndTime }) => {
             this.currentPlayerIndex = turnIndex;
             this.currentTurnStartTime = turnStartTime;
             this.currentTurnEndTime = turnEndTime;
@@ -547,9 +549,23 @@ class KingdominoScene extends Phaser.Scene {
                         this.tilePlacementSystem.makeTileSelectable(tile, !tile.getData('isSelected'));
                     });
                 } else {
-                    this.drawnTiles.filter(tile => tile.getData('data').number === this.myData.selectedTile).forEach(tile => {
-                        this.tilePlacementSystem.makeTileDraggable(tile, true);
-                    });
+                    // Find my selected tile and make it draggable
+                    const myTile = this.drawnTiles.find(tile => tile.getData('data').number === this.myData.selectedTile);
+                    if (myTile) {
+                        this.tilePlacementSystem.makeTileDraggable(myTile, true);
+                        // Add visual pulse effect to show which tile to place
+                        const rectangle = myTile.list[0];
+                        rectangle.setStrokeStyle(4, 0xffff00);
+                        this.tweens.add({
+                            targets: myTile,
+                            scaleX: 1.05,
+                            scaleY: 1.05,
+                            duration: 300,
+                            yoyo: true,
+                            repeat: 2,
+                            ease: 'Sine.easeInOut'
+                        });
+                    }
                 }
             } else {
                 if (this.isTileSelecting) {
@@ -566,34 +582,51 @@ class KingdominoScene extends Phaser.Scene {
             this.turnCount++;
         });
         
-        socket.on("kingdomino-tile-selected", (userId, tileNumber, drawnIndex) => {
+        socket.on("kingdomino-tile-selected", ({ odId, tileNumber, drawnIndex }) => {
             
-            this.players[userId].selectedTile = tileNumber;
+            this.players[odId].selectedTile = tileNumber;
+            
+            // Update myData if this is the current player
+            if (odId === this.myUserId) {
+                this.myData = this.players[this.myUserId];
+            }
 
             const tile = this.drawnTiles.find(t => t.getData('data').number === tileNumber);
             if (!tile) return;
             tile.setData('isSelected', true);
-            tile.setData('selectedBy', userId);
+            tile.setData('selectedBy', odId);
 
-            const pawn = this.add.image(700 + drawnIndex * 205, 300, 'pawn-' + this.getColorName(this.players[userId].color));
+            const pawn = this.add.image(700 + drawnIndex * 205, 300, 'pawn-' + this.getColorName(this.players[odId].color));
             pawn.setDisplaySize(50,50);
             pawn.setData('tileNumber', tileNumber);
             this.placedPawns.add(pawn);
 
-            console.log(`Tile ${tileNumber} selected by ${this.players[userId].name}`);
+            console.log(`Tile ${tileNumber} selected by ${this.players[odId].name}`);
         });
 
-        socket.on("kingdomino-tile-placed", (userId, tileNumber, row, col, rotation) => {
+        socket.on("kingdomino-tile-placed", ({ odId, tileNumber, row, col, rotation }) => {
             
-            this.drawnTiles.filter(tile => tile.getData('data').number === tileNumber).forEach(tile => {
-                if (userId !== this.myUserId) {
-                    this.placeOtherPlayersTile(userId, tile, row, col, rotation);
+            // Find the tile
+            const tileIndex = this.drawnTiles.findIndex(tile => tile.getData('data').number === tileNumber);
+            if (tileIndex === -1) return;
+            
+            const tile = this.drawnTiles[tileIndex];
+            
+            // Check if tile was discarded (row/col = -1)
+            if (row === -1 && col === -1) {
+                // Tile was discarded due to timeout
+                tile.destroy();
+                showToast(`${this.players[odId].name} timed out - tile discarded`);
+            } else {
+                if (odId !== this.myUserId) {
+                    this.placeOtherPlayersTile(odId, tile, row, col, rotation);
                 } else if (!tile.getData('placed')) {
                     this.tilePlacementSystem.placeTileOnGrid(tile, row, col);
                 }
-                //tile.destroy();  
-                this.drawnTiles.splice(this.drawnTiles.indexOf(tile), 1);
-            });
+            }
+            
+            // Remove from drawnTiles array
+            this.drawnTiles.splice(tileIndex, 1);
 
             this.placedPawns.getChildren().forEach(pawn => {
                 if (pawn.getData('tileNumber') === tileNumber) {
@@ -624,7 +657,7 @@ class KingdominoScene extends Phaser.Scene {
             showToast('Tile selection started.');
         });
 
-        socket.on("kingdomino-game-end", (scores) => {
+        socket.on("kingdomino-game-end", ({ players }) => {
             this.showTitleEffect('Game ended!', null, this.scale.width / 2, this.scale.height / 2, {
                 fontSize: '32px',
                 animationDuration: 400,

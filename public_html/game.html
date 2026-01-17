@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Room | Web Board Games</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="/socket-client.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -317,15 +317,16 @@
         console.log("game debug start");
         const socket = io();
         window.socket = socket; // Make socket globally accessible
+        let hasJoinedRoom = false; // Flag to prevent double-joining
 
         socket.onAny((eventName, ...args) => {
             console.log(eventName, "in with args: ", args);
         });
 
-        socket.on("error", (error) => {
-            console.error("Error from server:", error);
-            //showToast(`Error: ${error}`);
-            alert(`Error: ${error}`);
+        socket.on("error", ({ message }) => {
+            console.error("Error from server:", message);
+            //showToast(`Error: ${message}`);
+            alert(`Error: ${message}`);
         });
 
         function tryJoinURLRoom() {
@@ -359,19 +360,37 @@
             document.getElementById("server-status-icon").classList.add("text-red-500");
         });
 
-        socket.on("connect-user", (userId, name, room) => {
-            localStorage.setItem("userId", userId);
-            document.getElementById("nickname-display").textContent = name || "Guest";
-            document.getElementById("room-code").textContent = room || "?????";
-            if (!room) {
-                tryJoinURLRoom();
-            } else {
-                const urlRoomCode = getURLRoomCode();
-                if (urlRoomCode && urlRoomCode !== room) {
-                    tryJoinURLRoom();
+        socket.on("connect-user", ({ odId, name, inRoom }) => {
+            console.log('connect-user received:', { odId, name, inRoom });
+            console.log('  hasJoinedRoom:', hasJoinedRoom);
+            localStorage.setItem("userId", odId);
+            if (name) {
+                localStorage.setItem("userName", name);
+                document.getElementById("nickname-display").textContent = name;
+                console.log('  name is set, updated display to:', name);
+            }
+            const urlRoomCode = getURLRoomCode();
+            document.getElementById("room-code").textContent = urlRoomCode || "?????";
+            
+            // Join if we have a name
+            if (name && urlRoomCode) {
+                if (!hasJoinedRoom) {
+                    hasJoinedRoom = true;
+                    console.log('  calling joinRoom with:', urlRoomCode);
+                    joinRoom(urlRoomCode);
+                } else if (!inRoom) {
+                    // We submitted a name but haven't joined the room yet
+                    console.log('  already set hasJoinedRoom but not inRoom, calling joinRoom again');
+                    joinRoom(urlRoomCode);
                 } else {
-                    joinRoom(room);
+                    console.log('  hasJoinedRoom is true and inRoom, not calling joinRoom');
                 }
+            } else if (!name) {
+                // No name - wait for request-nickname event
+                console.log('  No name, waiting for nickname request');
+            } else if (!urlRoomCode) {
+                console.log('  No urlRoomCode, redirecting to index');
+                window.location.href = "/index.html";
             }
         });
 
@@ -385,27 +404,51 @@
         let game;
         let minPlayers;
         let maxPlayers;
-        socket.on("send-room-data", (room, players, receivedHost, isStarted, selectedGame, min, max, gameName) => {
-            document.getElementById("room-code").textContent = room;
+        socket.on("send-room-data", ({ players, host: receivedHost, started: isStarted, game: selectedGame, gameMin, gameMax, gameName }) => {
+            const urlRoomCode = getURLRoomCode();
+            document.getElementById("room-code").textContent = urlRoomCode;
             host = receivedHost;
             isHost = localStorage.getItem("userId") === host;
             started = isStarted;
             game = selectedGame;
-            minPlayers = min;
-            maxPlayers = max;
+            minPlayers = gameMin;
+            maxPlayers = gameMax;
             if (!started) showSelectedGame(game, minPlayers, maxPlayers, gameName);
             updatePlayerList(players);
         });
 
         socket.on("request-user-id", () => {
             const storedId = localStorage.getItem("userId") || null;
-            socket.emit("send-user-id", storedId);
+            const storedName = localStorage.getItem("userName") || null;
+            console.log('request-user-id received');
+            console.log('  storedId from localStorage:', storedId);
+            console.log('  storedName from localStorage:', storedName);
+            socket.emit("send-user-id", { odId: storedId, name: storedName });
+            console.log('  emitted send-user-id with:', { odId: storedId, name: storedName });
         });
 
         socket.on("request-nickname", () => {
+            console.log('request-nickname received');
+            // Check if we have a stored name and auto-submit it
+            const storedName = localStorage.getItem("userName");
+            console.log('  storedName from localStorage:', storedName);
+            if (storedName && storedName.length >= 3 && storedName.length <= 16) {
+                console.log('  Auto-submitting stored name:', storedName);
+                // Auto-submit the stored name
+                // The server will send connect-user back, which will trigger joinRoom
+                socket.emit("submit-name", { name: storedName, isInGame: true });
+                return;
+            }
+            
+            // Otherwise show the nickname popup
+            console.log('  No valid stored name, showing nickname popup');
             const nicknamePopup = document.getElementById("nickname-popup");
             nicknamePopup.classList.remove("hidden");
-            document.getElementById("nickname").focus();
+            const nicknameInput = document.getElementById("nickname");
+            if (storedName) {
+                nicknameInput.value = storedName;
+            }
+            nicknameInput.focus();
         });
 
         function checkName() {
@@ -423,11 +466,16 @@
         }
 
         function submitName(name) {
+            console.log('submitName called with:', name);
             // name, isInGame
-            socket.emit("submit-name", name, true);
+            localStorage.setItem("userName", name);
+            socket.emit("submit-name", { name: name, isInGame: true });
 
             const nicknameForm = document.getElementById('nickname-popup');
             nicknameForm.classList.add("hidden");
+            
+            document.getElementById("nickname-display").textContent = name;
+            // Don't call joinRoom here - wait for connect-user response from server
         }
 
         function nicknameReply(message) {
@@ -436,19 +484,19 @@
             reply.innerHTML = message;
         }
 
-        socket.on("player-joined", (player) => {
-            showToast(`${player} joined.`);
-            sendSystemMessage(`${player} joined the game.`);
+        socket.on("player-joined", ({ name }) => {
+            showToast(`${name} joined.`);
+            sendSystemMessage(`${name} joined the game.`);
         });
 
-        socket.on("player-left", (player) => {
-            showToast(`${player} left.`);
-            sendSystemMessage(`${player} left the game.`);
+        socket.on("player-left", ({ name }) => {
+            showToast(`${name} left.`);
+            sendSystemMessage(`${name} left the game.`);
         });
 
-        socket.on("player-kicked", (player) => {
-            showToast(`${player} got kicked.`);
-            sendSystemMessage(`${player} got kicked.`);
+        socket.on("player-kicked", ({ name }) => {
+            showToast(`${name} got kicked.`);
+            sendSystemMessage(`${name} got kicked.`);
         });
 
         socket.on("you-got-kicked", () => {
@@ -456,11 +504,11 @@
             window.location.href = "/index.html";
         });
 
-        socket.on("player-list", (players) => {
+        socket.on("player-list", ({ players }) => {
             updatePlayerList(players);
         });
 
-        socket.on("chat-message", (message, name) => {
+        socket.on("chat-message", ({ message, name }) => {
             const messageBox = document.getElementById("message-box");
             const messageDiv = document.createElement("div");
             messageDiv.classList.add(
@@ -477,7 +525,7 @@
             if (!isDrawerOpen()) document.getElementById("notification-badge").classList.remove("hidden");
         });
 
-        socket.on("system-message", (message) => {
+        socket.on("system-message", ({ message }) => {
             sendSystemMessage(message);
         });
 
@@ -498,7 +546,7 @@
                 message = message.substring(0, 200); // Trim to 200 characters
             }
             if (message) {
-                socket.emit("chat-message", message);
+                socket.emit("chat-message", { message: message });
                 chatInput.value = ""; // Clear the input field
             }
         }
@@ -569,11 +617,11 @@
         }
 
         function kickPlayer(userId) {
-            socket.emit("kick-player", userId);
+            socket.emit("kick-player", { kickedUserId: userId });
         }
 
-        socket.on("game-selected", (game, minPlayers, maxPlayers, gameName) => {
-            showSelectedGame(game, minPlayers, maxPlayers, gameName);
+        socket.on("game-selected", ({ game, min, max, name }) => {
+            showSelectedGame(game, min, max, name);
         });
 
         function showSelectedGame(game, minPlayers, maxPlayers, gameName) {
@@ -596,7 +644,7 @@
 
         function selectGame(game) {
             if (!isHost) return;
-            socket.emit("select-game", game);
+            socket.emit("select-game", { game: game });
         }
 
         function toggleReady(button) {
@@ -610,9 +658,9 @@
                                 </svg>`;
         }
 
-        socket.on("ready-state", (userId, isReady) => {
-            const playerDiv = document.getElementById("lobby-player-" + userId);
-            const readyStateDiv = document.getElementById("lobby-player-ready-state-" + userId);
+        socket.on("ready-state", ({ odId, isReady }) => {
+            const playerDiv = document.getElementById("lobby-player-" + odId);
+            const readyStateDiv = document.getElementById("lobby-player-ready-state-" + odId);
             if (playerDiv && readyStateDiv) {
                 if (isReady) {
                     playerDiv.classList.add("border-emerald-500", "bg-emerald-500/10");
@@ -636,7 +684,7 @@
             const readyButton = document.getElementById("ready-button");
             readyButton.classList.remove("cursor-not-allowed");
             readyButton.disabled = false;
-            if (userId === localStorage.getItem("userId")) {
+            if (odId === localStorage.getItem("userId")) {
                 if (isReady) {
                     readyButton.classList.remove("wbg-not-ready");
                     readyButton.classList.add("wbg-ready");
@@ -783,7 +831,7 @@
             }, 1000);
         }
 
-        socket.on("game-started", (game) => {
+        socket.on("game-started", ({ game }) => {
             startGame(game);
         });
 
@@ -832,9 +880,29 @@
         window.loadGameHTML = async function(game) {
             const res = await fetch(`/games/${game}.html`);
             const html = await res.text();
+            
+            // Parse the HTML to extract scripts
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Inject the HTML content (without scripts executing)
             document.getElementById('game-board').innerHTML = html;
-
-            // After injecting the HTML, load the script manually
+            
+            // Find and load any external scripts from the game HTML
+            const scripts = doc.querySelectorAll('script[src]');
+            
+            // Load external scripts sequentially and wait for them
+            for (const scriptTag of scripts) {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = scriptTag.src;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            }
+            
+            // After external scripts are loaded, load the game script
             const script = document.createElement('script');
             script.type = 'module';
             script.id = 'game-script';

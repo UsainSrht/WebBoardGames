@@ -36,31 +36,30 @@ class TilePlacementSystem {
         const rectangle = tile.list[0]; // The rectangle is the first child
         
         if (draggable) {
-
-            rectangle.setInteractive({ cursor: 'grab' });
-
-            rectangle.on('pointerdown', (pointer, localX, localY, event) => {
+            rectangle.setInteractive({ cursor: 'grab', draggable: true });
+            
+            // Use scene-level drag events for proper tracking
+            this.scene.input.setDraggable(rectangle);
+            
+            rectangle.on('dragstart', (pointer) => {
                 this.startDragging(tile, pointer);
-                event.stopPropagation();
             });
             
-            rectangle.on('pointerup', (pointer, localX, localY, event) => {
-                this.stopDragging(tile, pointer);
-                event.stopPropagation();
-            });
-            
-            rectangle.on('pointermove', (pointer, localX, localY, event) => {
+            rectangle.on('drag', (pointer, dragX, dragY) => {
                 if (this.draggedTile === tile) {
                     this.updateDraggedTile(tile, pointer);
                 }
             });
+            
+            rectangle.on('dragend', (pointer) => {
+                this.stopDragging(tile, pointer);
+            });
 
         } else {
             rectangle.disableInteractive();
-
-            rectangle.off('pointerdown');
-            rectangle.off('pointerup');
-            rectangle.off('pointermove');
+            rectangle.off('dragstart');
+            rectangle.off('drag');
+            rectangle.off('dragend');
         }
     }
 
@@ -76,15 +75,17 @@ class TilePlacementSystem {
                 event.stopPropagation();
             });
 
-            //todo make hover look good
             // Hover enter - add glow effect
             rectangle.on('pointerover', () => {
-                // Add a subtle glow by changing fill and stroke
-                rectangle.setFillStyle(Phaser.Display.Color.Interpolate.ColorWithColor(
-                    Phaser.Display.Color.ValueToColor(this.scene.myData.color),
-                    Phaser.Display.Color.ValueToColor(0xffffff),
-                    100, 20
-                ));
+                // Lighten the player color for hover effect
+                const baseColor = Phaser.Display.Color.ValueToColor(this.scene.myData.color);
+                const lighterColor = Phaser.Display.Color.Interpolate.ColorWithColor(
+                    baseColor,
+                    { r: 255, g: 255, b: 255 },
+                    100, 30
+                );
+                const hoverColorValue = Phaser.Display.Color.GetColor(lighterColor.r, lighterColor.g, lighterColor.b);
+                rectangle.setFillStyle(hoverColorValue);
                 
                 // Add a brighter stroke for glow effect
                 rectangle.setStrokeStyle(3, 0xffffff, 0.8);
@@ -92,8 +93,8 @@ class TilePlacementSystem {
 
             // Hover exit - restore original appearance
             rectangle.on('pointerout', () => {
-                rectangle.setFillStyle(this.scene.myData.color);
-                rectangle.setStrokeStyle(rectangle.lineWidth, 0x342ddb, rectangle.strokeAlpha);
+                rectangle.setFillStyle(0x00ff00);
+                rectangle.setStrokeStyle(2, 0x000000);
             });
         } else {
             rectangle.disableInteractive();
@@ -127,7 +128,7 @@ class TilePlacementSystem {
         // Disable interaction for this tile
         this.makeTileSelectable(tile, false);
         
-        socket.emit('kingdomino-select-tile', tile.getData('data').number, tile.getData('drawn-index'));
+        socket.emit('kingdomino-select-tile', { tileNumber: tile.getData('data').number, drawnIndex: tile.getData('drawn-index') });
     }
     
     startDragging(tile, pointer) {
@@ -267,23 +268,54 @@ class TilePlacementSystem {
     canPlaceTile(startRow, startCol, width, height) {
         //console.log('canPlaceTile', startRow, startCol, width, height);
 
-        // Check if all required cells are available
-        if (startRow + height > this.gridSize-1 || startCol + width > this.gridSize-1 ||
-            startRow + height < 0 || startCol + width < 0
-        ) {
-            //console.log('Tile placement would go outside the grid');
-            return false; // Would go outside grid
+        // Calculate the second cell position
+        const secondRow = startRow + height;
+        const secondCol = startCol + width;
+
+        // Check if all required cells are within bounds
+        if (startRow < 0 || startRow >= this.gridSize || startCol < 0 || startCol >= this.gridSize) {
+            return false;
+        }
+        if (secondRow < 0 || secondRow >= this.gridSize || secondCol < 0 || secondCol >= this.gridSize) {
+            return false;
         }
         
+        // Check if cells are occupied
         if (this.gridOccupancy[startRow][startCol] !== null || 
-            this.gridOccupancy[startRow + height][startCol + width] !== null
+            this.gridOccupancy[secondRow][secondCol] !== null
         ) {
-            //console.log('Tile placement overlaps with occupied space');
-            return false; // occupied space
+            return false;
         }
 
-        //console.log('Tile placement is valid');
+        // Check adjacency - at least one cell must be adjacent to an existing tile
+        const isAdjacent = this.hasAdjacentTile(startRow, startCol) || this.hasAdjacentTile(secondRow, secondCol);
+        if (!isAdjacent) {
+            return false;
+        }
+
         return true;
+    }
+
+    hasAdjacentTile(row, col) {
+        // Check all 4 directions for adjacent tiles
+        const directions = [
+            { dr: -1, dc: 0 },  // up
+            { dr: 1, dc: 0 },   // down
+            { dr: 0, dc: -1 },  // left
+            { dr: 0, dc: 1 }    // right
+        ];
+
+        for (const { dr, dc } of directions) {
+            const newRow = row + dr;
+            const newCol = col + dc;
+            
+            if (newRow >= 0 && newRow < this.gridSize && 
+                newCol >= 0 && newCol < this.gridSize &&
+                this.gridOccupancy[newRow][newCol] !== null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     getCenterOffset(rotation) {
@@ -327,7 +359,7 @@ class TilePlacementSystem {
         // Lock the tile in place
         this.lockTileInPlace(tile);
 
-        socket.emit('kingdomino-place-tile', tile.getData('data').number, row, col, rotation);
+        socket.emit('kingdomino-place-tile', { tileNumber: tile.getData('data').number, row: row, col: col, rotation: rotation });
     }
     
     lockTileInPlace(tile) {

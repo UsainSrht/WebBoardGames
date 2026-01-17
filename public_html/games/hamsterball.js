@@ -329,10 +329,10 @@ class HamsterballGame {
     connectToServer() {
         socket.emit('hamsterball-ready');
         
-        socket.on('init', (data) => {
-            console.log('Game initialized', data);
-            this.myPlayerId = data.id;
-            this.players = data.players;
+        socket.on('init', ({ id, players }) => {
+            console.log('Game initialized', { id, players });
+            this.myPlayerId = id;
+            this.players = players;
             this.gameStarted = true;
             
             // Hide loading indicator
@@ -346,24 +346,24 @@ class HamsterballGame {
             this.updateUI();
         });
         
-        socket.on('state', (gameState) => {
-            this.players = gameState.players;
+        socket.on('state', ({ players, plateTilt }) => {
+            this.players = players;
             
             // Update plate tilt from server data
-            if (gameState.plateTilt) {
-                this.updatePlateTiltFromServer(gameState.plateTilt);
+            if (plateTilt) {
+                this.updatePlateTiltFromServer(plateTilt);
             }
             
             this.updateGameState();
             this.updateUI();
         });
         
-        socket.on('removePlayer', (playerId) => {
-            if (this.playerMeshes[playerId]) {
-                this.scene.remove(this.playerMeshes[playerId]);
-                delete this.playerMeshes[playerId];
+        socket.on('removePlayer', ({ odId }) => {
+            if (this.playerMeshes[odId]) {
+                this.scene.remove(this.playerMeshes[odId]);
+                delete this.playerMeshes[odId];
             }
-            delete this.players[playerId];
+            delete this.players[odId];
             this.updateUI();
         });
         
@@ -372,8 +372,8 @@ class HamsterballGame {
             document.getElementById('gameStatus').style.display = 'block';
         });
         
-        socket.on('connect_error', (error) => {
-            console.error('Connection error:', error);
+        socket.on('connect_error', ({ message }) => {
+            console.error('Connection error:', message);
             document.getElementById('connectionStatus').textContent = 'Connection failed. Retrying...';
         });
     }

@@ -29,7 +29,7 @@ function loadImages(callback) {
     });
 }
 
-socket.on("rps-game-started", (countdownEndUnix) => {
+socket.on("rps-game-started", ({ countdownEndUnix }) => {
     const rpsPopup = document.getElementById("rps-popup");
     //todo clear selection
     rpsPopup.classList.remove("hidden");
@@ -47,8 +47,8 @@ socket.on("rps-game-started", (countdownEndUnix) => {
     countDown(remainingSeconds);
 });
 
-socket.on("update-scoreboard", (players) => {
-    updateScoreboard(players);
+socket.on("update-scoreboard", ({ playerGameData }) => {
+    updateScoreboard(playerGameData);
 });
 
 function updateScoreboard(players) {
@@ -83,10 +83,10 @@ function countDown(countdown) {
 }
 
 window.rpsSelectMove = function (move) {
-    socket.emit("rps-select-move", move);
+    socket.emit("rps-select-move", { move: move });
 };
 
-socket.on("rps-move-selected", (move) => {
+socket.on("rps-move-selected", ({ move }) => {
     ["rock", "paper", "scissors"].forEach(element => {
         const moveButton = document.getElementById(`rps-move-${element}`);
         if (moveButton) {
@@ -101,7 +101,7 @@ socket.on("rps-move-selected", (move) => {
     });
 });
 
-socket.on("rps-game-ended", (playerMoves) => {
+socket.on("rps-game-ended", ({ playerGameData }) => {
     console.log("rps countdown ended");
     const rpsPopup = document.getElementById("rps-popup");
     rpsPopup.classList.add("hidden");
@@ -130,11 +130,11 @@ socket.on("rps-game-ended", (playerMoves) => {
     const movesData = {};
 
     let index = 0;
-    for (const key of Object.keys(playerMoves)) {
-        const angle = (index / Object.keys(playerMoves).length) * Math.PI * 2;
+    for (const key of Object.keys(playerGameData)) {
+        const angle = (index / Object.keys(playerGameData).length) * Math.PI * 2;
         movesData[key] = {
-            name: playerMoves[key].name,
-            move: playerMoves[key].move,
+            name: playerGameData[key].name,
+            move: playerGameData[key].move,
             x: center.x + radius * Math.cos(angle),
             y: center.y + radius * Math.sin(angle),
             angle,

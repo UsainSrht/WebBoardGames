@@ -1,0 +1,5 @@
+# Local development environment variables
+# Copy this to .dev.vars and fill in values (don't commit .dev.vars!)
+
+# Optional: Set if needed for local testing
+ENVIRONMENT=development
