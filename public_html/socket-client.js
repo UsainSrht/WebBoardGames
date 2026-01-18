@@ -7,9 +7,11 @@ class SocketClient {
   constructor(options = {}) {
     this.ws = null;
     this.connected = false;
+    this.connecting = false;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
+    this.maxReconnectAttempts = options.maxReconnectAttempts || 10;
     this.reconnectDelay = options.reconnectDelay || 1000;
+    this.maxReconnectDelay = options.maxReconnectDelay || 30000;
     this.eventHandlers = new Map();
     this.oneTimeHandlers = new Map();
     this.anyHandlers = [];
@@ -17,6 +19,9 @@ class SocketClient {
     this.roomCode = null;
     this.autoConnect = options.autoConnect !== false;
     this.id = null; // Socket ID equivalent
+    this.reconnectTimer = null;
+    this.connectionTimeout = null;
+    this.connectionTimeoutMs = options.connectionTimeout || 10000;
     
     // Auto-connect to lobby by default (like Socket.IO)
     if (this.autoConnect) {
@@ -37,23 +42,70 @@ class SocketClient {
       return this;
     }
     
+    // If already trying to connect, don't start another connection
+    if (this.connecting && this.roomCode === roomCode) {
+      return this;
+    }
+    
+    // Clear any pending reconnect timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    
+    // Clear any pending connection timeout
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+    
     // If connected to different room, disconnect first
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.close();
+    if (this.ws) {
+      const oldWs = this.ws;
+      this.ws = null;
+      try {
+        oldWs.onclose = null; // Prevent triggering reconnect
+        oldWs.onerror = null;
+        oldWs.close();
+      } catch (e) {
+        // Ignore close errors
+      }
     }
     
     this.roomCode = roomCode;
+    this.connecting = true;
     
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws?room=${encodeURIComponent(roomCode)}`;
     
     console.log(`[SocketClient] Connecting to ${wsUrl}`);
+    this.trigger('connecting');
     
-    this.ws = new WebSocket(wsUrl);
+    try {
+      this.ws = new WebSocket(wsUrl);
+    } catch (err) {
+      console.error('[SocketClient] Failed to create WebSocket:', err);
+      this.connecting = false;
+      this.scheduleReconnect();
+      return this;
+    }
+    
+    // Set connection timeout
+    this.connectionTimeout = setTimeout(() => {
+      if (this.connecting && this.ws) {
+        console.log('[SocketClient] Connection timeout');
+        this.ws.close();
+      }
+    }, this.connectionTimeoutMs);
     
     this.ws.onopen = () => {
       console.log('[SocketClient] Connected');
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
       this.connected = true;
+      this.connecting = false;
       this.reconnectAttempts = 0;
       this.id = 'ws-' + Math.random().toString(36).substr(2, 9);
       this.trigger('connect');
@@ -61,7 +113,11 @@ class SocketClient {
       // Send any pending messages
       while (this.pendingMessages.length > 0) {
         const msg = this.pendingMessages.shift();
-        this.ws.send(msg);
+        try {
+          this.ws.send(msg);
+        } catch (err) {
+          console.error('[SocketClient] Failed to send pending message:', err);
+        }
       }
     };
     
@@ -76,15 +132,20 @@ class SocketClient {
     
     this.ws.onclose = (event) => {
       console.log('[SocketClient] Disconnected', event.code, event.reason);
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
+      const wasConnected = this.connected;
       this.connected = false;
-      this.trigger('disconnect', event.reason);
+      this.connecting = false;
+      
+      if (wasConnected) {
+        this.trigger('disconnect', event.reason);
+      }
       
       // Attempt reconnection
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
-        this.reconnectAttempts++;
-        console.log(`[SocketClient] Reconnecting... (attempt ${this.reconnectAttempts})`);
-        setTimeout(() => this.connect(this.roomCode), this.reconnectDelay * this.reconnectAttempts);
-      }
+      this.scheduleReconnect();
     };
     
     this.ws.onerror = (event) => {
@@ -94,6 +155,43 @@ class SocketClient {
     };
     
     return this;
+  }
+  
+  /**
+   * Schedule a reconnection attempt with exponential backoff
+   */
+  scheduleReconnect() {
+    if (this.reconnectTimer) {
+      return; // Already scheduled
+    }
+    
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('[SocketClient] Max reconnection attempts reached');
+      this.trigger('reconnect_failed');
+      return;
+    }
+    
+    this.reconnectAttempts++;
+    
+    // Exponential backoff with jitter
+    const baseDelay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
+    const jitter = Math.random() * 1000;
+    const delay = Math.min(baseDelay + jitter, this.maxReconnectDelay);
+    
+    console.log(`[SocketClient] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    this.trigger('reconnecting', { attempt: this.reconnectAttempts, delay });
+    
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect(this.roomCode);
+    }, delay);
+  }
+  
+  /**
+   * Reset reconnection counter (call after successful operations)
+   */
+  resetReconnectAttempts() {
+    this.reconnectAttempts = 0;
   }
 
   /**
@@ -258,11 +356,39 @@ class SocketClient {
    * Disconnect from the server
    */
   disconnect() {
+    // Clear any pending timers
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
+    
+    // Prevent automatic reconnection
+    this.reconnectAttempts = this.maxReconnectAttempts;
+    
     if (this.ws) {
+      this.ws.onclose = null; // Prevent reconnect trigger
       this.ws.close();
       this.ws = null;
     }
     this.connected = false;
+    this.connecting = false;
+    return this;
+  }
+  
+  /**
+   * Force reconnect - resets attempts and tries immediately
+   */
+  forceReconnect() {
+    this.reconnectAttempts = 0;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.connect(this.roomCode);
     return this;
   }
 

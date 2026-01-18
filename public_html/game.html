@@ -351,14 +351,75 @@
 
         // Server connection status
         socket.on("connect", () => {
-            document.getElementById("server-status-icon").classList.remove("text-red-500");
+            document.getElementById("server-status-icon").classList.remove("text-red-500", "text-yellow-500");
             document.getElementById("server-status-icon").classList.add("text-green-500");
+            hideConnectionBanner();
         });
 
         socket.on("disconnect", () => {
-            document.getElementById("server-status-icon").classList.remove("text-green-500");
+            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-yellow-500");
             document.getElementById("server-status-icon").classList.add("text-red-500");
+            showConnectionBanner("Connection lost. Attempting to reconnect...", "error");
         });
+        
+        socket.on("connecting", () => {
+            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-red-500");
+            document.getElementById("server-status-icon").classList.add("text-yellow-500");
+        });
+        
+        socket.on("reconnecting", ({ attempt, delay }) => {
+            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-red-500");
+            document.getElementById("server-status-icon").classList.add("text-yellow-500");
+            showConnectionBanner(`Reconnecting... (attempt ${attempt})`, "warning");
+        });
+        
+        socket.on("reconnect_failed", () => {
+            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-yellow-500");
+            document.getElementById("server-status-icon").classList.add("text-red-500");
+            showConnectionBanner("Connection failed. Click to retry.", "error", true);
+        });
+        
+        socket.on("error", () => {
+            // Connection errors are handled by disconnect/reconnecting events
+        });
+        
+        function showConnectionBanner(message, type = "warning", showRetry = false) {
+            let banner = document.getElementById("connection-banner");
+            if (!banner) {
+                banner = document.createElement("div");
+                banner.id = "connection-banner";
+                banner.className = "fixed bottom-0 left-0 right-0 p-3 text-center text-white font-medium z-50 transition-all duration-300";
+                document.body.appendChild(banner);
+            }
+            
+            const bgClass = type === "error" 
+                ? "bg-gradient-to-r from-red-600 to-rose-600" 
+                : "bg-gradient-to-r from-yellow-600 to-orange-600";
+            
+            banner.className = `fixed bottom-0 left-0 right-0 p-3 text-center text-white font-medium z-50 transition-all duration-300 ${bgClass}`;
+            
+            if (showRetry) {
+                banner.innerHTML = `
+                    <span>${message}</span>
+                    <button onclick="socket.forceReconnect(); this.parentElement.classList.add('hidden');" class="ml-4 px-4 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-all">
+                        🔄 Retry Now
+                    </button>
+                `;
+            } else {
+                banner.innerHTML = `
+                    <span>${message}</span>
+                    <span class="ml-2 inline-block animate-pulse">●</span>
+                `;
+            }
+            banner.classList.remove("hidden");
+        }
+        
+        function hideConnectionBanner() {
+            const banner = document.getElementById("connection-banner");
+            if (banner) {
+                banner.classList.add("hidden");
+            }
+        }
 
         socket.on("connect-user", ({ odId, name, inRoom }) => {
             console.log('connect-user received:', { odId, name, inRoom });
@@ -877,37 +938,239 @@
     </script>
 
     <script type="module">
-        window.loadGameHTML = async function(game) {
-            const res = await fetch(`/games/${game}.html`);
-            const html = await res.text();
+        /**
+         * Fetch with retry logic for unstable connections
+         * @param {string} url - URL to fetch
+         * @param {object} options - Fetch options
+         * @param {number} maxRetries - Maximum number of retries
+         * @param {number} baseDelay - Base delay in ms between retries
+         */
+        async function fetchWithRetry(url, options = {}, maxRetries = 3, baseDelay = 1000) {
+            let lastError;
             
-            // Parse the HTML to extract scripts
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            
-            // Inject the HTML content (without scripts executing)
-            document.getElementById('game-board').innerHTML = html;
-            
-            // Find and load any external scripts from the game HTML
-            const scripts = doc.querySelectorAll('script[src]');
-            
-            // Load external scripts sequentially and wait for them
-            for (const scriptTag of scripts) {
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = scriptTag.src;
-                    script.onload = resolve;
-                    script.onerror = reject;
-                    document.head.appendChild(script);
-                });
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+                    
+                    const response = await fetch(url, {
+                        ...options,
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    return response;
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`[loadGameHTML] Fetch attempt ${attempt + 1}/${maxRetries + 1} failed for ${url}:`, error.message);
+                    
+                    if (attempt < maxRetries) {
+                        // Exponential backoff with jitter
+                        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
             }
             
-            // After external scripts are loaded, load the game script
-            const script = document.createElement('script');
-            script.type = 'module';
-            script.id = 'game-script';
-            script.src = `/games/${game}.js`;
-            document.body.appendChild(script);
+            throw lastError;
+        }
+        
+        /**
+         * Load a script with retry logic
+         */
+        async function loadScriptWithRetry(src, maxRetries = 3) {
+            let lastError;
+            
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = src + (attempt > 0 ? `?retry=${attempt}` : ''); // Cache bust on retry
+                        
+                        const timeout = setTimeout(() => {
+                            script.remove();
+                            reject(new Error('Script load timeout'));
+                        }, 15000);
+                        
+                        script.onload = () => {
+                            clearTimeout(timeout);
+                            resolve();
+                        };
+                        script.onerror = () => {
+                            clearTimeout(timeout);
+                            script.remove();
+                            reject(new Error('Script load failed'));
+                        };
+                        document.head.appendChild(script);
+                    });
+                    return; // Success
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`[loadGameHTML] Script load attempt ${attempt + 1}/${maxRetries + 1} failed for ${src}:`, error.message);
+                    
+                    if (attempt < maxRetries) {
+                        const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            }
+            
+            throw lastError;
+        }
+        
+        /**
+         * Show loading overlay with status message
+         */
+        function showLoadingOverlay(message) {
+            let overlay = document.getElementById('game-loading-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'game-loading-overlay';
+                overlay.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-50';
+                document.body.appendChild(overlay);
+            }
+            overlay.innerHTML = `
+                <div class="text-center">
+                    <svg class="animate-spin h-12 w-12 text-indigo-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="text-white text-lg font-medium">${message}</p>
+                </div>
+            `;
+            overlay.classList.remove('hidden');
+        }
+        
+        /**
+         * Hide loading overlay
+         */
+        function hideLoadingOverlay() {
+            const overlay = document.getElementById('game-loading-overlay');
+            if (overlay) {
+                overlay.classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Show retry dialog when loading fails
+         */
+        function showRetryDialog(game, errorMessage) {
+            let dialog = document.getElementById('game-retry-dialog');
+            if (!dialog) {
+                dialog = document.createElement('div');
+                dialog.id = 'game-retry-dialog';
+                dialog.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50';
+                document.body.appendChild(dialog);
+            }
+            dialog.innerHTML = `
+                <div class="glass-card rounded-2xl p-8 max-w-md mx-4 text-center">
+                    <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <span class="text-3xl">⚠️</span>
+                    </div>
+                    <h3 class="text-2xl font-bold text-white mb-2">Connection Problem</h3>
+                    <p class="text-gray-400 mb-2">Failed to load the game. This might be due to an unstable connection.</p>
+                    <p class="text-sm text-red-400 mb-6">${errorMessage}</p>
+                    <div class="flex gap-4">
+                        <button id="retry-game-btn" class="flex-1 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium rounded-xl transition-all">
+                            🔄 Retry
+                        </button>
+                        <button id="back-lobby-btn" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
+                            Back to Lobby
+                        </button>
+                    </div>
+                </div>
+            `;
+            dialog.classList.remove('hidden');
+            
+            return new Promise((resolve) => {
+                document.getElementById('retry-game-btn').onclick = () => {
+                    dialog.classList.add('hidden');
+                    resolve('retry');
+                };
+                document.getElementById('back-lobby-btn').onclick = () => {
+                    dialog.classList.add('hidden');
+                    resolve('lobby');
+                };
+            });
+        }
+        
+        window.loadGameHTML = async function(game, retryCount = 0) {
+            const maxLoadRetries = 3;
+            
+            try {
+                showLoadingOverlay('Loading game...');
+                
+                // Fetch game HTML with retry
+                showLoadingOverlay('Loading game interface...');
+                const res = await fetchWithRetry(`/games/${game}.html`);
+                const html = await res.text();
+                
+                // Parse the HTML to extract scripts
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                // Inject the HTML content (without scripts executing)
+                document.getElementById('game-board').innerHTML = html;
+                
+                // Find and load any external scripts from the game HTML
+                const scripts = doc.querySelectorAll('script[src]');
+                
+                // Load external scripts sequentially and wait for them
+                showLoadingOverlay('Loading game assets...');
+                for (const scriptTag of scripts) {
+                    await loadScriptWithRetry(scriptTag.src);
+                }
+                
+                // After external scripts are loaded, load the game script
+                showLoadingOverlay('Starting game...');
+                const script = document.createElement('script');
+                script.type = 'module';
+                script.id = 'game-script';
+                script.src = `/games/${game}.js`;
+                
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Game script load timeout'));
+                    }, 20000);
+                    
+                    script.onload = () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    };
+                    script.onerror = () => {
+                        clearTimeout(timeout);
+                        reject(new Error('Failed to load game script'));
+                    };
+                    document.body.appendChild(script);
+                });
+                
+                hideLoadingOverlay();
+                
+            } catch (error) {
+                console.error('[loadGameHTML] Failed to load game:', error);
+                hideLoadingOverlay();
+                
+                const action = await showRetryDialog(game, error.message || 'Unknown error');
+                
+                if (action === 'retry') {
+                    // Clear any partial game state
+                    document.getElementById('game-board').innerHTML = '';
+                    const existingScript = document.getElementById('game-script');
+                    if (existingScript) existingScript.remove();
+                    
+                    // Retry loading the game
+                    return window.loadGameHTML(game, retryCount + 1);
+                } else {
+                    // Go back to lobby
+                    endGame();
+                    socket.emit('request-back-to-lobby');
+                }
+            }
         }
     </script>
 </body>
