@@ -1,13 +1,19 @@
 name = "web-board-games"
 main = "src/worker.js"
-compatibility_date = "2024-01-01"
-compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2025-01-01"
 
-# Static assets configuration (serves public_html folder)
+# Static files from public_html (compiled Tailwind CSS is built by [build] below)
 [assets]
 directory = "./public_html"
+binding = "ASSETS"
+not_found_handling = "404-page"
+# Requests the worker handles itself (SEO rewrites, robots/sitemap, WebSockets, API)
+run_worker_first = ["/", "/index.html", "/robots.txt", "/sitemap.xml", "/ws", "/api/*"]
 
-# Durable Objects for real-time multiplayer (WebSockets)
+[build]
+command = "npm run build:css"
+
+# One Durable Object per room: WebSockets + game state
 [[durable_objects.bindings]]
 name = "GAME_ROOMS"
 class_name = "GameRoom"
@@ -16,6 +22,5 @@ class_name = "GameRoom"
 tag = "v1"
 new_sqlite_classes = ["GameRoom"]
 
-# Environment variables
 [vars]
 ENVIRONMENT = "production"

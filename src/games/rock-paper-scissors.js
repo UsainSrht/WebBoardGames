@@ -1,189 +1,156 @@
 /**
- * Rock Paper Scissors game logic for Cloudflare Workers
+ * Rock Paper Scissors game logic (runs inside the GameRoom Durable Object).
+ *
+ * Every round all players pick a move; each pair of players is then scored
+ * (+1 for the winner, -1 for the loser). Players who don't pick get a random move.
  */
+
+const MOVES = ['rock', 'paper', 'scissors'];
+const BEATS = { rock: 'scissors', scissors: 'paper', paper: 'rock' };
 
 export class RockPaperScissors {
   constructor(room, players) {
-    this.room = room; // Reference to GameRoom Durable Object
-    this.players = players; // Map of player data
-    
-    this.countdown = 7;
-    this.waitBeforeNewGame = 7;
+    this.room = room;
+    this.players = players;
+
+    this.countdown = 7;          // seconds to choose a move
+    this.waitBeforeNewGame = 7;  // seconds between rounds / before returning to lobby
     this.maxRounds = 3;
-    
+
     this.round = 1;
     this.isGameActive = true;
+    this.started = false;
+    this.roundActive = false;
+    this.countdownEndUnix = 0;
+    this.timer = null;
     this.readyPlayers = new Set();
     this.playerGameData = {};
-    
-    // Initialize player game data
+
     for (const [odId, player] of Object.entries(players)) {
-      this.playerGameData[odId] = {
-        name: player.name,
-        move: null,
-        score: 0
-      };
+      this.playerGameData[odId] = { name: player.name, move: null, score: 0 };
     }
-    
-    console.log('RockPaperScissors initialized');
   }
 
   handleMessage(odId, type, payload) {
-    if (!this.isGameActive) return;
-    
+    if (!this.isGameActive || !this.playerGameData[odId]) return;
+
     switch (type) {
       case 'rps-page-loaded':
-        this.handlePageLoaded(odId);
-        break;
+        return this.handlePageLoaded(odId);
       case 'rps-select-move':
-        this.handleSelectMove(odId, payload.move);
-        break;
+        return this.handleSelectMove(odId, payload.move);
     }
   }
 
   handlePageLoaded(odId) {
-    if (!this.readyPlayers.has(odId)) {
-      this.readyPlayers.add(odId);
-      console.log(`Player ready: ${this.readyPlayers.size}/${Object.keys(this.players).length}`);
-      
-      if (this.readyPlayers.size >= Object.keys(this.players).length) {
-        console.log('All players ready, starting game');
-        this.startGame();
+    if (this.readyPlayers.has(odId)) {
+      // Page reload mid-game: resync this player only.
+      if (!this.started) return;
+      const ws = this.room.getWsByUserId(odId);
+      if (!ws) return;
+      this.room.send(ws, { type: 'update-scoreboard', playerGameData: this.publicData() });
+      if (this.roundActive) {
+        this.room.send(ws, { type: 'rps-game-started', countdownEndUnix: this.countdownEndUnix });
       }
+      return;
+    }
+
+    this.readyPlayers.add(odId);
+    if (this.readyPlayers.size >= Object.keys(this.players).length) {
+      this.startRound();
     }
   }
 
   handleSelectMove(odId, move) {
-    if (!this.playerGameData[odId]) return;
-    
-    console.log(`Player ${odId} selected: ${move}`);
+    if (!this.roundActive || !MOVES.includes(move)) return;
+
     this.playerGameData[odId].move = move;
-    
-    // Notify the player their move was received
+
     const ws = this.room.getWsByUserId(odId);
-    if (ws) {
-      this.room.send(ws, { type: 'rps-move-selected', move });
+    if (ws) this.room.send(ws, { type: 'rps-move-selected', move });
+  }
+
+  /** Scoreboard payload that doesn't leak moves while a round is still running. */
+  publicData() {
+    if (!this.roundActive) return this.playerGameData;
+    const data = {};
+    for (const [id, p] of Object.entries(this.playerGameData)) {
+      data[id] = { name: p.name, score: p.score, move: null };
     }
+    return data;
   }
 
-  startGame() {
+  startRound() {
     if (!this.isGameActive) return;
-    
-    const countdownEndUnix = Date.now() + (this.countdown * 1000);
-    
-    this.room.broadcast({
-      type: 'rps-game-started',
-      countdownEndUnix
-    });
-    
-    this.room.broadcast({
-      type: 'update-scoreboard',
-      playerGameData: this.playerGameData
-    });
-    
-    // Schedule countdown end
-    // Note: In Cloudflare Workers, we use alarms instead of setTimeout for long delays
-    // For short delays, we can use the Durable Object's alarm API
-    this.scheduleCountdownEnd();
+
+    this.started = true;
+    this.roundActive = true;
+    this.countdownEndUnix = Date.now() + this.countdown * 1000;
+
+    this.room.broadcast({ type: 'rps-game-started', countdownEndUnix: this.countdownEndUnix });
+    this.room.broadcast({ type: 'update-scoreboard', playerGameData: this.publicData() });
+
+    this.schedule(() => this.endRound(), this.countdown * 1000);
   }
 
-  scheduleCountdownEnd() {
-    // In a real implementation, you'd use Durable Object alarms
-    // For now, we'll rely on the client to signal when countdown ends
-    // or use a worker alarm
-    setTimeout(() => {
-      this.countdownEnd();
-    }, this.countdown * 1000);
+  schedule(fn, ms) {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      fn();
+    }, ms);
   }
 
-  countdownEnd() {
+  endRound() {
     if (!this.isGameActive) return;
-    
-    console.log('Countdown ended, processing moves');
-    
-    // Assign random moves to players who didn't select
-    for (const odId in this.playerGameData) {
-      if (!this.playerGameData[odId].move) {
-        this.playerGameData[odId].move = this.getRandomMove();
-      }
+    this.roundActive = false;
+
+    for (const data of Object.values(this.playerGameData)) {
+      if (!data.move) data.move = this.getRandomMove();
     }
-    
-    this.room.broadcast({
-      type: 'rps-game-ended',
-      playerGameData: this.playerGameData
-    });
-    
+
     this.processMoves();
-    
-    this.room.broadcast({
-      type: 'update-scoreboard',
-      playerGameData: this.playerGameData
-    });
-    
+
+    // Moves (for the reveal animation) and the updated scores go out together.
+    this.room.broadcast({ type: 'rps-game-ended', playerGameData: this.playerGameData });
+    this.room.broadcast({ type: 'update-scoreboard', playerGameData: this.playerGameData });
+
+    for (const data of Object.values(this.playerGameData)) data.move = null;
+
     this.round++;
-    
-    // Reset moves for next round
-    for (const odId in this.playerGameData) {
-      this.playerGameData[odId].move = null;
-    }
-    
     if (this.round > this.maxRounds) {
-      console.log('Game ended');
-      setTimeout(() => {
-        this.cleanup();
-        this.room.endGame();
-      }, this.waitBeforeNewGame * 1000);
-      return;
+      this.schedule(() => this.room.endGame(), this.waitBeforeNewGame * 1000);
+    } else {
+      this.schedule(() => this.startRound(), this.waitBeforeNewGame * 1000);
     }
-    
-    // Start next round
-    setTimeout(() => {
-      this.startGame();
-    }, this.waitBeforeNewGame * 1000);
   }
 
   processMoves() {
-    const keys = Object.keys(this.playerGameData);
-    
-    for (let i = 0; i < keys.length; i++) {
-      for (let j = i + 1; j < keys.length; j++) {
-        const odId1 = keys[i];
-        const odId2 = keys[j];
-        
-        const move1 = this.playerGameData[odId1].move;
-        const move2 = this.playerGameData[odId2].move;
-        const winner = this.getWinner(move1, move2);
-        
-        if (winner === 1) {
-          this.playerGameData[odId1].score++;
-          this.playerGameData[odId2].score--;
-        } else if (winner === 2) {
-          this.playerGameData[odId2].score++;
-          this.playerGameData[odId1].score--;
-        }
+    const ids = Object.keys(this.playerGameData);
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const a = this.playerGameData[ids[i]];
+        const b = this.playerGameData[ids[j]];
+        const winner = this.getWinner(a.move, b.move);
+        if (winner === 1) { a.score++; b.score--; }
+        else if (winner === 2) { b.score++; a.score--; }
       }
     }
   }
 
+  /** @returns {1|2|'draw'} */
   getWinner(move1, move2) {
     if (move1 === move2) return 'draw';
-    if (
-      (move1 === 'rock' && move2 === 'scissors') ||
-      (move1 === 'scissors' && move2 === 'paper') ||
-      (move1 === 'paper' && move2 === 'rock')
-    ) {
-      return 1;
-    }
-    return 2;
+    return BEATS[move1] === move2 ? 1 : 2;
   }
 
   getRandomMove() {
-    const moves = ['rock', 'paper', 'scissors'];
-    return moves[Math.floor(Math.random() * moves.length)];
+    return MOVES[Math.floor(Math.random() * MOVES.length)];
   }
 
   cleanup() {
     this.isGameActive = false;
-    console.log('RockPaperScissors cleaned up');
+    clearTimeout(this.timer);
+    this.timer = null;
   }
 }

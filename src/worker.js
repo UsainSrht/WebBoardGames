@@ -1,93 +1,128 @@
 /**
- * Cloudflare Worker entry point
- * Handles WebSocket connections for multiplayer games
+ * Cloudflare Worker entry point.
+ * Routes WebSocket connections to per-room Durable Objects and serves a small JSON API.
+ * Static files are served by the [assets] binding (see wrangler.toml).
  */
+
+import { GAME_CONFIGS } from './games/config.js';
 
 export { GameRoom } from './durable-objects/GameRoom.js';
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-    
-    // WebSocket upgrade requests go to Durable Objects
-    if (url.pathname === '/ws') {
-      return handleWebSocket(request, env);
+const ROOM_CODE_RE = /^[A-Z0-9]{1,16}$/;
+
+function normalizeRoomCode(raw) {
+  const code = String(raw ?? '').trim().toUpperCase();
+  return ROOM_CODE_RE.test(code) ? code : null;
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store'
     }
-    
-    // API endpoints
+  });
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/ws') {
+      return handleWebSocket(request, env, url);
+    }
+
+    if (url.pathname === '/robots.txt') return robotsTxt(url.origin);
+    if (url.pathname === '/sitemap.xml') return sitemapXml(url.origin);
+
     if (url.pathname.startsWith('/api/')) {
       return handleAPI(request, env, url);
     }
-    
-    // Static files are handled by [assets] in wrangler.toml
-    // The ASSETS binding is automatically available when assets directory is configured
+
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const response = await env.ASSETS.fetch(request);
+      const isHome = url.pathname === '/' || url.pathname === '/index.html';
+      if (isHome && request.method === 'GET' && response.headers.get('Content-Type')?.includes('text/html')) {
+        return absolutizeUrls(response, url.origin);
+      }
+      return response;
     }
-    
-    // Fallback for when ASSETS is not available
     return new Response('Not Found', { status: 404 });
   }
 };
 
-async function handleWebSocket(request, env) {
-  const url = new URL(request.url);
-  const roomCode = url.searchParams.get('room') || 'lobby';
-  
-  // Get the Durable Object for this room
-  const id = env.GAME_ROOMS.idFromName(roomCode);
-  const room = env.GAME_ROOMS.get(id);
-  
-  // Forward the WebSocket request to the Durable Object
-  return room.fetch(request);
+/**
+ * Canonical / Open Graph tags need absolute URLs. The HTML marks them with
+ * `data-abs` and uses site-relative values, so the same build works on any domain.
+ */
+function absolutizeUrls(response, origin) {
+  const fix = (attr) => ({
+    element(el) {
+      const value = el.getAttribute(attr);
+      if (value) el.setAttribute(attr, new URL(value, origin).href);
+    }
+  });
+  return new HTMLRewriter()
+    .on('link[data-abs]', fix('href'))
+    .on('meta[data-abs]', fix('content'))
+    .transform(response);
+}
+
+function robotsTxt(origin) {
+  const body = ['User-agent: *', 'Allow: /', 'Disallow: /api/', 'Disallow: /ws', '', `Sitemap: ${origin}/sitemap.xml`, ''].join('\n');
+  return new Response(body, {
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }
+  });
+}
+
+function sitemapXml(origin) {
+  const body = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+</urlset>
+`;
+  return new Response(body, {
+    headers: { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }
+  });
+}
+
+function getRoomStub(env, roomCode) {
+  return env.GAME_ROOMS.get(env.GAME_ROOMS.idFromName(roomCode));
+}
+
+async function handleWebSocket(request, env, url) {
+  if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+    return new Response('Expected WebSocket upgrade', { status: 426 });
+  }
+
+  const roomCode = url.searchParams.has('room')
+    ? normalizeRoomCode(url.searchParams.get('room'))
+    : 'LOBBY';
+  if (!roomCode) {
+    return new Response('Invalid room code', { status: 400 });
+  }
+
+  return getRoomStub(env, roomCode).fetch(request);
 }
 
 async function handleAPI(request, env, url) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
-  };
-
-  // Handle CORS preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { headers });
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return json({ error: 'Method not allowed' }, 405);
   }
 
-  // API: Get game configurations
   if (url.pathname === '/api/games') {
-    const gameDatas = {
-      "rock-paper-scissors": { min: 2, max: 12, name: "Rock Paper Scissors", icon: "🪨" },
-      "dice": { min: 2, max: 12, name: "Dice", icon: "🎲" },
-      "kingdomino": { min: 1, max: 4, name: "Kingdomino", icon: "👑" },
-      "uno": { min: 2, max: 10, name: "Uno", icon: "🃏" },
-      "hamsterball": { min: 1, max: 12, name: "Hamsterball", icon: "🐹" },
-      "chess": { min: 2, max: 2, name: "Chess", icon: "♟️" }
-    };
-    return new Response(JSON.stringify(gameDatas), { headers });
+    return json(GAME_CONFIGS);
   }
 
-  // API: Check if room exists
   if (url.pathname === '/api/room/check') {
-    const roomCode = url.searchParams.get('code');
+    const roomCode = normalizeRoomCode(url.searchParams.get('code'));
     if (!roomCode) {
-      return new Response(JSON.stringify({ error: 'Room code required' }), { 
-        status: 400, headers 
-      });
+      return json({ error: 'Valid room code required' }, 400);
     }
-    
-    const id = env.GAME_ROOMS.idFromName(roomCode);
-    const room = env.GAME_ROOMS.get(id);
-    
-    // Ask the Durable Object if it exists and has players
-    const response = await room.fetch(new Request('http://internal/status'));
-    const data = await response.json();
-    
-    return new Response(JSON.stringify(data), { headers });
+    const response = await getRoomStub(env, roomCode).fetch(new Request('http://internal/status'));
+    return json(await response.json());
   }
 
-  return new Response(JSON.stringify({ error: 'Not found' }), { 
-    status: 404, headers 
-  });
+  return json({ error: 'Not found' }, 404);
 }

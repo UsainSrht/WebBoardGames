@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game Room | Web Board Games</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/tailwind.css">
     <script src="/socket-client.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -99,9 +101,9 @@
                                 <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🪨</div>
                                 <span class="text-xs">Rock Paper Scissors</span>
                             </button>
-                            <button id="game-dice" onclick="selectGame('dice')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white overflow-hidden opacity-50 cursor-not-allowed group">
-                                <div class="text-3xl mb-1">🎲</div>
-                                <span class="text-xs">Dice (Soon)</span>
+                            <button id="game-dice" onclick="selectGame('dice')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white overflow-hidden group">
+                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🎲</div>
+                                <span class="text-xs">Dice</span>
                             </button>
                             <button id="game-kingdomino" onclick="selectGame('kingdomino')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
                                 <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">👑</div>
@@ -111,13 +113,13 @@
                                 <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🐹</div>
                                 <span class="text-xs">Hamsterball</span>
                             </button>
-                            <button class="bg-white/5 border-2 border-white/10 rounded-xl aspect-square text-center text-white opacity-30 cursor-not-allowed">
-                                <div class="text-3xl mb-1">🃏</div>
-                                <span class="text-xs">Uno (Soon)</span>
+                            <button id="game-uno" onclick="selectGame('uno')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
+                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🃏</div>
+                                <span class="text-xs">Uno</span>
                             </button>
-                            <button class="bg-white/5 border-2 border-white/10 rounded-xl aspect-square text-center text-white opacity-30 cursor-not-allowed">
-                                <div class="text-3xl mb-1">♟️</div>
-                                <span class="text-xs">Chess (Soon)</span>
+                            <button id="game-chess" onclick="selectGame('chess')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
+                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">♟️</div>
+                                <span class="text-xs">Chess</span>
                             </button>
                         </div>
                     </div>
@@ -302,7 +304,7 @@
                     <button onclick="closeKickPopup()" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
                         Cancel
                     </button>
-                    <button onclick="kickPlayer(document.getElementById('kick-id').innerHTML)" class="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-medium rounded-xl transition-all">
+                    <button onclick="kickPlayer(document.getElementById('kick-id').textContent); closeKickPopup();" class="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-medium rounded-xl transition-all">
                         Kick
                     </button>
                 </div>
@@ -319,14 +321,17 @@
         window.socket = socket; // Make socket globally accessible
         let hasJoinedRoom = false; // Flag to prevent double-joining
 
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
         socket.onAny((eventName, ...args) => {
             console.log(eventName, "in with args: ", args);
         });
 
         socket.on("error", ({ message }) => {
             console.error("Error from server:", message);
-            //showToast(`Error: ${message}`);
-            alert(`Error: ${message}`);
+            showToast(message || "An error occurred", "error");
         });
 
         function tryJoinURLRoom() {
@@ -484,16 +489,17 @@
             console.log('request-user-id received');
             console.log('  storedId from localStorage:', storedId);
             console.log('  storedName from localStorage:', storedName);
-            socket.emit("send-user-id", { odId: storedId, name: storedName });
+            socket.emit("send-user-id", { odId: storedId, name: storedName, secret: getUserSecret() });
             console.log('  emitted send-user-id with:', { odId: storedId, name: storedName });
         });
 
-        socket.on("request-nickname", () => {
+        socket.on("request-nickname", (data) => {
+            const nameTaken = !!(data && data.taken);
             console.log('request-nickname received');
             // Check if we have a stored name and auto-submit it
             const storedName = localStorage.getItem("userName");
             console.log('  storedName from localStorage:', storedName);
-            if (storedName && storedName.length >= 3 && storedName.length <= 16) {
+            if (!nameTaken && storedName && storedName.length >= 3 && storedName.length <= 16) {
                 console.log('  Auto-submitting stored name:', storedName);
                 // Auto-submit the stored name
                 // The server will send connect-user back, which will trigger joinRoom
@@ -505,6 +511,7 @@
             console.log('  No valid stored name, showing nickname popup');
             const nicknamePopup = document.getElementById("nickname-popup");
             nicknamePopup.classList.remove("hidden");
+            if (nameTaken) nicknameReply("That name is not available in this room, please pick another one.");
             const nicknameInput = document.getElementById("nickname");
             if (storedName) {
                 nicknameInput.value = storedName;
@@ -513,13 +520,13 @@
         });
 
         function checkName() {
-            let name = document.getElementById('nickname').value;
+            let name = document.getElementById('nickname').value.trim();
 
             if (name.length < 3) {
-                nicknameReply("Minimum nickanme length is 3");
+                nicknameReply("Minimum nickname length is 3");
                 return;
             } else if (name.length > 16) {
-                nicknameReply("Maximum nickanme length is 16");
+                nicknameReply("Maximum nickname length is 16");
                 return;
             }
 
@@ -542,7 +549,7 @@
         function nicknameReply(message) {
             let reply = document.getElementById("nickname-input-reply");
             reply.classList.remove("hidden");
-            reply.innerHTML = message;
+            reply.textContent = message;
         }
 
         socket.on("player-joined", ({ name }) => {
@@ -580,7 +587,10 @@
                 "text-white",
                 "break-words"
             );
-            messageDiv.innerHTML = `<strong class="text-indigo-400">${name}:</strong> ${message}`;
+            const author = document.createElement("strong");
+            author.className = "text-indigo-400";
+            author.textContent = `${name}: `;
+            messageDiv.append(author, document.createTextNode(message));
             messageBox.appendChild(messageDiv);
             messageBox.scrollTop = messageBox.scrollHeight;
             if (!isDrawerOpen()) document.getElementById("notification-badge").classList.remove("hidden");
@@ -594,7 +604,7 @@
             const messageBox = document.getElementById("message-box");
             const messageDiv = document.createElement("div");
             messageDiv.classList.add("p-2", "text-center", "text-gray-500", "text-sm", "italic", "mb-2");
-            messageDiv.innerHTML = message;
+            messageDiv.textContent = message;
             messageBox.appendChild(messageDiv);
             messageBox.scrollTop = messageBox.scrollHeight;
         }
@@ -621,7 +631,17 @@
             }
         }
 
+        let lastPlayers = [];
+
+        socket.on("host-changed", ({ host: newHost }) => {
+            host = newHost;
+            isHost = localStorage.getItem("userId") === host;
+            updatePlayerList(lastPlayers);
+            if (isHost) showToast("You are now the host.");
+        });
+
         function updatePlayerList(players) {
+            lastPlayers = players;
             const playersDiv = document.getElementById("players");
             playersDiv.innerHTML = "";
             const lobbyPlayersDiv = document.getElementById("lobby-players");
@@ -637,20 +657,26 @@
                         "text-white", "rounded-xl", "shadow-md", "transition-all", "duration-200"
                     );
                     
+                    const nameSpan = document.createElement("span");
+                    nameSpan.className = "font-medium";
+                    nameSpan.textContent = name;
+                    li.appendChild(nameSpan);
+
                     if (userId === host) {
-                        li.innerHTML = `
-                        <span class="font-medium">${name}</span>
-                        <span class="text-yellow-400" title="Host">👑</span>`;
+                        const crown = document.createElement("span");
+                        crown.className = "text-yellow-400";
+                        crown.title = "Host";
+                        crown.textContent = "👑";
+                        li.appendChild(crown);
                     } else if (isHost) {
-                        li.innerHTML = `
-                        <span class="font-medium">${name}</span>
-                        <button onclick="kickPlayerPopup('${userId}', '${name}')" class="p-1.5 rounded-lg bg-white/10 hover:bg-red-500 transition-all" title="Kick player">
-                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        const kickButton = document.createElement("button");
+                        kickButton.className = "p-1.5 rounded-lg bg-white/10 hover:bg-red-500 transition-all";
+                        kickButton.title = "Kick player";
+                        kickButton.innerHTML = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-                            </svg>
-                        </button>`;
-                    } else {
-                        li.innerHTML = `<span class="font-medium">${name}</span>`;
+                            </svg>`;
+                        kickButton.addEventListener("click", () => kickPlayerPopup(userId, name));
+                        li.appendChild(kickButton);
                     }
                     
                     playersDiv.appendChild(li);
@@ -664,8 +690,8 @@
                         "rounded-xl");
 
                     li2.innerHTML = `
-                    <span class="text-white font-medium">${name}</span>
-                    <div id='lobby-player-ready-state-${userId}' class="text-red-400">
+                    <span class="text-white font-medium">${escapeHtml(name)}</span>
+                    <div id='lobby-player-ready-state-${escapeHtml(userId)}' class="text-red-400">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                         </svg>    
@@ -855,14 +881,15 @@
 
         function leaveRoom() {
             socket.emit("leave-room");
-            window.location.href = "/index.html";
+            // Give the message a moment to flush before navigating away.
+            setTimeout(() => { window.location.href = "/index.html"; }, 100);
         }
 
         function kickPlayerPopup(userId, name) {
             const kickPopup = document.getElementById("kick-popup");
             kickPopup.classList.remove("hidden");
-            document.getElementById("kick-id").innerHTML = userId;
-            document.getElementById("kick-name").innerHTML = `Kick ${name}?`;
+            document.getElementById("kick-id").textContent = userId;
+            document.getElementById("kick-name").textContent = `Kick ${name}?`;
         }
 
         function closeKickPopup() {
@@ -876,10 +903,11 @@
                 button.disabled = true;
                 button.classList.add("cursor-not-allowed");
             }
-            const start = Date.now();
-            socket.emit("ping", () => {
-                const end = Date.now();
-                const latency = end - start;
+            socket.ping((latency) => {
+                if (latency === null) {
+                    showToast("Not connected to the server", "error");
+                    return;
+                }
                 console.log("Ping: " + latency + "ms");
                 showToast(`🏓 Ping: ${latency}ms`);
             });
@@ -1107,7 +1135,7 @@
                 
                 // Fetch game HTML with retry
                 showLoadingOverlay('Loading game interface...');
-                const res = await fetchWithRetry(`/games/${game}.html`);
+                const res = await fetchWithRetry(`/games/${game}.html`, { cache: 'no-cache' });
                 const html = await res.text();
                 
                 // Parse the HTML to extract scripts
@@ -1131,7 +1159,7 @@
                 const script = document.createElement('script');
                 script.type = 'module';
                 script.id = 'game-script';
-                script.src = `/games/${game}.js`;
+                script.src = `/games/${game}.js?v=${Date.now()}`;
                 
                 await new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => {

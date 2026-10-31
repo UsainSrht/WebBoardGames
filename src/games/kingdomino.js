@@ -1,30 +1,96 @@
 /**
- * Kingdomino game logic for Cloudflare Workers
- * Simplified version - full implementation would be larger
+ * Kingdomino game logic (runs inside the GameRoom Durable Object).
+ *
+ * Simplified two-phase variant used by the client:
+ *   1. Selection phase – in turn order each player claims one of the drawn tiles.
+ *   2. Placement phase – in order of the claimed tile numbers (lowest first) each
+ *      player places their tile on their 5x5 grid (castle in the centre).
+ * Final score = sum over every connected same-terrain property of (size x crowns).
  */
+
+const GRID_SIZE = 5;
+const CASTLE = 'castle';
+const TILE_SELECT_MS = 10000;
+const TILE_PLACE_MS = 15000;
+const LEFT_PLAYER_TURN_MS = 400;
+const RETURN_TO_LOBBY_MS = 8000;
+
+const COLORS = [0xff0000, 0x0000ff, 0x00ff00, 0xffff00];
+
+// number, [leftType, leftCrowns], [rightType, rightCrowns], image asset
+const TILE_TABLE = [
+  [1, ['farm', 0], ['farm', 0], '1'], [2, ['farm', 0], ['farm', 0], '1'],
+  [3, ['forest', 0], ['forest', 0], '3'], [4, ['forest', 0], ['forest', 0], '3'],
+  [5, ['forest', 0], ['forest', 0], '3'], [6, ['forest', 0], ['forest', 0], '3'],
+  [7, ['water', 0], ['water', 0], '8'], [8, ['water', 0], ['water', 0], '8'], [9, ['water', 0], ['water', 0], '8'],
+  [10, ['plains', 0], ['plains', 0], '10'], [11, ['plains', 0], ['plains', 0], '10'],
+  [12, ['swamp', 0], ['swamp', 0], '12'],
+  [13, ['farm', 0], ['forest', 0], '13'], [14, ['farm', 0], ['water', 0], '14'],
+  [15, ['farm', 0], ['plains', 0], '15'], [16, ['farm', 0], ['swamp', 0], '16'],
+  [17, ['forest', 0], ['water', 0], '17'], [18, ['forest', 0], ['plains', 0], '18'],
+  [19, ['farm', 1], ['forest', 0], '19'], [20, ['farm', 1], ['water', 0], '20'],
+  [21, ['farm', 1], ['plains', 0], '21'], [22, ['farm', 1], ['swamp', 0], '22'],
+  [23, ['farm', 1], ['mine', 0], '23'],
+  [24, ['forest', 1], ['farm', 0], '24'], [25, ['forest', 1], ['farm', 0], '24'],
+  [26, ['forest', 1], ['farm', 0], '24'], [27, ['forest', 1], ['farm', 0], '24'],
+  [28, ['forest', 1], ['water', 0], '28'], [29, ['forest', 1], ['plains', 0], '29'],
+  [30, ['water', 1], ['farm', 0], '30'], [31, ['water', 1], ['farm', 0], '30'],
+  [32, ['water', 1], ['forest', 0], '32'], [33, ['water', 1], ['forest', 0], '32'],
+  [34, ['water', 1], ['forest', 0], '32'], [35, ['water', 1], ['forest', 0], '32'],
+  [36, ['farm', 0], ['plains', 1], '36'], [37, ['water', 0], ['plains', 1], '37'],
+  [38, ['farm', 0], ['swamp', 1], '38'], [39, ['plains', 0], ['swamp', 1], '39'],
+  [40, ['mine', 1], ['farm', 0], '40'],
+  [41, ['farm', 0], ['plains', 2], '41'], [42, ['water', 0], ['plains', 2], '42'],
+  [43, ['farm', 0], ['swamp', 2], '43'], [44, ['plains', 0], ['swamp', 2], '44'],
+  [45, ['mine', 2], ['farm', 0], '45'],
+  [46, ['swamp', 0], ['mine', 2], '46'], [47, ['swamp', 0], ['mine', 2], '46'],
+  [48, ['farm', 0], ['mine', 3], '48']
+];
+
+function buildTiles() {
+  const tiles = {};
+  for (const [number, [lt, lc], [rt, rc], asset] of TILE_TABLE) {
+    tiles[number] = {
+      number,
+      left: { type: lt, crown: lc },
+      right: { type: rt, crown: rc },
+      asset
+    };
+  }
+  return tiles;
+}
+
+/** Offset of the second half of a tile relative to its anchor cell, per rotation. */
+const ROTATION_OFFSETS = {
+  0: [0, 1],
+  90: [1, 0],
+  180: [0, -1],
+  270: [-1, 0]
+};
 
 export class Kingdomino {
   constructor(room, players) {
     this.room = room;
     this.players = players;
-    
-    this.colorNames = ["red", "blue", "green", "yellow"];
-    this.colors = [0xff0000, 0x0000ff, 0x00ff00, 0xffff00];
-    this.tileSelectTurntime = 10000;
-    this.tilePlaceTurnTime = 15000;
-    this.gridSize = 5;
-    
+
     this.isGameActive = true;
-    this.playerGameData = {};
+    this.gameEnded = false;
+    this.started = false;
     this.readyPlayers = new Set();
-    this.gameTiles = [];
+    this.gameTiles = [];       // draw pile (tile numbers)
+    this.drawn = [];           // tiles on offer this round (sorted by number)
+    this.taken = new Map();    // tile number -> odId that claimed it
+    this.placed = new Set();   // odIds that already placed this round
+    this.leftPlayers = new Set();
     this.currentPlayerIndex = 1;
     this.isTileSelecting = true;
     this.turnTimer = null;
-    this.gameEnded = false;
-    
-    this.tiles = this.initTiles();
-    
+    this.endTimer = null;
+
+    this.tiles = buildTiles();
+    this.playerGameData = {};
+    this.grids = {};           // odId -> 5x5 grid of CASTLE | {type, crown} | null
+
     let i = 1;
     for (const [odId, player] of Object.entries(players)) {
       this.playerGameData[odId] = {
@@ -37,335 +103,336 @@ export class Kingdomino {
       };
       i++;
     }
-    
-    console.log('Kingdomino initialized');
   }
 
-  initTiles() {
-    return {
-      1: { number: 1, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
-      2: { number: 2, left: { type: "farm", crown: 0 }, right: { type: "farm", crown: 0 }, asset: "1" },
-      3: { number: 3, left: { type: "forest", crown: 0 }, right: { type: "forest", crown: 0 }, asset: "3" },
-      4: { number: 4, left: { type: "forest", crown: 0 }, right: { type: "forest", crown: 0 }, asset: "3" },
-      5: { number: 5, left: { type: "forest", crown: 0 }, right: { type: "forest", crown: 0 }, asset: "3" },
-      6: { number: 6, left: { type: "forest", crown: 0 }, right: { type: "forest", crown: 0 }, asset: "3" },
-      7: { number: 7, left: { type: "water", crown: 0 }, right: { type: "water", crown: 0 }, asset: "8" },
-      8: { number: 8, left: { type: "water", crown: 0 }, right: { type: "water", crown: 0 }, asset: "8" },
-      9: { number: 9, left: { type: "water", crown: 0 }, right: { type: "water", crown: 0 }, asset: "8" },
-      10: { number: 10, left: { type: "plains", crown: 0 }, right: { type: "plains", crown: 0 }, asset: "10" },
-      11: { number: 11, left: { type: "plains", crown: 0 }, right: { type: "plains", crown: 0 }, asset: "10" },
-      12: { number: 12, left: { type: "swamp", crown: 0 }, right: { type: "swamp", crown: 0 }, asset: "12" },
-      13: { number: 13, left: { type: "farm", crown: 0 }, right: { type: "forest", crown: 0 }, asset: "13" },
-      14: { number: 14, left: { type: "farm", crown: 0 }, right: { type: "water", crown: 0 }, asset: "14" },
-      15: { number: 15, left: { type: "farm", crown: 0 }, right: { type: "plains", crown: 0 }, asset: "15" },
-      16: { number: 16, left: { type: "farm", crown: 0 }, right: { type: "swamp", crown: 0 }, asset: "16" },
-      17: { number: 17, left: { type: "forest", crown: 0 }, right: { type: "water", crown: 0 }, asset: "17" },
-      18: { number: 18, left: { type: "forest", crown: 0 }, right: { type: "plains", crown: 0 }, asset: "18" },
-      19: { number: 19, left: { type: "farm", crown: 1 }, right: { type: "forest", crown: 0 }, asset: "19" },
-      20: { number: 20, left: { type: "farm", crown: 1 }, right: { type: "water", crown: 0 }, asset: "20" },
-      21: { number: 21, left: { type: "farm", crown: 1 }, right: { type: "plains", crown: 0 }, asset: "21" },
-      22: { number: 22, left: { type: "farm", crown: 1 }, right: { type: "swamp", crown: 0 }, asset: "22" },
-      23: { number: 23, left: { type: "farm", crown: 1 }, right: { type: "mine", crown: 0 }, asset: "23" },
-      24: { number: 24, left: { type: "forest", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "24" },
-      25: { number: 25, left: { type: "forest", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "24" },
-      26: { number: 26, left: { type: "forest", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "24" },
-      27: { number: 27, left: { type: "forest", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "24" },
-      28: { number: 28, left: { type: "forest", crown: 1 }, right: { type: "water", crown: 0 }, asset: "28" },
-      29: { number: 29, left: { type: "forest", crown: 1 }, right: { type: "plains", crown: 0 }, asset: "29" },
-      30: { number: 30, left: { type: "water", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "30" },
-      31: { number: 31, left: { type: "water", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "30" },
-      32: { number: 32, left: { type: "water", crown: 1 }, right: { type: "forest", crown: 0 }, asset: "32" },
-      33: { number: 33, left: { type: "water", crown: 1 }, right: { type: "forest", crown: 0 }, asset: "32" },
-      34: { number: 34, left: { type: "water", crown: 1 }, right: { type: "forest", crown: 0 }, asset: "32" },
-      35: { number: 35, left: { type: "water", crown: 1 }, right: { type: "forest", crown: 0 }, asset: "32" },
-      36: { number: 36, left: { type: "farm", crown: 0 }, right: { type: "plains", crown: 1 }, asset: "36" },
-      37: { number: 37, left: { type: "water", crown: 0 }, right: { type: "plains", crown: 1 }, asset: "37" },
-      38: { number: 38, left: { type: "farm", crown: 0 }, right: { type: "swamp", crown: 1 }, asset: "38" },
-      39: { number: 39, left: { type: "plains", crown: 0 }, right: { type: "swamp", crown: 1 }, asset: "39" },
-      40: { number: 40, left: { type: "mine", crown: 1 }, right: { type: "farm", crown: 0 }, asset: "40" },
-      41: { number: 41, left: { type: "farm", crown: 0 }, right: { type: "plains", crown: 2 }, asset: "41" },
-      42: { number: 42, left: { type: "water", crown: 0 }, right: { type: "plains", crown: 2 }, asset: "42" },
-      43: { number: 43, left: { type: "farm", crown: 0 }, right: { type: "swamp", crown: 2 }, asset: "43" },
-      44: { number: 44, left: { type: "plains", crown: 0 }, right: { type: "swamp", crown: 2 }, asset: "44" },
-      45: { number: 45, left: { type: "mine", crown: 2 }, right: { type: "farm", crown: 0 }, asset: "45" },
-      46: { number: 46, left: { type: "swamp", crown: 0 }, right: { type: "mine", crown: 2 }, asset: "46" },
-      47: { number: 47, left: { type: "swamp", crown: 0 }, right: { type: "mine", crown: 2 }, asset: "46" },
-      48: { number: 48, left: { type: "farm", crown: 0 }, right: { type: "mine", crown: 3 }, asset: "48" },
-    };
-  }
+  // ----------------------------------------------------------------- Messages
 
   handleMessage(odId, type, payload) {
-    if (!this.isGameActive) return;
-    
+    if (!this.isGameActive || !this.playerGameData[odId]) return;
+
     switch (type) {
       case 'kingdomino-create-finish':
-        this.handleCreateFinish(odId);
-        break;
+        return this.handleCreateFinish(odId);
       case 'kingdomino-select-tile':
-        if (this.currentPlayerIndex === this.playerGameData[odId]?.turnIndex) {
-          this.selectTile(odId, payload.tileNumber, payload.drawnIndex);
+        if (this.started && this.isTileSelecting && this.isTurnOf(odId)) {
+          this.selectTile(odId, Number(payload.tileNumber));
         }
-        break;
+        return;
       case 'kingdomino-place-tile':
-        if (this.currentPlayerIndex === this.playerGameData[odId]?.turnIndex) {
-          this.placeTile(odId, payload.tileNumber, payload.row, payload.col, payload.rotation);
+        if (this.started && !this.isTileSelecting && this.isTurnOf(odId)) {
+          this.placeTile(odId, Number(payload.tileNumber), payload.row, payload.col, payload.rotation);
         }
-        break;
+        return;
     }
+  }
+
+  isTurnOf(odId) {
+    return this.playerGameData[odId].turnIndex === this.currentPlayerIndex;
+  }
+
+  playerOnTurn() {
+    for (const [odId, p] of Object.entries(this.playerGameData)) {
+      if (p.turnIndex === this.currentPlayerIndex) return odId;
+    }
+    return null;
   }
 
   handleCreateFinish(odId) {
-    if (!this.readyPlayers.has(odId)) {
-      this.readyPlayers.add(odId);
-      console.log(`Kingdomino player ready: ${this.readyPlayers.size}/${Object.keys(this.players).length}`);
-      
-      if (this.readyPlayers.size >= Object.keys(this.players).length) {
-        console.log('All players ready, starting kingdomino');
-        this.startGame();
-      }
+    if (this.readyPlayers.has(odId)) return;
+    this.readyPlayers.add(odId);
+    if (this.readyPlayers.size >= Object.keys(this.players).length) {
+      this.startGame();
     }
   }
 
+  // --------------------------------------------------------------------- Setup
+
   startGame() {
-    const totalTiles = this.readyPlayers.size * 12;
-    
-    const shuffledKeys = Object.keys(this.tiles).sort(() => Math.random() - 0.5);
-    for (let i = 0; i < totalTiles && i < shuffledKeys.length; i++) {
-      this.gameTiles.push(shuffledKeys[i]);
+    if (this.started) return;
+    this.started = true;
+
+    const playerCount = Object.keys(this.playerGameData).length;
+    const totalTiles = playerCount * 12;
+
+    const keys = Object.keys(this.tiles).map(Number);
+    for (let i = keys.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [keys[i], keys[j]] = [keys[j], keys[i]];
     }
-    
-    // Assign colors
-    const assignedColors = [...this.colors];
+    this.gameTiles = keys.slice(0, totalTiles);
+
+    const colors = [...COLORS];
     for (const odId in this.playerGameData) {
-      const randomColorIndex = Math.floor(Math.random() * assignedColors.length);
-      const color = assignedColors.splice(randomColorIndex, 1)[0];
+      const color = colors.splice(Math.floor(Math.random() * colors.length), 1)[0];
       this.playerGameData[odId].color = color;
-      this.playerGameData[odId].gridOccupancy = this.initializeGridOccupancy();
+      this.grids[odId] = this.createGrid();
+      this.playerGameData[odId].gridOccupancy = this.occupancyOf(this.grids[odId]);
     }
-    
-    const gameData = {
+
+    this.room.broadcast({
+      type: 'kingdomino-game-start',
       tileCount: totalTiles,
       players: this.playerGameData,
       turnStartTime: Date.now(),
       currentPlayerIndex: 1
-    };
-    
-    this.room.broadcast({ type: 'kingdomino-game-start', ...gameData });
+    });
     this.room.broadcast({ type: 'kingdomino-tile-selection-start' });
     this.drawNextTiles();
     this.nextTurn();
   }
 
-  initializeGridOccupancy() {
-    const grid = [];
-    for (let i = 0; i < this.gridSize; i++) {
-      grid[i] = [];
-      for (let j = 0; j < this.gridSize; j++) {
-        grid[i][j] = i === 2 && j === 2 ? 'castle' : null;
-      }
-    }
-    return grid;
+  createGrid() {
+    return Array.from({ length: GRID_SIZE }, (_, r) =>
+      Array.from({ length: GRID_SIZE }, (_, c) => (r === 2 && c === 2 ? CASTLE : null)));
+  }
+
+  occupancyOf(grid) {
+    return grid.map(row => row.map(cell => (cell === null ? null : cell === CASTLE ? CASTLE : cell.tile)));
   }
 
   drawNextTiles() {
-    const drawnTiles = [];
-    const playerCount = Object.keys(this.playerGameData).length;
-    
-    for (let i = 0; i < playerCount && this.gameTiles.length > 0; i++) {
-      drawnTiles.push(this.gameTiles.shift());
-    }
-    
+    const count = Object.keys(this.playerGameData).length;
+    this.drawn = this.gameTiles.splice(0, count).sort((a, b) => a - b);
+    this.taken.clear();
+    this.placed.clear();
+    for (const p of Object.values(this.playerGameData)) p.selectedTile = 0;
+
     this.room.broadcast({
       type: 'kingdomino-draw-tiles',
-      drawnTiles: drawnTiles.map(tileNum => this.tiles[tileNum])
+      drawnTiles: this.drawn.map(n => this.tiles[n])
     });
   }
 
+  // --------------------------------------------------------------------- Turns
+
   nextTurn() {
     if (this.gameEnded || !this.isGameActive) return;
-    
-    if (this.turnTimer) {
-      clearTimeout(this.turnTimer);
-      this.turnTimer = null;
-    }
-    
+    clearTimeout(this.turnTimer);
+
+    const odId = this.playerOnTurn();
+    const left = odId && this.leftPlayers.has(odId);
+    const duration = left
+      ? LEFT_PLAYER_TURN_MS
+      : this.isTileSelecting ? TILE_SELECT_MS : TILE_PLACE_MS;
     const turnStartTime = Date.now();
-    const turnDuration = this.isTileSelecting ? this.tileSelectTurntime : this.tilePlaceTurnTime;
-    const turnEndTime = turnStartTime + turnDuration;
-    
+
     this.room.broadcast({
       type: 'kingdomino-turn-info',
       turnIndex: this.currentPlayerIndex,
       turnStartTime,
-      turnEndTime
+      turnEndTime: turnStartTime + duration
     });
-    
+
     this.turnTimer = setTimeout(() => {
-      if (this.isTileSelecting) {
-        this.selectRandomTile();
-      } else {
-        this.placeRandomTile();
-      }
-    }, turnDuration);
-  }
-
-  selectTile(odId, tileNumber, drawnIndex) {
-    console.log(`Player ${odId} selected tile ${tileNumber}`);
-    
-    this.playerGameData[odId].selectedTile = tileNumber;
-    
-    this.room.broadcast({
-      type: 'kingdomino-tile-selected',
-      odId,
-      tileNumber,
-      drawnIndex
-    });
-    
-    this.advanceTurn();
-  }
-
-  placeTile(odId, tileNumber, row, col, rotation) {
-    console.log(`Player ${odId} placed tile ${tileNumber} at ${row},${col} rotation ${rotation}`);
-    
-    this.room.broadcast({
-      type: 'kingdomino-tile-placed',
-      odId,
-      tileNumber,
-      row,
-      col,
-      rotation
-    });
-    
-    this.advanceTurn();
-  }
-
-  selectRandomTile() {
-    // Auto-select for timeout - find current player and select first available tile
-    const currentPlayer = Object.entries(this.playerGameData).find(([odId, p]) => p.turnIndex === this.currentPlayerIndex);
-    if (!currentPlayer) {
-      this.advanceTurn();
-      return;
-    }
-    
-    const [odId, player] = currentPlayer;
-    
-    // Find first unselected tile from drawnTiles (we need to track current drawn tiles)
-    // For now, just advance turn without selecting
-    console.log(`Player ${odId} timed out on tile selection`);
-    this.advanceTurn();
-  }
-
-  placeRandomTile() {
-    // Auto-place for timeout - player loses their tile placement
-    const currentPlayer = Object.entries(this.playerGameData).find(([odId, p]) => p.turnIndex === this.currentPlayerIndex);
-    if (!currentPlayer) {
-      this.advanceTurn();
-      return;
-    }
-    
-    const [odId, player] = currentPlayer;
-    console.log(`Player ${odId} timed out on tile placement - tile discarded`);
-    
-    // Broadcast that the tile was discarded (not placed)
-    this.room.broadcast({
-      type: 'kingdomino-tile-placed',
-      odId,
-      tileNumber: player.selectedTile,
-      row: -1,  // -1 indicates discarded
-      col: -1,
-      rotation: 0
-    });
-    
-    this.advanceTurn();
+      this.turnTimer = null;
+      if (this.isTileSelecting) this.selectRandomTile();
+      else this.placeRandomTile();
+    }, duration);
   }
 
   advanceTurn() {
-    if (this.turnTimer) {
-      clearTimeout(this.turnTimer);
-      this.turnTimer = null;
-    }
-    
+    clearTimeout(this.turnTimer);
+    this.turnTimer = null;
+
     const playerCount = Object.keys(this.playerGameData).length;
     this.currentPlayerIndex++;
-    
+
     if (this.currentPlayerIndex > playerCount) {
       this.currentPlayerIndex = 1;
-      
+
       if (this.isTileSelecting) {
-        // Finished selection phase, move to placement phase
         this.isTileSelecting = false;
         this.room.broadcast({ type: 'kingdomino-tile-selection-end' });
-        
-        // Reorder players by selected tile number (lower number goes first)
         this.reorderPlayersBySelectedTile();
       } else {
-        // Finished placement phase
-        // Check if we have more tiles
         if (this.gameTiles.length === 0) {
-          this.endGame();
-          return;
+          return this.endGame();
         }
-        
-        // Move to next selection phase
         this.isTileSelecting = true;
         this.room.broadcast({ type: 'kingdomino-tile-selection-start' });
         this.drawNextTiles();
       }
     }
-    
+
     this.nextTurn();
   }
 
+  // ----------------------------------------------------------------- Selection
+
+  selectTile(odId, tileNumber) {
+    const drawnIndex = this.drawn.indexOf(tileNumber);
+    if (drawnIndex === -1 || this.taken.has(tileNumber)) return;
+    if (this.playerGameData[odId].selectedTile) return;
+
+    this.taken.set(tileNumber, odId);
+    this.playerGameData[odId].selectedTile = tileNumber;
+
+    this.room.broadcast({ type: 'kingdomino-tile-selected', odId, tileNumber, drawnIndex });
+    this.advanceTurn();
+  }
+
+  selectRandomTile() {
+    const odId = this.playerOnTurn();
+    if (!odId) return this.advanceTurn();
+
+    const free = this.drawn.filter(n => !this.taken.has(n));
+    if (free.length === 0) return this.advanceTurn();
+
+    this.selectTile(odId, free[Math.floor(Math.random() * free.length)]);
+  }
+
   reorderPlayersBySelectedTile() {
-    // Sort players by their selected tile number
-    const sortedPlayers = Object.entries(this.playerGameData)
+    const sorted = Object.entries(this.playerGameData)
       .sort((a, b) => a[1].selectedTile - b[1].selectedTile);
-    
-    // Reassign turn indices based on selected tile order
-    let turnIndex = 1;
-    for (const [odId, player] of sortedPlayers) {
-      this.playerGameData[odId].turnIndex = turnIndex;
-      turnIndex++;
-    }
-    
-    // Broadcast updated player data
-    this.room.broadcast({
-      type: 'kingdomino-players-update',
-      players: this.playerGameData
+    sorted.forEach(([odId], i) => {
+      this.playerGameData[odId].turnIndex = i + 1;
     });
+    this.room.broadcast({ type: 'kingdomino-players-update', players: this.playerGameData });
+  }
+
+  // ----------------------------------------------------------------- Placement
+
+  placeTile(odId, tileNumber, row, col, rotation) {
+    const player = this.playerGameData[odId];
+    if (!player.selectedTile || player.selectedTile !== tileNumber || this.placed.has(odId)) return;
+
+    row = Number(row);
+    col = Number(col);
+    rotation = Number(rotation) || 0;
+
+    const cells = this.placementCells(this.grids[odId], row, col, rotation);
+    if (!cells) {
+      const ws = this.room.getWsByUserId(odId);
+      if (ws) this.room.send(ws, { type: 'error', message: 'Invalid tile placement' });
+      return;
+    }
+
+    const tile = this.tiles[tileNumber];
+    const grid = this.grids[odId];
+    grid[cells[0].r][cells[0].c] = { ...tile.left, tile: tileNumber };
+    grid[cells[1].r][cells[1].c] = { ...tile.right, tile: tileNumber };
+    player.gridOccupancy = this.occupancyOf(grid);
+    this.placed.add(odId);
+
+    this.room.broadcast({ type: 'kingdomino-tile-placed', odId, tileNumber, row, col, rotation });
+    this.advanceTurn();
+  }
+
+  /**
+   * Returns the two grid cells [left, right] a tile would occupy,
+   * or null if the placement is illegal.
+   */
+  placementCells(grid, row, col, rotation) {
+    const offset = ROTATION_OFFSETS[rotation];
+    if (!offset || !Number.isInteger(row) || !Number.isInteger(col)) return null;
+
+    const a = { r: row, c: col };
+    const b = { r: row + offset[0], c: col + offset[1] };
+
+    for (const { r, c } of [a, b]) {
+      if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE) return null;
+      if (grid[r][c] !== null) return null;
+    }
+
+    const touchesGrid = [a, b].some(({ r, c }) =>
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dr, dc]) => {
+        const nr = r + dr, nc = c + dc;
+        const isOwnHalf = (nr === a.r && nc === a.c) || (nr === b.r && nc === b.c);
+        return !isOwnHalf && nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && grid[nr][nc] !== null;
+      }));
+
+    return touchesGrid ? [a, b] : null;
+  }
+
+  placeRandomTile() {
+    // Timed out: the tile is discarded.
+    const odId = this.playerOnTurn();
+    if (!odId) return this.advanceTurn();
+
+    const player = this.playerGameData[odId];
+    if (player.selectedTile && !this.placed.has(odId)) {
+      this.placed.add(odId);
+      this.room.broadcast({
+        type: 'kingdomino-tile-placed',
+        odId,
+        tileNumber: player.selectedTile,
+        row: -1, // -1 marks a discarded tile
+        col: -1,
+        rotation: 0
+      });
+    }
+    this.advanceTurn();
+  }
+
+  // ------------------------------------------------------------------- Scoring
+
+  calculateScore(odId) {
+    const grid = this.grids[odId];
+    if (!grid) return 0;
+
+    const seen = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
+    let total = 0;
+
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        const cell = grid[r][c];
+        if (!cell || cell === CASTLE || seen[r][c]) continue;
+
+        let size = 0;
+        let crowns = 0;
+        const stack = [[r, c]];
+        seen[r][c] = true;
+
+        while (stack.length) {
+          const [cr, cc] = stack.pop();
+          size++;
+          crowns += grid[cr][cc].crown;
+          for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            const nr = cr + dr, nc = cc + dc;
+            if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE || seen[nr][nc]) continue;
+            const next = grid[nr][nc];
+            if (next && next !== CASTLE && next.type === cell.type) {
+              seen[nr][nc] = true;
+              stack.push([nr, nc]);
+            }
+          }
+        }
+        total += size * crowns;
+      }
+    }
+    return total;
   }
 
   endGame() {
     this.gameEnded = true;
-    this.isGameActive = false;
-    
-    // Calculate final scores
+    clearTimeout(this.turnTimer);
+    this.turnTimer = null;
+
     for (const odId in this.playerGameData) {
       this.playerGameData[odId].score = this.calculateScore(odId);
     }
-    
-    this.room.broadcast({
-      type: 'kingdomino-game-end',
-      players: this.playerGameData
-    });
-    
-    setTimeout(() => {
-      this.cleanup();
-      this.room.endGame();
-    }, 5000);
+
+    this.room.broadcast({ type: 'kingdomino-game-end', players: this.playerGameData });
+
+    const ranking = Object.values(this.playerGameData)
+      .sort((a, b) => b.score - a.score)
+      .map((p, i) => `${i + 1}. ${p.name}: ${p.score}`)
+      .join(' | ');
+    this.room.broadcast({ type: 'system-message', message: `Kingdomino results - ${ranking}` });
+
+    this.endTimer = setTimeout(() => this.room.endGame(), RETURN_TO_LOBBY_MS);
   }
 
-  calculateScore(odId) {
-    // Simplified scoring
-    return Math.floor(Math.random() * 50) + 10;
+  /** A player left the room: their turns are skipped quickly, their grid still scores. */
+  onPlayerLeft(odId) {
+    if (this.playerGameData[odId]) this.leftPlayers.add(odId);
   }
 
   cleanup() {
     this.isGameActive = false;
-    if (this.turnTimer) {
-      clearTimeout(this.turnTimer);
-      this.turnTimer = null;
-    }
-    console.log('Kingdomino cleaned up');
+    clearTimeout(this.turnTimer);
+    clearTimeout(this.endTimer);
+    this.turnTimer = null;
+    this.endTimer = null;
   }
 }

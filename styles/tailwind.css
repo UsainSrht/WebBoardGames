@@ -1,0 +1,18 @@
+/* Compiled to public_html/tailwind.css with `npm run build:css`. */
+@import "tailwindcss" source("../public_html");
+
+/* Keep Tailwind v3 defaults the pages were designed with. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

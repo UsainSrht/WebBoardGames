@@ -22,6 +22,7 @@ class SocketClient {
     this.reconnectTimer = null;
     this.connectionTimeout = null;
     this.connectionTimeoutMs = options.connectionTimeout || 10000;
+    this.heartbeatInterval = null;
     
     // Auto-connect to lobby by default (like Socket.IO)
     if (this.autoConnect) {
@@ -107,7 +108,8 @@ class SocketClient {
       this.connected = true;
       this.connecting = false;
       this.reconnectAttempts = 0;
-      this.id = 'ws-' + Math.random().toString(36).substr(2, 9);
+      this.id = 'ws-' + Math.random().toString(36).slice(2, 11);
+      this.startHeartbeat();
       this.trigger('connect');
       
       // Send any pending messages
@@ -136,6 +138,7 @@ class SocketClient {
         clearTimeout(this.connectionTimeout);
         this.connectionTimeout = null;
       }
+      this.stopHeartbeat();
       const wasConnected = this.connected;
       this.connected = false;
       this.connecting = false;
@@ -157,6 +160,23 @@ class SocketClient {
     return this;
   }
   
+  /**
+   * Keep idle connections alive (proxies close silent WebSockets)
+   */
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected()) this.ws.send('{"type":"ping"}');
+    }, 25000);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
   /**
    * Schedule a reconnection attempt with exponential backoff
    */
@@ -311,6 +331,8 @@ class SocketClient {
    * @param  {...any} args - Event arguments
    */
   emit(event, ...args) {
+    // Socket.IO-style acknowledgement callbacks are not supported; drop them.
+    args = args.filter(a => typeof a !== 'function');
     // Build payload - preserve positional arguments for Socket.IO compatibility
     let payload = {};
     
@@ -356,6 +378,7 @@ class SocketClient {
    * Disconnect from the server
    */
   disconnect() {
+    this.stopHeartbeat();
     // Clear any pending timers
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -419,6 +442,24 @@ class SocketClient {
     this.emit('ping');
   }
 }
+
+/**
+ * Per-browser secret that proves ownership of our player id to the room.
+ * It is only ever sent to the server and never broadcast to other players.
+ */
+window.getUserSecret = function () {
+  try {
+    let secret = localStorage.getItem('userSecret');
+    if (!secret) {
+      const bytes = crypto.getRandomValues(new Uint8Array(24));
+      secret = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('userSecret', secret);
+    }
+    return secret;
+  } catch {
+    return null;
+  }
+};
 
 // Compatibility layer: Create a global 'io' function like Socket.IO
 window.io = function(url, options = {}) {

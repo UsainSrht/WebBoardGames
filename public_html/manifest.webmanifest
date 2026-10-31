@@ -1,0 +1,13 @@
+{
+  "name": "Web Board Games",
+  "short_name": "Board Games",
+  "description": "Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f23",
+  "theme_color": "#0f0f23",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/images/dice.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

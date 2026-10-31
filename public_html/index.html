@@ -3,9 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Play board games online with friends. Real-time multiplayer gaming experience.">
-    <title>Web Board Games - Play Together Online</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
+    <title>Web Board Games - Play Chess, Uno, Dice & More Online with Friends</title>
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="theme-color" content="#0f0f23">
+    <link rel="canonical" href="/" data-abs>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Web Board Games">
+    <meta property="og:title" content="Web Board Games - Play Chess, Uno, Dice & More Online with Friends">
+    <meta property="og:description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
+    <meta property="og:url" content="/" data-abs>
+    <meta property="og:image" content="/images/kingdomino.png" data-abs>
+    <meta property="og:image:alt" content="Web Board Games">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Web Board Games - Play Chess, Uno, Dice & More Online with Friends">
+    <meta name="twitter:description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
+    <meta name="twitter:image" content="/images/kingdomino.png" data-abs>
+    <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Web Board Games","description":"Free multiplayer board games in your browser.","inLanguage":"en"},{"@type":"WebApplication","name":"Web Board Games","applicationCategory":"GameApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"browserRequirements":"Requires JavaScript and WebSocket support"},{"@type":"ItemList","name":"Games","itemListElement":[{"@type":"ListItem","position":1,"item":{"@type":"VideoGame","name":"Chess","description":"The classic strategy game with full rules: castling, en passant, promotion, check, checkmate and draws. Play a friend head-to-head in your browser.","numberOfPlayers":"2 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":2,"item":{"@type":"VideoGame","name":"Uno","description":"Match colours and numbers, play skips, reverses, draw twos and wilds, and be the first to empty your hand. Private hands, 30-second turns.","numberOfPlayers":"2-10 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":3,"item":{"@type":"VideoGame","name":"Kingdomino","description":"Build a 5x5 kingdom with domino-style terrain tiles. Claim tiles in turn order and score every property by its size times its crowns.","numberOfPlayers":"1-4 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":4,"item":{"@type":"VideoGame","name":"Dice","description":"A quick luck-based party game: roll two dice each round, highest total scores. Five rounds, most points wins.","numberOfPlayers":"2-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":5,"item":{"@type":"VideoGame","name":"Rock Paper Scissors","description":"Pick your move before the countdown ends. Every player is scored against every other player over three rounds.","numberOfPlayers":"2-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":6,"item":{"@type":"VideoGame","name":"Hamsterball","description":"Roll your hamster ball around a tilting plate in 3D, bump rivals off the edge and be the last one standing.","numberOfPlayers":"1-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Web Board Games free?","acceptedAnswer":{"@type":"Answer","text":"Yes. All games are free to play, with no account or download required."}},{"@type":"Question","name":"How do I play with friends?","acceptedAnswer":{"@type":"Answer","text":"Choose a nickname, create a room and share the 6-character room code (or the page link) with your friends. When everyone has joined, the host picks a game and everybody clicks Ready."}},{"@type":"Question","name":"How many people can play?","acceptedAnswer":{"@type":"Answer","text":"A room holds up to 12 players. Each game has its own limits: Chess is 2 players, Kingdomino 1-4, Uno 2-10, and Dice, Rock Paper Scissors and Hamsterball up to 12."}},{"@type":"Question","name":"Does it work on phones and tablets?","acceptedAnswer":{"@type":"Answer","text":"Yes, the site runs in any modern browser on desktop and mobile. Hamsterball is best played with a keyboard."}},{"@type":"Question","name":"What happens if I lose my connection?","acceptedAnswer":{"@type":"Answer","text":"The page reconnects automatically and you keep your seat in the room for a few seconds, so a short drop will not remove you from the game."}}]}]}</script>
+    <link rel="stylesheet" href="/tailwind.css">
     <script src="/socket-client.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -101,7 +118,7 @@
     <!-- Hero Section -->
     <div class="hero-gradient min-h-screen flex flex-col relative z-10">
         <!-- Navigation -->
-        <nav class="p-6 slide-up">
+        <nav class="p-6 slide-up" aria-label="Main">
             <div class="max-w-7xl mx-auto flex justify-between items-center">
                 <div class="flex items-center gap-3">
                     <span class="text-3xl">🎮</span>
@@ -137,7 +154,7 @@
                         <!-- Stats -->
                         <div class="flex justify-center lg:justify-start gap-8 mb-8 slide-up delay-300">
                             <div class="text-center">
-                                <div class="text-3xl font-bold text-indigo-400">4+</div>
+                                <div class="text-3xl font-bold text-indigo-400">6</div>
                                 <div class="text-sm text-gray-500">Games</div>
                             </div>
                             <div class="text-center">
@@ -242,42 +259,81 @@
             </div>
         </main>
 
-        <!-- Games Preview -->
-        <section class="py-16 px-4 relative z-10">
+        <!-- Games -->
+        <section id="games" class="py-16 px-4 relative z-10" aria-labelledby="games-heading">
             <div class="max-w-6xl mx-auto">
-                <h2 class="text-3xl font-bold text-center mb-12 slide-up delay-500">
-                    <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                        Featured Games
-                    </span>
+                <h2 id="games-heading" class="text-3xl font-bold text-center mb-4">
+                    <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Free Online Multiplayer Games</span>
                 </h2>
-                
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div class="game-card card-hover rounded-2xl p-6 text-center cursor-pointer">
-                        <div class="text-5xl mb-4 float-animation">🪨</div>
-                        <h3 class="font-semibold mb-1">Rock Paper Scissors</h3>
-                        <p class="text-sm text-gray-500">2-12 players</p>
-                    </div>
-                    <div class="game-card card-hover rounded-2xl p-6 text-center cursor-pointer">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0.5s;">👑</div>
-                        <h3 class="font-semibold mb-1">Kingdomino</h3>
-                        <p class="text-sm text-gray-500">1-4 players</p>
-                    </div>
-                    <div class="game-card card-hover rounded-2xl p-6 text-center cursor-pointer">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 1s;">🐹</div>
-                        <h3 class="font-semibold mb-1">Hamsterball</h3>
-                        <p class="text-sm text-gray-500">1-12 players</p>
-                    </div>
-                    <div class="game-card rounded-2xl p-6 text-center opacity-50">
-                        <div class="text-5xl mb-4">🎲</div>
-                        <h3 class="font-semibold mb-1">More Coming</h3>
-                        <p class="text-sm text-gray-500">Soon™</p>
-                    </div>
+                <p class="text-center text-gray-400 max-w-2xl mx-auto mb-12">Pick a game, invite your friends with a room code and play in real time. No downloads, no accounts.</p>
+                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <article class="game-card card-hover rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0s;" aria-hidden="true">♟️</div>
+                        <h3 class="font-semibold text-lg mb-1">Chess</h3>
+                        <p class="text-sm text-indigo-300 mb-2">2 players</p>
+                        <p class="text-sm text-gray-400">The classic strategy game with full rules: castling, en passant, promotion, check, checkmate and draws. Play a friend head-to-head in your browser.</p>
+                    </article>
+                    <article class="game-card card-hover rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0.5s;" aria-hidden="true">🃏</div>
+                        <h3 class="font-semibold text-lg mb-1">Uno</h3>
+                        <p class="text-sm text-indigo-300 mb-2">2-10 players</p>
+                        <p class="text-sm text-gray-400">Match colours and numbers, play skips, reverses, draw twos and wilds, and be the first to empty your hand. Private hands, 30-second turns.</p>
+                    </article>
+                    <article class="game-card card-hover rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 1s;" aria-hidden="true">👑</div>
+                        <h3 class="font-semibold text-lg mb-1">Kingdomino</h3>
+                        <p class="text-sm text-indigo-300 mb-2">1-4 players</p>
+                        <p class="text-sm text-gray-400">Build a 5x5 kingdom with domino-style terrain tiles. Claim tiles in turn order and score every property by its size times its crowns.</p>
+                    </article>
+                    <article class="game-card card-hover rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0s;" aria-hidden="true">🎲</div>
+                        <h3 class="font-semibold text-lg mb-1">Dice</h3>
+                        <p class="text-sm text-indigo-300 mb-2">2-12 players</p>
+                        <p class="text-sm text-gray-400">A quick luck-based party game: roll two dice each round, highest total scores. Five rounds, most points wins.</p>
+                    </article>
+                    <article class="game-card card-hover rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0.5s;" aria-hidden="true">🪨</div>
+                        <h3 class="font-semibold text-lg mb-1">Rock Paper Scissors</h3>
+                        <p class="text-sm text-indigo-300 mb-2">2-12 players</p>
+                        <p class="text-sm text-gray-400">Pick your move before the countdown ends. Every player is scored against every other player over three rounds.</p>
+                    </article>
+                    <article class="game-card card-hover rounded-2xl p-6 text-center">
+                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 1s;" aria-hidden="true">🐹</div>
+                        <h3 class="font-semibold text-lg mb-1">Hamsterball</h3>
+                        <p class="text-sm text-indigo-300 mb-2">1-12 players</p>
+                        <p class="text-sm text-gray-400">Roll your hamster ball around a tilting plate in 3D, bump rivals off the edge and be the last one standing.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="how-it-works" class="py-12 px-4 relative z-10" aria-labelledby="how-heading">
+            <div class="max-w-4xl mx-auto">
+                <h2 id="how-heading" class="text-3xl font-bold text-center mb-10">How it works</h2>
+                <ol class="grid md:grid-cols-3 gap-6 text-center">
+                    <li class="game-card rounded-2xl p-6"><div class="text-3xl mb-2" aria-hidden="true">1️⃣</div><h3 class="font-semibold mb-1">Pick a nickname</h3><p class="text-sm text-gray-400">No registration needed. Choose a name and you are in.</p></li>
+                    <li class="game-card rounded-2xl p-6"><div class="text-3xl mb-2" aria-hidden="true">2️⃣</div><h3 class="font-semibold mb-1">Create or join a room</h3><p class="text-sm text-gray-400">Share the 6-character code with friends, or enter theirs to join.</p></li>
+                    <li class="game-card rounded-2xl p-6"><div class="text-3xl mb-2" aria-hidden="true">3️⃣</div><h3 class="font-semibold mb-1">Choose a game and play</h3><p class="text-sm text-gray-400">The host selects a game, everyone clicks Ready and the match starts.</p></li>
+                </ol>
+            </div>
+        </section>
+
+        <section id="faq" class="py-12 px-4 relative z-10" aria-labelledby="faq-heading">
+            <div class="max-w-3xl mx-auto">
+                <h2 id="faq-heading" class="text-3xl font-bold text-center mb-8">Frequently asked questions</h2>
+                <div class="space-y-3">
+                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">Is Web Board Games free?</summary><p class="mt-3 text-gray-400">Yes. All games are free to play, with no account or download required.</p></details>
+                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">How do I play with friends?</summary><p class="mt-3 text-gray-400">Choose a nickname, create a room and share the 6-character room code (or the page link) with your friends. When everyone has joined, the host picks a game and everybody clicks Ready.</p></details>
+                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">How many people can play?</summary><p class="mt-3 text-gray-400">A room holds up to 12 players. Each game has its own limits: Chess is 2 players, Kingdomino 1-4, Uno 2-10, and Dice, Rock Paper Scissors and Hamsterball up to 12.</p></details>
+                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">Does it work on phones and tablets?</summary><p class="mt-3 text-gray-400">Yes, the site runs in any modern browser on desktop and mobile. Hamsterball is best played with a keyboard.</p></details>
+                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">What happens if I lose my connection?</summary><p class="mt-3 text-gray-400">The page reconnects automatically and you keep your seat in the room for a few seconds, so a short drop will not remove you from the game.</p></details>
                 </div>
             </div>
         </section>
 
         <!-- Footer -->
         <footer class="py-6 text-center text-gray-600 text-sm">
+            <nav aria-label="Footer" class="mb-2 space-x-4"><a class="hover:text-gray-300" href="#games">Games</a><a class="hover:text-gray-300" href="#how-it-works">How it works</a><a class="hover:text-gray-300" href="#faq">FAQ</a></nav>
             <p>Made with ❤️ for game nights everywhere</p>
         </footer>
     </div>
@@ -342,7 +398,7 @@
         socket.on('request-user-id', () => {
             const storedId = localStorage.getItem('userId');
             const storedName = localStorage.getItem('userName');
-            socket.emit('send-user-id', { odId: storedId, name: storedName });
+            socket.emit('send-user-id', { odId: storedId, name: storedName, secret: getUserSecret() });
         });
 
         socket.on('error', ({ message }) => showToast(message || 'An error occurred', 'error'));

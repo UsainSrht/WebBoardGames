@@ -29,7 +29,12 @@ function loadImages(callback) {
     });
 }
 
+let countdownToken = 0;
+
 socket.on("rps-game-started", ({ countdownEndUnix }) => {
+    // Remove the previous round's reveal canvas: it would cover the move buttons.
+    document.getElementById("rps-canvas")?.remove();
+    document.getElementById("loading-label")?.remove();
     const rpsPopup = document.getElementById("rps-popup");
     //todo clear selection
     rpsPopup.classList.remove("hidden");
@@ -42,9 +47,9 @@ socket.on("rps-game-started", ({ countdownEndUnix }) => {
         }
     });
 
-    const remainingSeconds = Math.floor((countdownEndUnix-Date.now()) / 1000);
+    const remainingSeconds = Math.max(0, Math.ceil((countdownEndUnix - Date.now()) / 1000));
     document.getElementById("countdown-label").textContent = remainingSeconds;
-    countDown(remainingSeconds);
+    countDown(remainingSeconds, ++countdownToken);
 });
 
 socket.on("update-scoreboard", ({ playerGameData }) => {
@@ -68,18 +73,16 @@ function updateScoreboard(players) {
     }
 }
 
-function countDown(countdown) {
-    console.log("Countdown:", countdown);
+function countDown(countdown, token) {
+    // A newer round (or page reload resync) supersedes this countdown chain.
+    if (token !== countdownToken) return;
     const countdownLabel = document.getElementById("countdown-label");
-    countdownLabel.textContent = countdown;
     const countdownBar = document.getElementById("countdown-bar");
-    countdownBar.style.width = `${(countdown / 7) * 100}%`;
-    setTimeout(() => {
-        countdown--;
-        if (countdown > 0) {
-            countDown(countdown);
-        }
-    }, 1000);
+    if (!countdownLabel || !countdownBar) return;
+    countdownLabel.textContent = countdown;
+    countdownBar.style.width = `${Math.min(100, (countdown / 7) * 100)}%`;
+    if (countdown <= 0) return;
+    setTimeout(() => countDown(countdown - 1, token), 1000);
 }
 
 window.rpsSelectMove = function (move) {
@@ -118,8 +121,10 @@ socket.on("rps-game-ended", ({ playerGameData }) => {
                                 </svg>`;
     gameBoard.appendChild(loadingLabel);
 
+    document.getElementById("rps-canvas")?.remove();
     const canvas = document.createElement("canvas");
     canvas.id = "rps-canvas";
+    canvas.style.pointerEvents = "none";
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     gameBoard.appendChild(canvas);
@@ -144,7 +149,7 @@ socket.on("rps-game-ended", ({ playerGameData }) => {
     }
 
     loadImages(() => {
-        gameBoard.removeChild(loadingLabel);
+        loadingLabel.remove();
         drawMoves(movesData, center);
     });
 });
