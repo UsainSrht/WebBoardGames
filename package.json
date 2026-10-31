@@ -6,6 +6,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "build": "npm run build:css",
     "build:css": "tailwindcss -i ./styles/tailwind.css -o ./public_html/tailwind.css --minify",
     "dev": "npm run build:css && wrangler dev",
     "deploy": "wrangler deploy",
