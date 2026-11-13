@@ -92,6 +92,11 @@ export class Dice {
     this.timer = setTimeout(() => { this.timer = null; fn(); }, ms);
   }
 
+  spectatorSync(odId) {
+    const ws = this.room.getWsByUserId(odId);
+    if (ws) this.room.send(ws, this.snapshot());
+  }
+
   snapshot() {
     return {
       type: 'dice-state',

@@ -1,8 +1,29 @@
-<div id="dice-root" class="absolute inset-0 flex flex-col items-center justify-start pt-20 px-4 text-white overflow-y-auto">
-    <h1 class="text-3xl font-bold mb-1">🎲 Dice</h1>
-    <p id="dice-round" class="text-gray-300 mb-1">Waiting for players…</p>
-    <p id="dice-timer" class="text-indigo-300 mb-4 h-6"></p>
-    <button id="dice-roll-btn" class="px-10 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 font-semibold text-xl mb-6 disabled:opacity-40 disabled:cursor-not-allowed" disabled>Roll the dice</button>
-    <div id="dice-players" class="w-full max-w-xl space-y-2"></div>
-    <p id="dice-footer" class="mt-6 text-xl font-semibold text-emerald-300"></p>
+<div id="dice-root" class="scroll-y absolute inset-0 flex flex-col items-center px-4 pt-20 pb-8">
+  <div class="w-full max-w-xl">
+    <div class="mb-5 flex items-center justify-between">
+      <div>
+        <p class="eyebrow" id="dice-phase">Waiting for players</p>
+        <h2 class="mt-1 text-2xl font-bold tracking-tight text-white">Dice</h2>
+      </div>
+      <div class="text-right">
+        <p class="text-xs text-slate-400">Round</p>
+        <p class="text-2xl font-bold text-white tabular-nums"><span id="dice-round">0</span><span class="text-slate-500"> / </span><span id="dice-rounds">5</span></p>
+      </div>
+    </div>
+
+    <div class="mb-5 h-1.5 overflow-hidden rounded-full bg-white/10"><div id="dice-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style="transition: width 0.12s linear"></div></div>
+
+    <div class="card mb-5 p-5 text-center">
+      <div id="dice-mine" class="mb-4 flex min-h-20 items-center justify-center gap-4" aria-live="polite"></div>
+      <button id="dice-roll-btn" class="btn btn-primary btn-lg w-full" disabled><i data-icon="dice" class="size-5"></i><span>Roll the dice</span></button>
+      <p id="dice-timer" class="mt-3 h-5 text-sm text-slate-400"></p>
+    </div>
+
+    <ul id="dice-players" class="space-y-2"></ul>
+
+    <div id="dice-final" class="card animate-pop mt-5 p-5 text-center" hidden>
+      <span class="mx-auto mb-2 grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"><i data-icon="trophy" class="size-6"></i></span>
+      <p id="dice-final-text" class="text-xl font-bold text-white"></p>
+    </div>
+  </div>
 </div>

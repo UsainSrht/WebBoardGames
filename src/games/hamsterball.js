@@ -69,6 +69,11 @@ export class Hamsterball {
     }
   }
 
+  spectatorSync(odId) {
+    const ws = this.room.getWsByUserId(odId);
+    if (ws) this.room.send(ws, { type: 'init', id: null, spectator: true, players: this.playerGameData });
+  }
+
   handleMove(odId, { vx, vy }) {
     const p = this.playerGameData[odId];
     if (!p) return; // eliminated

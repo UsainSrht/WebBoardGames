@@ -86,6 +86,7 @@ export class Kingdomino {
     this.isTileSelecting = true;
     this.turnTimer = null;
     this.endTimer = null;
+    this.log = [];
 
     this.tiles = buildTiles();
     this.playerGameData = {};
@@ -103,6 +104,23 @@ export class Kingdomino {
       };
       i++;
     }
+  }
+
+  /** Broadcast a game event and remember it so late joiners can replay the game so far. */
+  emit(message) {
+    this.log.push(message);
+    this.room.broadcast(message);
+  }
+
+  /** Replay every event to one client (reload or host-view spectator). */
+  replayTo(odId) {
+    const ws = this.room.getWsByUserId(odId);
+    if (!ws) return;
+    for (const message of this.log) this.room.send(ws, message);
+  }
+
+  spectatorSync(odId) {
+    if (this.started) this.replayTo(odId);
   }
 
   // ----------------------------------------------------------------- Messages
@@ -138,7 +156,10 @@ export class Kingdomino {
   }
 
   handleCreateFinish(odId) {
-    if (this.readyPlayers.has(odId)) return;
+    if (this.readyPlayers.has(odId)) {
+      if (this.started) this.replayTo(odId); // page reload: rebuild the board from the log
+      return;
+    }
     this.readyPlayers.add(odId);
     if (this.readyPlayers.size >= Object.keys(this.players).length) {
       this.startGame();
@@ -169,14 +190,14 @@ export class Kingdomino {
       this.playerGameData[odId].gridOccupancy = this.occupancyOf(this.grids[odId]);
     }
 
-    this.room.broadcast({
+    this.emit({
       type: 'kingdomino-game-start',
       tileCount: totalTiles,
       players: this.playerGameData,
       turnStartTime: Date.now(),
       currentPlayerIndex: 1
     });
-    this.room.broadcast({ type: 'kingdomino-tile-selection-start' });
+    this.emit({ type: 'kingdomino-tile-selection-start' });
     this.drawNextTiles();
     this.nextTurn();
   }
@@ -197,7 +218,7 @@ export class Kingdomino {
     this.placed.clear();
     for (const p of Object.values(this.playerGameData)) p.selectedTile = 0;
 
-    this.room.broadcast({
+    this.emit({
       type: 'kingdomino-draw-tiles',
       drawnTiles: this.drawn.map(n => this.tiles[n])
     });
@@ -216,7 +237,7 @@ export class Kingdomino {
       : this.isTileSelecting ? TILE_SELECT_MS : TILE_PLACE_MS;
     const turnStartTime = Date.now();
 
-    this.room.broadcast({
+    this.emit({
       type: 'kingdomino-turn-info',
       turnIndex: this.currentPlayerIndex,
       turnStartTime,
@@ -242,14 +263,14 @@ export class Kingdomino {
 
       if (this.isTileSelecting) {
         this.isTileSelecting = false;
-        this.room.broadcast({ type: 'kingdomino-tile-selection-end' });
+        this.emit({ type: 'kingdomino-tile-selection-end' });
         this.reorderPlayersBySelectedTile();
       } else {
         if (this.gameTiles.length === 0) {
           return this.endGame();
         }
         this.isTileSelecting = true;
-        this.room.broadcast({ type: 'kingdomino-tile-selection-start' });
+        this.emit({ type: 'kingdomino-tile-selection-start' });
         this.drawNextTiles();
       }
     }
@@ -267,7 +288,7 @@ export class Kingdomino {
     this.taken.set(tileNumber, odId);
     this.playerGameData[odId].selectedTile = tileNumber;
 
-    this.room.broadcast({ type: 'kingdomino-tile-selected', odId, tileNumber, drawnIndex });
+    this.emit({ type: 'kingdomino-tile-selected', odId, tileNumber, drawnIndex });
     this.advanceTurn();
   }
 
@@ -287,7 +308,7 @@ export class Kingdomino {
     sorted.forEach(([odId], i) => {
       this.playerGameData[odId].turnIndex = i + 1;
     });
-    this.room.broadcast({ type: 'kingdomino-players-update', players: this.playerGameData });
+    this.emit({ type: 'kingdomino-players-update', players: this.playerGameData });
   }
 
   // ----------------------------------------------------------------- Placement
@@ -314,7 +335,7 @@ export class Kingdomino {
     player.gridOccupancy = this.occupancyOf(grid);
     this.placed.add(odId);
 
-    this.room.broadcast({ type: 'kingdomino-tile-placed', odId, tileNumber, row, col, rotation });
+    this.emit({ type: 'kingdomino-tile-placed', odId, tileNumber, row, col, rotation });
     this.advanceTurn();
   }
 
@@ -352,7 +373,7 @@ export class Kingdomino {
     const player = this.playerGameData[odId];
     if (player.selectedTile && !this.placed.has(odId)) {
       this.placed.add(odId);
-      this.room.broadcast({
+      this.emit({
         type: 'kingdomino-tile-placed',
         odId,
         tileNumber: player.selectedTile,
@@ -412,13 +433,13 @@ export class Kingdomino {
       this.playerGameData[odId].score = this.calculateScore(odId);
     }
 
-    this.room.broadcast({ type: 'kingdomino-game-end', players: this.playerGameData });
+    this.emit({ type: 'kingdomino-game-end', players: this.playerGameData });
 
     const ranking = Object.values(this.playerGameData)
       .sort((a, b) => b.score - a.score)
       .map((p, i) => `${i + 1}. ${p.name}: ${p.score}`)
       .join(' | ');
-    this.room.broadcast({ type: 'system-message', message: `Kingdomino results - ${ranking}` });
+    this.emit({ type: 'system-message', message: `Kingdomino results - ${ranking}` });
 
     this.endTimer = setTimeout(() => this.room.endGame(), RETURN_TO_LOBBY_MS);
   }

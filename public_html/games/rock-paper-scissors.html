@@ -1,43 +1,43 @@
-<!-- Rock Paper Scissors Popup -->
-<div id="rps-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-1/2 bg-gray-800 p-4 rounded-2xl shadow-lg transition-all duration-500 ease-in-out">
-    <div>
-        <h1 id="countdown-label" class="text-3xl font-bold text-center text-white mb-4">Countdown</h1>
-        <div class="w-full rounded-full h-1 mb-4 bg-gray-700">
-            <div id="countdown-bar" class="h-1 rounded-full bg-blue-500 transition-all duration-1000" style="width: 100%"></div>
-        </div>
-        <h1 class="text-2xl font-bold text-center text-white mb-4">Select Your Move</h1>
-        <div class="flex items-center justify-between p-4">
-            <button id="rps-move-rock" onclick="rpsSelectMove('rock')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                <img src="./images/rps-rock.png" alt="Rock" class="w-1/2 mx-auto mt-2">
-                <span class="text-sm">Rock</span>
-            </button>
-            <button id="rps-move-paper" onclick="rpsSelectMove('paper')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                <img src="./images/rps-paper.png" alt="Paper" class="w-1/2 mx-auto mt-2">
-                <span class="text-sm">Paper</span>
-            </button>
-            <button id="rps-move-scissors" onclick="rpsSelectMove('scissors')" class="w-1/3 bg-transparent border-2 border-gray-700 hover:bg-gray-600 transition-all duration-200 rounded-md aspect-square text-center text-white overflow-hidden">
-                <img src="./images/rps-scissors.png" alt="Scissors" class="w-1/2 mx-auto mt-2">
-                <span class="text-sm">Scissors</span>
-            </button>
-        </div>
-    </div>
-</div>
+<div id="rps-root" class="absolute inset-0 flex flex-col items-center justify-center gap-4 px-4 pt-16 pb-6">
+  <!-- Scoreboard -->
+  <aside class="card-flat absolute top-16 right-3 left-3 max-h-44 overflow-hidden p-3 sm:right-auto sm:left-4 sm:w-64" aria-label="Scoreboard">
+    <p class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase"><i data-icon="trophy" class="size-4 text-amber-300"></i>Scoreboard</p>
+    <ul id="rps-scores" class="scroll-y max-h-28 space-y-1 sm:max-h-64"></ul>
+  </aside>
 
-<!-- Bottom Left Players -->
-<div id="scoreboard-popup" data-modal-placement="bottom-left" class="fixed bottom-0 left-0 z-50 w-1/4 p-4 overflow-x-hidden overflow-y-auto opacity-90">
-    <div class="relative w-full max-w-2xl max-h-full">
-        <div class="relative rounded-lg shadow-sm bg-gray-700">
-            <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t border-gray-600">
-                <h3 class="text-xl font-medium text-white">
-                    Scoreboard
-                </h3>
-            </div>
-            <div id="scoreboard-players" class="p-4 md:p-5 space-y-1">
-                <div class="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-600 rounded-t text-white">
-                    <span>Player</span>
-                    <span>Score</span>
-                </div>
-            </div>
-        </div>
+  <!-- Waiting -->
+  <section id="rps-wait" class="text-center">
+    <span class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-white/8 text-brand-300"><i data-icon="spinner" class="size-7 animate-spin"></i></span>
+    <p class="font-semibold text-white">Waiting for everyone to load...</p>
+  </section>
+
+  <!-- Pick a move -->
+  <section id="rps-popup" class="card reveal w-full max-w-lg p-5 text-center sm:p-7" hidden>
+    <p class="eyebrow">Round <span id="rps-round">1</span> of <span id="rps-rounds">3</span></p>
+    <h2 id="rps-title" class="mt-1 text-2xl font-bold tracking-tight text-white">Choose your move</h2>
+    <p class="mt-3 text-5xl font-extrabold text-white tabular-nums" id="rps-countdown" aria-live="off">7</p>
+    <div class="mx-auto mt-2 mb-5 h-1.5 max-w-xs overflow-hidden rounded-full bg-white/10"><div id="rps-bar" class="h-full w-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style="transition: width 0.15s linear"></div></div>
+    <div id="rps-moves" class="grid grid-cols-3 gap-3">
+      <button class="rps-move group rounded-2xl border-2 border-white/10 bg-white/5 p-3 transition hover:border-brand-400/60 hover:bg-white/10 active:scale-95" data-move="rock" aria-pressed="false">
+        <img src="/images/rps-rock.png" alt="" class="mx-auto size-16 object-contain transition group-hover:scale-110 sm:size-20" width="80" height="80">
+        <span class="mt-2 block text-sm font-semibold text-white">Rock</span>
+      </button>
+      <button class="rps-move group rounded-2xl border-2 border-white/10 bg-white/5 p-3 transition hover:border-brand-400/60 hover:bg-white/10 active:scale-95" data-move="paper" aria-pressed="false">
+        <img src="/images/rps-paper.png" alt="" class="mx-auto size-16 object-contain transition group-hover:scale-110 sm:size-20" width="80" height="80">
+        <span class="mt-2 block text-sm font-semibold text-white">Paper</span>
+      </button>
+      <button class="rps-move group rounded-2xl border-2 border-white/10 bg-white/5 p-3 transition hover:border-brand-400/60 hover:bg-white/10 active:scale-95" data-move="scissors" aria-pressed="false">
+        <img src="/images/rps-scissors.png" alt="" class="mx-auto size-16 object-contain transition group-hover:scale-110 sm:size-20" width="80" height="80">
+        <span class="mt-2 block text-sm font-semibold text-white">Scissors</span>
+      </button>
     </div>
+    <p id="rps-hint" class="mt-4 text-sm text-slate-400">No pick? A random move is chosen for you.</p>
+  </section>
+
+  <!-- Reveal -->
+  <section id="rps-reveal" class="w-full max-w-2xl text-center" hidden>
+    <p class="eyebrow">Round <span id="rps-reveal-round">1</span> results</p>
+    <h2 id="rps-reveal-title" class="mt-1 mb-5 text-2xl font-bold tracking-tight text-white">Moves revealed</h2>
+    <div id="rps-reveal-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3"></div>
+  </section>
 </div>

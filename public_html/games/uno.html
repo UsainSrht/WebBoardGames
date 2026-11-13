@@ -1,22 +1,49 @@
-<div id="uno-root" class="absolute inset-0 flex flex-col items-center justify-between px-3 pt-16 pb-4 text-white">
-    <div id="uno-players" class="flex flex-wrap justify-center gap-2"></div>
-    <div class="flex flex-col items-center gap-3">
-        <div class="flex items-center gap-6">
-            <button id="uno-deck" class="w-20 h-28 rounded-xl bg-gray-900 border-4 border-white flex flex-col items-center justify-center font-black text-red-500 hover:scale-105 transition-transform disabled:opacity-60">
-                UNO<span id="uno-deck-count" class="text-xs text-gray-300 font-normal"></span>
-            </button>
-            <div id="uno-top" class="w-24 h-32 rounded-xl border-4 border-white flex items-center justify-center text-4xl font-black"></div>
-        </div>
-        <p id="uno-color" class="text-sm text-gray-300"></p>
-        <p id="uno-log" class="text-indigo-300 h-6 text-center"></p>
-        <p id="uno-timer" class="text-sm text-gray-400 h-4"></p>
-        <button id="uno-pass" class="hidden px-6 py-2 rounded-xl bg-white/10 hover:bg-white/20">Keep card &amp; pass</button>
+<div id="uno-root" class="absolute inset-0 flex flex-col justify-between gap-2 pt-16 pb-[max(env(safe-area-inset-bottom),0.75rem)] [--cw:4.2rem] [--ch:6.2rem] sm:[--cw:5.2rem] sm:[--ch:7.6rem] lg:[--cw:5.8rem] lg:[--ch:8.5rem]">
+  <!-- Opponents -->
+  <div class="scroll-y shrink-0 px-3">
+    <ul id="uno-players" class="mx-auto flex w-max gap-2"></ul>
+  </div>
+
+  <!-- Table -->
+  <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3">
+    <div class="flex items-center gap-5 sm:gap-8">
+      <button id="uno-deck" class="relative grid place-items-center rounded-xl border-[3px] border-white bg-ink-900 text-center shadow-xl transition hover:-translate-y-1 active:scale-95 disabled:opacity-60 disabled:hover:translate-y-0" style="width: calc(var(--cw) * 1.2); height: calc(var(--ch) * 1.2)" aria-label="Draw a card">
+        <span class="-rotate-12 text-xl font-black tracking-tight text-rose-500 italic">UNO</span>
+        <span id="uno-deck-count" class="absolute bottom-1.5 text-[10px] font-semibold text-slate-400"></span>
+      </button>
+      <div class="relative">
+        <div id="uno-top"></div>
+        <span id="uno-color-ring" class="absolute -right-3 -bottom-3 grid size-9 place-items-center rounded-full border-[3px] border-white shadow-lg" title="Current colour"></span>
+      </div>
     </div>
-    <div id="uno-hand" class="flex flex-wrap justify-center gap-2 max-w-4xl"></div>
-    <div id="uno-colors" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-        <div class="glass-card rounded-2xl p-6 text-center">
-            <p class="mb-4 font-semibold">Choose a colour</p>
-            <div class="grid grid-cols-2 gap-3" id="uno-color-options"></div>
-        </div>
+    <p id="uno-log" class="max-w-md text-center text-sm font-medium text-slate-200" aria-live="polite"></p>
+    <div class="w-56 max-w-full">
+      <div class="h-1.5 overflow-hidden rounded-full bg-white/10"><div id="uno-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style="transition: width 0.15s linear"></div></div>
+      <p id="uno-timer" class="mt-1 h-4 text-center text-xs text-slate-400"></p>
     </div>
+    <button id="uno-pass" class="btn btn-secondary" hidden><i data-icon="arrow-right" class="size-4"></i>Keep card and pass</button>
+  </div>
+
+  <!-- Hand -->
+  <div class="shrink-0">
+    <p id="uno-hand-label" class="mb-1 px-4 text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
+    <div class="scroll-y px-3 pt-3 pb-1" style="overflow-y: hidden">
+      <div id="uno-hand" class="mx-auto flex w-max items-end gap-2"></div>
+    </div>
+  </div>
+
+  <!-- Colour picker -->
+  <div id="uno-colors" class="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm" hidden>
+    <div class="card p-6 text-center">
+      <p class="mb-4 font-semibold text-white">Choose a colour</p>
+      <div id="uno-color-options" class="grid grid-cols-2 gap-3"></div>
+    </div>
+  </div>
+
+  <!-- Winner -->
+  <div id="uno-winner" class="card animate-pop absolute top-1/2 left-1/2 z-30 w-72 -translate-x-1/2 -translate-y-1/2 p-6 text-center" hidden>
+    <span class="mx-auto mb-2 grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"><i data-icon="trophy" class="size-6"></i></span>
+    <p id="uno-winner-text" class="text-xl font-bold text-white"></p>
+    <p class="mt-1 text-sm text-slate-400">Returning to the lobby shortly.</p>
+  </div>
 </div>

@@ -465,6 +465,14 @@ window.getUserSecret = function () {
 window.io = function(url, options = {}) {
   // Extract room from URL if present, otherwise use 'lobby'
   const socket = new SocketClient(options);
+
+  // Come back instantly when the network returns or the tab/phone wakes up.
+  const revive = () => {
+    if (!socket.isConnected() && !socket.connecting && socket.roomCode) socket.forceReconnect();
+  };
+  window.addEventListener('online', revive);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revive(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) revive(); });
   
   // Auto-connect is deferred - call socket.connect(roomCode) to connect
   // For backwards compatibility, we'll connect to lobby by default

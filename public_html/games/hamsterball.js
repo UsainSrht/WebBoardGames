@@ -12,6 +12,12 @@ class HamsterballGame {
         this.keys = {};
         this.gameStarted = false;
         this.gameOver = false;
+        this.spectator = WBG.isSpectator;
+        this.touch = { x: 0, y: 0, boost: false };
+        this.cleanups = [];
+        this.raf = 0;
+        this.lastVx = 0;
+        this.lastVy = 0;
         
         this.init();
         this.setupEventListeners();
@@ -21,7 +27,7 @@ class HamsterballGame {
     init() {
         // Scene setup
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.Fog(0x87CEEB, 300, 1000);
+        this.scene.fog = new THREE.Fog(0x0b1020, 500, 1100);
         
         // Fixed Isometric Camera
         this.camera = new THREE.OrthographicCamera(
@@ -35,8 +41,8 @@ class HamsterballGame {
         this.camera.lookAt(0, 0, 0);
         
         // Renderer
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
+        this.renderer.setClearColor(0x0b1020, 0);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         
@@ -139,6 +145,7 @@ class HamsterballGame {
         });
         const rim = new THREE.Mesh(rimGeometry, rimMaterial);
         rim.position.y = 0;
+        rim.rotation.x = Math.PI / 2; // lay the ring flat on the plate
         rim.castShadow = true;
         this.plateGroup.add(rim);
         
@@ -301,8 +308,8 @@ class HamsterballGame {
             transparent: true
         });
         const label = new THREE.Sprite(labelMaterial);
-        label.position.y = 25;
-        label.scale.set(32, 8, 1);
+        label.position.y = 28;
+        label.scale.set(46, 11.5, 1);
         ballGroup.add(label);
         
         // Add movement trail effect
@@ -327,37 +334,31 @@ class HamsterballGame {
     }
     
     connectToServer() {
-        socket.emit('hamsterball-ready');
-        
+        for (const ev of ['init', 'state', 'removePlayer', 'gameOver']) socket.off(ev);
+
         socket.on('init', ({ id, players }) => {
-            console.log('Game initialized', { id, players });
             this.myPlayerId = id;
             this.players = players;
             this.gameStarted = true;
-            
-            // Hide loading indicator
+            this.gameOver = false;
+            document.getElementById('gameStatus').hidden = true;
             document.getElementById('loadingIndicator').style.display = 'none';
-            
-            // Create all player meshes
-            for (let playerId in this.players) {
-                this.createPlayer(playerId, this.players[playerId]);
-            }
-            
+            document.getElementById('spectatorNote').hidden = !this.spectator;
+
+            // (Re)create all player meshes; init is also sent again after a page reload.
+            for (const mesh of Object.values(this.playerMeshes)) this.scene.remove(mesh);
+            this.playerMeshes = {};
+            for (const playerId in this.players) this.createPlayer(playerId, this.players[playerId]);
             this.updateUI();
         });
-        
+
         socket.on('state', ({ players, plateTilt }) => {
             this.players = players;
-            
-            // Update plate tilt from server data
-            if (plateTilt) {
-                this.updatePlateTiltFromServer(plateTilt);
-            }
-            
+            if (plateTilt) this.updatePlateTiltFromServer(plateTilt);
             this.updateGameState();
             this.updateUI();
         });
-        
+
         socket.on('removePlayer', ({ odId }) => {
             if (this.playerMeshes[odId]) {
                 this.scene.remove(this.playerMeshes[odId]);
@@ -366,70 +367,116 @@ class HamsterballGame {
             delete this.players[odId];
             this.updateUI();
         });
-        
+
         socket.on('gameOver', () => {
             this.gameOver = true;
-            document.getElementById('gameStatus').style.display = 'block';
+            this.sendMove(0, 0);
+            document.getElementById('gameStatus').hidden = false;
         });
-        
-        socket.on('connect_error', ({ message }) => {
-            console.error('Connection error:', message);
-            document.getElementById('connectionStatus').textContent = 'Connection failed. Retrying...';
-        });
+
+        WBG.gameReady('hamsterball-ready');
     }
-    
+
     setupEventListeners() {
-        // Keyboard controls
-        document.addEventListener('keydown', (e) => {
+        const keydown = (e) => {
+            if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
             this.keys[e.code] = true;
+        };
+        const keyup = (e) => { this.keys[e.code] = false; };
+        const blur = () => { this.keys = {}; };
+        const resize = () => this.onResize();
+
+        document.addEventListener('keydown', keydown);
+        document.addEventListener('keyup', keyup);
+        window.addEventListener('blur', blur);
+        window.addEventListener('resize', resize);
+        this.cleanups.push(() => {
+            document.removeEventListener('keydown', keydown);
+            document.removeEventListener('keyup', keyup);
+            window.removeEventListener('blur', blur);
+            window.removeEventListener('resize', resize);
         });
-        
-        document.addEventListener('keyup', (e) => {
-            this.keys[e.code] = false;
-        });
-        
-        // Window resize - update orthographic camera
-        window.addEventListener('resize', () => {
-            const aspect = window.innerWidth / window.innerHeight;
-            const frustumSize = 800;
-            
-            this.camera.left = -frustumSize * aspect / 2;
-            this.camera.right = frustumSize * aspect / 2;
-            this.camera.top = frustumSize / 2;
-            this.camera.bottom = -frustumSize / 2;
-            
-            this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+
+        this.setupTouchControls();
+        this.onResize();
     }
-    
-    handleInput() {
-        if (!this.gameStarted || this.gameOver || !socket) return;
-        
-        let vx = 0, vy = 0;
-        let boost = 1;
-        
-        // Boost when spacebar is pressed
-        if (this.keys['Space']) {
-            boost = 2;
-        }
-        
-        // Movement input
-        if (this.keys['KeyW'] || this.keys['ArrowUp']) vy -= 1 * boost;
-        if (this.keys['KeyS'] || this.keys['ArrowDown']) vy += 1 * boost;
-        if (this.keys['KeyA'] || this.keys['ArrowLeft']) vx -= 1 * boost;
-        if (this.keys['KeyD'] || this.keys['ArrowRight']) vx += 1 * boost;
-        
-        // Normalize diagonal movement
-        if (vx !== 0 && vy !== 0) {
-            vx *= 0.707;
-            vy *= 0.707;
-        }
-        
-        // Send movement to server
+
+    onResize() {
+        const w = this.canvas.clientWidth || window.innerWidth;
+        const h = this.canvas.clientHeight || window.innerHeight;
+        const aspect = w / h;
+        // Keep the whole plate visible on tall (phone) screens as well as wide ones.
+        const frustum = aspect < 1 ? 640 / aspect : 640;
+        this.camera.left = -frustum * aspect / 2;
+        this.camera.right = frustum * aspect / 2;
+        this.camera.top = frustum / 2;
+        this.camera.bottom = -frustum / 2;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        this.renderer.setSize(w, h, false);
+    }
+
+    setupTouchControls() {
+        const stick = document.getElementById('joystick');
+        const knob = document.getElementById('joystickKnob');
+        const boost = document.getElementById('boostBtn');
+        if (!stick || !boost) return;
+        let pointerId = null;
+
+        const move = (e) => {
+            const r = stick.getBoundingClientRect();
+            const max = r.width / 2;
+            let dx = e.clientX - (r.left + max);
+            let dy = e.clientY - (r.top + max);
+            const len = Math.hypot(dx, dy);
+            if (len > max) { dx = (dx / len) * max; dy = (dy / len) * max; }
+            knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            this.touch.x = Math.abs(dx / max) < 0.15 ? 0 : dx / max;
+            this.touch.y = Math.abs(dy / max) < 0.15 ? 0 : dy / max;
+        };
+        const end = (e) => {
+            if (e.pointerId !== pointerId) return;
+            pointerId = null;
+            this.touch.x = this.touch.y = 0;
+            knob.style.transform = 'translate(-50%, -50%)';
+        };
+        stick.addEventListener('pointerdown', (e) => { pointerId = e.pointerId; stick.setPointerCapture(pointerId); move(e); });
+        stick.addEventListener('pointermove', (e) => { if (e.pointerId === pointerId) move(e); });
+        stick.addEventListener('pointerup', end);
+        stick.addEventListener('pointercancel', end);
+
+        boost.addEventListener('pointerdown', (e) => { boost.setPointerCapture(e.pointerId); this.touch.boost = true; });
+        const boostEnd = () => { this.touch.boost = false; };
+        boost.addEventListener('pointerup', boostEnd);
+        boost.addEventListener('pointercancel', boostEnd);
+    }
+
+    sendMove(vx, vy) {
+        // The server keeps the last input, so only changes need to be sent.
+        if (vx === this.lastVx && vy === this.lastVy) return;
+        this.lastVx = vx;
+        this.lastVy = vy;
         socket.emit('hamsterball-move', { vx, vy });
     }
-    
+
+    handleInput() {
+        if (!this.gameStarted || this.gameOver || this.spectator) return;
+
+        let vx = 0, vy = 0;
+        const boost = this.keys['Space'] || this.touch.boost ? 2 : 1;
+
+        if (this.keys['KeyW'] || this.keys['ArrowUp']) vy -= 1;
+        if (this.keys['KeyS'] || this.keys['ArrowDown']) vy += 1;
+        if (this.keys['KeyA'] || this.keys['ArrowLeft']) vx -= 1;
+        if (this.keys['KeyD'] || this.keys['ArrowRight']) vx += 1;
+        if (vx !== 0 && vy !== 0) { vx *= 0.707; vy *= 0.707; }
+
+        // analog touch input overrides the keyboard when active
+        if (this.touch.x || this.touch.y) { vx = this.touch.x; vy = this.touch.y; }
+
+        this.sendMove(Math.round(vx * boost * 100) / 100, Math.round(vy * boost * 100) / 100);
+    }
+
     updateGameState() {
         // Update player positions and animations
         for (let playerId in this.players) {
@@ -494,47 +541,40 @@ class HamsterballGame {
     
     updateUI() {
         const playerInfo = document.getElementById('playerInfo');
-        playerInfo.innerHTML = '';
-        
-        for (let playerId in this.players) {
-            const player = this.players[playerId];
-            const playerDiv = document.createElement('div');
-            playerDiv.className = 'player-item';
-            
-            if (playerId === this.myPlayerId) {
-                playerDiv.className += ' current-player';
-            }
-            
-            const hearts = '♥'.repeat(Math.max(0, player.hearts));
-            const emptyHearts = '♡'.repeat(Math.max(0, 3 - player.hearts));
-            
-            playerDiv.innerHTML = `
-                <span>${player.name}</span>
-                <span class="hearts">
-                    <span class="heart">${hearts}</span>
-                    <span class="heart" style="opacity: 0.3;">${emptyHearts}</span>
-                </span>
-            `;
-            
-            playerInfo.appendChild(playerDiv);
-        }
+        if (!playerInfo) return;
+        // state arrives 30 times a second; only rebuild the list when something visible changed
+        const sig = this.myPlayerId + JSON.stringify(Object.entries(this.players).map(([id, p]) => [id, p.name, p.hearts]));
+        if (sig === this.uiSig) return;
+        this.uiSig = sig;
+        const rows = Object.entries(this.players).map(([playerId, player]) => {
+            const mine = playerId === this.myPlayerId;
+            const hearts = Array.from({ length: 3 }, (_, i) =>
+                WBG.icon('heart', `size-4 ${i < player.hearts ? 'fill-rose-500 text-rose-500' : 'text-white/25'}`)).join('');
+            const li = document.createElement('li');
+            li.className = `flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm ${mine ? 'bg-brand-500/25 ring-1 ring-brand-400/50' : 'bg-white/5'}`;
+            li.innerHTML = `<span class="truncate text-white">${WBG.esc(player.name)}</span><span class="flex shrink-0 gap-0.5">${hearts}</span>`;
+            return li;
+        });
+        playerInfo.replaceChildren(...rows);
     }
-    
+
     animate() {
-        requestAnimationFrame(() => this.animate());
-        
+        this.raf = requestAnimationFrame(() => this.animate());
+
         this.handleInput();
-        
-        // Add some ambient animations
-        if (this.gameStarted) {
-            // Rotate the plate very slightly for visual effect
-            if (this.plate) {
-                this.plate.rotation.y += 0.001;
-            }
-        }
-        
+
+        if (this.gameStarted && this.plate) this.plate.rotation.y += 0.001;
+
         this.renderer.render(this.scene, this.camera);
+    }
+
+    destroy() {
+        cancelAnimationFrame(this.raf);
+        for (const fn of this.cleanups.splice(0)) fn();
+        this.renderer.dispose();
+        this.renderer.forceContextLoss?.();
     }
 }
 
 const game = new HamsterballGame();
+WBG.onTeardown(() => game.destroy());

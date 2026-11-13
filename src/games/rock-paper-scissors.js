@@ -49,9 +49,7 @@ export class RockPaperScissors {
       const ws = this.room.getWsByUserId(odId);
       if (!ws) return;
       this.room.send(ws, { type: 'update-scoreboard', playerGameData: this.publicData() });
-      if (this.roundActive) {
-        this.room.send(ws, { type: 'rps-game-started', countdownEndUnix: this.countdownEndUnix });
-      }
+      if (this.roundActive) this.room.send(ws, this.startedMessage());
       return;
     }
 
@@ -68,6 +66,23 @@ export class RockPaperScissors {
 
     const ws = this.room.getWsByUserId(odId);
     if (ws) this.room.send(ws, { type: 'rps-move-selected', move });
+  }
+
+  startedMessage() {
+    return {
+      type: 'rps-game-started',
+      countdownEndUnix: this.countdownEndUnix,
+      round: this.round,
+      maxRounds: this.maxRounds
+    };
+  }
+
+  /** Late-joining spectator (host view): current scoreboard and round. */
+  spectatorSync(odId) {
+    const ws = this.room.getWsByUserId(odId);
+    if (!ws || !this.started) return;
+    this.room.send(ws, { type: 'update-scoreboard', playerGameData: this.publicData() });
+    if (this.roundActive) this.room.send(ws, this.startedMessage());
   }
 
   /** Scoreboard payload that doesn't leak moves while a round is still running. */
@@ -87,7 +102,7 @@ export class RockPaperScissors {
     this.roundActive = true;
     this.countdownEndUnix = Date.now() + this.countdown * 1000;
 
-    this.room.broadcast({ type: 'rps-game-started', countdownEndUnix: this.countdownEndUnix });
+    this.room.broadcast(this.startedMessage());
     this.room.broadcast({ type: 'update-scoreboard', playerGameData: this.publicData() });
 
     this.schedule(() => this.endRound(), this.countdown * 1000);
@@ -112,7 +127,13 @@ export class RockPaperScissors {
     this.processMoves();
 
     // Moves (for the reveal animation) and the updated scores go out together.
-    this.room.broadcast({ type: 'rps-game-ended', playerGameData: this.playerGameData });
+    this.room.broadcast({
+      type: 'rps-game-ended',
+      playerGameData: this.playerGameData,
+      round: this.round,
+      maxRounds: this.maxRounds,
+      final: this.round >= this.maxRounds
+    });
     this.room.broadcast({ type: 'update-scoreboard', playerGameData: this.playerGameData });
 
     for (const data of Object.values(this.playerGameData)) data.move = null;

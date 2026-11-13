@@ -8,6 +8,7 @@ const fakeRoom = () => ({
   broadcast(m) { this.sent.push(m); },
   send(ws, m) { this.sent.push(m); },
   getWsByUserId() { return null; },
+  spectatorIds() { return []; },
   endGame() {}
 });
 
@@ -132,4 +133,34 @@ test('chess: move validation, turn order and resignation', () => {
   c.handleMessage(w, 'chess-resign');
   assert.equal(c.result.winner, b);
   c.cleanup();
+});
+
+test('uno host view never receives a hand', () => {
+  const sent = [];
+  const room = {
+    ...fakeRoom(),
+    spectatorIds: () => ['host'],
+    getWsByUserId: (id) => ({ id }),
+    send(ws, m) { sent.push({ to: ws.id, m }); }
+  };
+  const u = new Uno(room, { a: { name: 'A' }, b: { name: 'B' } });
+  u.running = true;
+  u.broadcastState();
+  const forHost = sent.filter(s => s.to === 'host').map(s => s.m);
+  assert.equal(forHost.length, 1);
+  assert.deepEqual(forHost[0].hand, []);
+  assert.equal(forHost[0].spectator, true);
+  assert.equal(forHost[0].players.length, 2);
+  u.cleanup();
+});
+
+test('kingdomino logs events so a late joiner can replay them', () => {
+  const sent = [];
+  const room = { ...fakeRoom(), getWsByUserId: () => ({}), send: (ws, m) => sent.push(m) };
+  const k = new Kingdomino(room, { a: { name: 'A' } });
+  k.handleMessage('a', 'kingdomino-create-finish', {});
+  assert.ok(k.log.some(m => m.type === 'kingdomino-game-start'));
+  k.replayTo('someone');
+  assert.deepEqual(sent.map(m => m.type), k.log.map(m => m.type));
+  k.cleanup();
 });

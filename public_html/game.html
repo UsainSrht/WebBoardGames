@@ -1,1205 +1,243 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Room | Web Board Games</title>
-    <meta name="robots" content="noindex, nofollow">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/tailwind.css">
-    <script src="/socket-client.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { font-family: 'Inter', sans-serif; }
-        body {
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
-            min-height: 100vh;
-        }
-        .glass-card {
-            background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .glow-button {
-            position: relative;
-            overflow: hidden;
-        }
-        .glow-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-        .glow-button:hover::before { left: 100%; }
-        .pulse-animation { animation: pulse 2s ease-in-out infinite; }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        .slide-in-right {
-            animation: slideInRight 0.3s ease-out;
-        }
-        @keyframes slideInRight {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
-        }
-        .wbg-ready { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
-        .wbg-not-ready { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); }
-        .animation-pulse { animation: pulse 2s ease-in-out infinite; }
-        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-        .scrollbar-thin::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
-        .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game Room - Web Board Games</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#07090f">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/tailwind.css">
 </head>
-<body class="flex items-center justify-center h-screen">
-    
-    <!-- Game Board -->
-    <div id="game-board" class="w-full h-full absolute top-0 left-0">
-
-        <!-- <canvas id="canvas-board" class="w-full h-full"></canvas> -->
-
+<body>
+  <!-- Top bar -->
+  <header id="topbar" class="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between gap-2 bg-gradient-to-b from-ink-950/95 to-ink-950/0 px-2.5 safe-t sm:px-4">
+    <div class="flex min-w-0 items-center gap-1.5">
+      <button id="leave-btn" class="btn btn-ghost btn-icon btn-sm" aria-label="Leave room"><i data-icon="logout" class="size-5"></i></button>
+      <button id="room-chip" class="btn btn-secondary btn-sm gap-2 px-3" aria-label="Invite players: show QR code and link">
+        <i data-icon="qr" class="size-4 text-brand-300"></i>
+        <span id="room-code" class="font-mono text-[13px] font-bold tracking-[0.2em] text-white">------</span>
+      </button>
+      <span id="role-chip" class="chip chip-brand hidden sm:inline-flex" hidden><i data-icon="eye" class="size-3.5"></i>Host view</span>
     </div>
-    
-    <!-- Lobby Popup -->
-    <div id="lobby-popup" class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-11/12 max-w-4xl glass-card p-6 rounded-3xl shadow-2xl transition-all duration-500 ease-in-out">
-        <div>
-            <h1 class="text-3xl font-bold text-center text-white mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Game Lobby</h1>
-            <div class="flex flex-col md:flex-row gap-6">
-                <div class="relative w-full md:w-1/2 flex flex-col">
-                    <h2 class="text-lg font-semibold text-white text-center mb-3 flex items-center justify-center gap-2">
-                        <span>👥</span> Players
-                    </h2>
-                    <div class="overflow-y-auto h-64 scrollbar-thin pr-2">
-                        <div id="lobby-players" class="space-y-2">
-                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
-                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
-                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
-                            <div class="bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-200 rounded-xl h-12"></div>
-                        </div>
-                    </div>
-                    <div class="mt-4">
-                        <button id="ready-button" onclick="toggleReady(this)" class="glow-button wbg-not-ready w-full h-12 rounded-xl flex items-center justify-center font-semibold transition-all hover:scale-[1.02]">
-                            <span class="text-white text-lg">✋ Ready Up</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="hidden md:block border-l border-white/10"></div>
-                <div class="w-full md:w-1/2">
-                    <h2 id="games-label" class="text-lg font-semibold text-center text-white mb-3 flex items-center justify-center gap-2">
-                        <span>🎮</span> Select Game
-                    </h2>
-                    <div class="overflow-y-auto h-80 scrollbar-thin">
-                        <div id="games" class="grid grid-cols-3 gap-3 p-1">
-                            <button id="game-rock-paper-scissors" onclick="selectGame('rock-paper-scissors')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white overflow-hidden group">
-                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🪨</div>
-                                <span class="text-xs">Rock Paper Scissors</span>
-                            </button>
-                            <button id="game-dice" onclick="selectGame('dice')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white overflow-hidden group">
-                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🎲</div>
-                                <span class="text-xs">Dice</span>
-                            </button>
-                            <button id="game-kingdomino" onclick="selectGame('kingdomino')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
-                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">👑</div>
-                                <span class="text-xs">Kingdomino</span>
-                            </button>
-                            <button id="game-hamsterball" onclick="selectGame('hamsterball')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
-                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🐹</div>
-                                <span class="text-xs">Hamsterball</span>
-                            </button>
-                            <button id="game-uno" onclick="selectGame('uno')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
-                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">🃏</div>
-                                <span class="text-xs">Uno</span>
-                            </button>
-                            <button id="game-chess" onclick="selectGame('chess')" class="bg-white/5 border-2 border-white/10 hover:bg-white/10 hover:border-indigo-500/50 transition-all duration-200 rounded-xl aspect-square text-center text-white group">
-                                <div class="text-3xl mb-1 group-hover:scale-110 transition-transform">♟️</div>
-                                <span class="text-xs">Chess</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+    <div class="flex items-center gap-1.5">
+      <span id="conn" class="grid size-9 place-items-center text-slate-500" title="Connecting" role="img" aria-label="Connecting"><i data-icon="wifi" class="size-5"></i></span>
+      <button id="people-btn" class="btn btn-secondary btn-icon btn-sm relative" aria-label="Players and chat">
+        <i data-icon="users" class="size-5"></i>
+        <span id="chat-badge" class="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[11px] leading-5 font-bold text-white" hidden>0</span>
+      </button>
+      <button id="settings-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="Settings"><i data-icon="settings" class="size-5"></i></button>
+    </div>
+  </header>
+
+  <!-- Connection banner -->
+  <div id="banner" class="fixed inset-x-0 z-30 flex justify-center px-4" style="top:calc(env(safe-area-inset-top) + 3.5rem)" hidden>
+    <div class="flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-ink-700/95 px-4 py-2.5 text-sm font-medium text-amber-200 shadow-xl backdrop-blur">
+      <i data-icon="spinner" class="size-4 animate-spin" id="banner-icon"></i>
+      <span id="banner-text">Reconnecting...</span>
+      <button id="banner-retry" class="btn btn-secondary btn-sm" hidden>Retry now</button>
+    </div>
+  </div>
+
+  <!-- Lobby -->
+  <main id="lobby" class="mx-auto w-full max-w-6xl px-4 pt-20 pb-40 sm:px-6 lg:pb-12">
+    <div class="reveal mb-6">
+      <p class="eyebrow">Lobby</p>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl" id="lobby-title">Getting your room ready</h1>
+      <p class="mt-1 text-sm text-slate-400" id="lobby-sub">Connecting...</p>
+    </div>
+
+    <div class="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+      <div class="space-y-5">
+        <!-- Invite -->
+        <section class="card reveal-2 flex items-center gap-4 p-4 sm:p-5" aria-label="Invite players">
+          <button id="invite-qr" class="relative size-24 shrink-0 overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg transition hover:scale-[1.03] sm:size-28" aria-label="Enlarge QR code">
+            <span id="invite-qr-svg" class="block size-full"></span>
+            <span class="skeleton absolute inset-0 rounded-2xl" id="invite-qr-skeleton"></span>
+          </button>
+          <div class="min-w-0 flex-1">
+            <p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Invite players</p>
+            <p id="invite-code" class="mt-0.5 font-mono text-2xl font-bold tracking-[0.25em] text-white sm:text-3xl">------</p>
+            <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">Scan the code or share the link</p>
+            <div class="mt-2.5 flex flex-wrap gap-2">
+              <button id="invite-copy" class="btn btn-secondary btn-sm"><i data-icon="copy" class="size-4"></i>Copy link</button>
+              <button id="invite-share" class="btn btn-secondary btn-sm" hidden><i data-icon="share" class="size-4"></i>Share</button>
             </div>
-        </div>
-    </div>
+          </div>
+        </section>
 
-    <!-- Settings Popup -->
-    <div id="settings-popup" class="hidden fixed top-0 left-0 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onclick="closePopup('settings-popup', event)">
-        <div class="glass-card rounded-2xl p-8 max-w-md w-full mx-4" onclick="event.stopPropagation();">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-white flex items-center gap-2">
-                    <span>⚙️</span> Settings
-                </h2>
-                <button onclick="closePopup('settings-popup')" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>                  
-                </button>
+        <!-- Players -->
+        <section class="card reveal-3 p-4 sm:p-5" aria-labelledby="players-title">
+          <div class="mb-3 flex items-center justify-between">
+            <h2 id="players-title" class="flex items-center gap-2 text-base font-semibold text-white"><i data-icon="users" class="size-5 text-brand-300"></i>Players</h2>
+            <span id="players-count" class="chip">0</span>
+          </div>
+          <ul id="player-list" class="space-y-2" aria-live="polite">
+            <li class="skeleton h-14"></li><li class="skeleton h-14"></li><li class="skeleton h-14"></li>
+          </ul>
+          <label id="hostview-row" class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/8 bg-white/4 p-3.5" hidden>
+            <input id="hostview-switch" type="checkbox" class="switch mt-0.5">
+            <span>
+              <span class="flex items-center gap-1.5 text-sm font-semibold text-white"><i data-icon="eye" class="size-4 text-brand-300"></i>Host view</span>
+              <span class="mt-0.5 block text-xs leading-relaxed text-slate-400">Watch and manage games without playing. You will not take a seat or need to ready up.</span>
+            </span>
+          </label>
+        </section>
+      </div>
+
+      <div class="space-y-5">
+        <!-- Games -->
+        <section class="card reveal-3 p-4 sm:p-5" aria-labelledby="games-title">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <h2 id="games-title" class="flex items-center gap-2 text-base font-semibold text-white"><i data-icon="dice" class="size-5 text-brand-300"></i>Game</h2>
+            <span id="games-hint" class="text-xs text-slate-400"></span>
+          </div>
+          <div id="game-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-labelledby="games-title"></div>
+        </section>
+
+        <!-- Actions (fixed bar on small screens) -->
+        <section id="action-bar" class="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-ink-900/92 p-3 safe-b backdrop-blur-xl lg:static lg:rounded-3xl lg:border lg:p-5 lg:pb-5" aria-label="Start game">
+          <div class="mx-auto flex max-w-2xl flex-col gap-3 lg:max-w-none">
+            <div class="flex items-center gap-3">
+              <span id="status-icon" class="grid size-9 shrink-0 place-items-center rounded-xl bg-white/8 text-slate-300"><i data-icon="info" class="size-5"></i></span>
+              <div class="min-w-0 flex-1">
+                <p id="status-text" class="truncate text-sm font-semibold text-white">Connecting...</p>
+                <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"><div id="ready-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-emerald-400 transition-all duration-300"></div></div>
+              </div>
             </div>
-            <div class="space-y-4">
-                <label class="flex items-center justify-between p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-all">
-                    <div>
-                        <span class="text-white font-medium">Sound Effects</span>
-                        <p class="text-sm text-gray-500">Play sounds during games</p>
-                    </div>
-                    <div class="relative">
-                        <input type="checkbox" value="" class="sr-only peer" checked>
-                        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </div>
-                </label>
-                <label class="flex items-center justify-between p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-all">
-                    <div>
-                        <span class="text-white font-medium">Notifications</span>
-                        <p class="text-sm text-gray-500">Show player join/leave alerts</p>
-                    </div>
-                    <div class="relative">
-                        <input type="checkbox" value="" class="sr-only peer" checked>
-                        <div class="w-11 h-6 bg-gray-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </div>
-                </label>
+            <div class="flex gap-2">
+              <button id="ready-btn" class="btn btn-primary btn-lg flex-1" disabled><i data-icon="check" class="size-5"></i><span>Ready</span></button>
+              <button id="start-btn" class="btn btn-lg btn-secondary" hidden><i data-icon="play" class="size-5"></i>Start now</button>
             </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Game stage (game fragments are loaded here) -->
+  <div id="game-board" class="fixed inset-0 z-10 overflow-hidden" hidden></div>
+
+  <!-- Game loading overlay -->
+  <div id="game-loading" class="fixed inset-0 z-20 grid place-items-center bg-ink-950/85 backdrop-blur-md" hidden>
+    <div class="text-center">
+      <div class="mx-auto mb-4 grid size-16 place-items-center rounded-3xl bg-gradient-to-br from-brand-500 to-violet-500 text-white shadow-xl shadow-brand-500/30 animate-pulse-soft"><span id="loading-icon"></span></div>
+      <p class="text-lg font-semibold text-white" id="loading-title">Starting game</p>
+      <p class="mt-1 text-sm text-slate-400" id="loading-sub">Loading...</p>
+    </div>
+  </div>
+
+  <!-- Room drawer: people + chat -->
+  <div id="drawer" class="drawer-backdrop" hidden>
+    <aside class="drawer-panel" role="dialog" aria-modal="true" aria-label="Room">
+      <div class="flex items-center gap-2 p-3">
+        <div class="flex flex-1 gap-1 rounded-xl bg-white/5 p-1" role="tablist">
+          <button class="tab" role="tab" id="tab-people-btn" aria-selected="true" aria-controls="tab-people">People</button>
+          <button class="tab relative" role="tab" id="tab-chat-btn" aria-selected="false" aria-controls="tab-chat">Chat<span id="tab-chat-dot" class="absolute top-1.5 right-2 size-2 rounded-full bg-rose-500" hidden></span></button>
         </div>
-    </div>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+      </div>
 
-    <!-- drawer component -->
-    <div id="player-sidebar" class="fixed top-0 right-0 z-40 h-screen p-4 overflow-y-auto transition-transform translate-x-full glass-card w-80 slide-in-right" tabindex="-1" aria-labelledby="drawer-right-label">
-        <!-- Players Section -->
-        <div id="players-section" class="h-1/3 overflow-y-auto scrollbar-thin">
-            <h5 id="drawer-right-label" class="inline-flex items-center mb-4 text-base font-semibold text-white">
-                <span class="mr-2">👥</span> Players
-            </h5>
-            <button type="button" data-drawer-hide="player-sidebar" aria-controls="player-sidebar" class="text-gray-400 bg-white/5 hover:bg-white/10 rounded-lg text-sm w-8 h-8 absolute top-2.5 end-2.5 inline-flex items-center justify-center transition-colors">
-                <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-                </svg>
-                <span class="sr-only">Close menu</span>
-            </button>
-            <div id="players" class="space-y-2"></div>
+      <div id="tab-people" class="scroll-y min-h-0 flex-1 space-y-4 px-3 pb-4" role="tabpanel">
+        <div id="host-controls" class="card-flat space-y-2 p-3" hidden>
+          <p class="px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">Host controls</p>
+          <div class="grid grid-cols-2 gap-2">
+            <button id="ctl-restart" class="btn btn-secondary btn-sm"><i data-icon="refresh" class="size-4"></i>Restart</button>
+            <button id="ctl-end" class="btn btn-secondary btn-sm"><i data-icon="flag" class="size-4"></i>End game</button>
+          </div>
         </div>
-        
-        <!-- Chat Section -->
-        <div id="chat-section" class="flex flex-col h-2/3 pt-4 border-t border-white/10 mt-4">
-            <h5 id="drawer-right-label-chat" class="inline-flex items-center mb-4 text-base font-semibold text-white">
-                <span class="mr-2">💬</span> Chat
-            </h5>
-            <div id="message-box" class="flex-grow p-3 overflow-y-auto border border-white/10 rounded-xl bg-white/5 scrollbar-thin"></div>
-            <div class="flex items-center mt-3 gap-2">
-                <input id="chat-input" type="text" placeholder="Type a message..." class="flex-grow p-3 border rounded-xl border-white/10 bg-white/5 text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 transition-colors" onkeydown="if (event.keyCode == 13) sendChatMessage()" maxlength="200">
-                <button id="send-btn" class="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-500 transition-colors" onclick="sendChatMessage()">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                    </svg>
-                </button>
-            </div>
+        <ul id="drawer-players" class="space-y-2"></ul>
+      </div>
+
+      <div id="tab-chat" class="flex min-h-0 flex-1 flex-col" role="tabpanel" hidden>
+        <div id="messages" class="scroll-y min-h-0 flex-1 space-y-2 px-3 pb-3" aria-live="polite"></div>
+        <form id="chat-form" class="flex items-center gap-2 border-t border-white/8 p-3" autocomplete="off">
+          <input id="chat-input" class="input h-11 flex-1" type="text" maxlength="200" placeholder="Message the room" enterkeyhint="send" aria-label="Message">
+          <button class="btn btn-primary btn-icon" type="submit" aria-label="Send"><i data-icon="send" class="size-5"></i></button>
+        </form>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Share / QR modal -->
+  <div id="share-modal" class="modal-backdrop" hidden>
+    <div class="modal text-center" role="dialog" aria-modal="true" aria-labelledby="share-title">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 id="share-title" class="modal-title">Invite to this room</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+      </div>
+      <div class="mx-auto aspect-square w-full max-w-64 rounded-3xl bg-white p-3 shadow-xl"><span id="share-qr" class="block size-full"></span></div>
+      <p class="mt-4 text-xs font-semibold tracking-wide text-slate-400 uppercase">Room code</p>
+      <p id="share-code" class="font-mono text-4xl font-bold tracking-[0.3em] text-white">------</p>
+      <p class="mt-1 text-sm text-slate-400">Friends can scan this with their camera to join.</p>
+      <div class="mt-5 grid grid-cols-2 gap-2">
+        <button id="share-copy" class="btn btn-secondary"><i data-icon="link" class="size-4"></i>Copy link</button>
+        <button id="share-code-copy" class="btn btn-secondary"><i data-icon="copy" class="size-4"></i>Copy code</button>
+      </div>
+      <button id="share-native" class="btn btn-primary mt-2 w-full" hidden><i data-icon="share" class="size-4"></i>Share</button>
+    </div>
+  </div>
+
+  <!-- Settings -->
+  <div id="settings-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="mb-5 flex items-center justify-between">
+        <h2 id="settings-title" class="modal-title">Settings</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+      </div>
+      <form id="rename-form" class="mb-5" novalidate>
+        <label class="field-label" for="rename-input">Nickname</label>
+        <div class="flex gap-2">
+          <input id="rename-input" class="input flex-1" maxlength="16" autocomplete="nickname" spellcheck="false">
+          <button class="btn btn-secondary" type="submit">Save</button>
         </div>
+        <p id="rename-error" class="field-error" hidden></p>
+      </form>
+      <div class="space-y-2">
+        <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/4 p-3.5">
+          <span><span class="block text-sm font-semibold text-white">Join and leave alerts</span><span class="block text-xs text-slate-400">Show a notification when players come and go</span></span>
+          <input id="set-notify" type="checkbox" class="switch">
+        </label>
+        <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/4 p-3.5">
+          <span><span class="block text-sm font-semibold text-white">Reduce motion</span><span class="block text-xs text-slate-400">Turn off animations and transitions</span></span>
+          <input id="set-motion" type="checkbox" class="switch">
+        </label>
+      </div>
     </div>
-    
-    <!-- UI Controls -->
-    <div class="fixed top-4 right-4 space-x-3 flex items-center">
-        <!-- Nickname -->
-        <span id="nickname-display" class="text-white text-lg font-medium bg-white/10 px-4 py-2 rounded-xl">Player</span>
+  </div>
 
-        <!-- Room Code -->
-        <button id="room-code-button" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all" onclick="copyRoomCode()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-            </svg>
-            <span id="room-code" class="font-mono font-bold tracking-wider">??????</span>
-        </button>
+  <!-- Nickname (when the server needs a name) -->
+  <div id="name-modal" class="modal-backdrop" data-static hidden>
+    <form id="name-form" class="modal" role="dialog" aria-modal="true" aria-labelledby="name-title" novalidate>
+      <div class="mb-5 text-center">
+        <div class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><i data-icon="user" class="size-7"></i></div>
+        <h2 id="name-title" class="modal-title">Choose a nickname</h2>
+        <p class="mt-1 text-sm text-slate-400">Other players in this room will see it.</p>
+      </div>
+      <input id="name-input" class="input" maxlength="16" placeholder="Enter nickname" autocomplete="nickname" spellcheck="false" data-autofocus aria-label="Nickname">
+      <p id="name-error" class="field-error" hidden></p>
+      <button class="btn btn-primary btn-lg mt-4 w-full" type="submit">Join room</button>
+    </form>
+  </div>
 
-        <!-- Server Status Icon -->
-        <button class="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all" onclick="ping(this)" title="Check connection">
-            <svg id="server-status-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-red-500">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 0 1 7.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 0 1 1.06 0Z" />
-            </svg>
-        </button>
-
-        <!-- Settings -->
-        <button onclick="openPopup('settings-popup')" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all" title="Settings">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-white">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-            </svg>              
-        </button>
-        
-        <!-- drawer init and toggle -->   
-        <button class="relative p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-all" type="button" data-drawer-target="player-sidebar" data-drawer-show="player-sidebar" data-drawer-placement="right" aria-controls="player-sidebar" title="Players & Chat">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-white">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-            </svg>    
-            <!-- Notification Badge -->
-            <span id="notification-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">!</span>
-        </button>
+  <!-- Confirm -->
+  <div id="confirm-modal" class="modal-backdrop" hidden>
+    <div class="modal text-center" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <div id="confirm-icon" class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-rose-500/15 text-rose-300"></div>
+      <h2 id="confirm-title" class="modal-title">Are you sure?</h2>
+      <p id="confirm-text" class="mt-1 text-sm text-slate-400"></p>
+      <div class="mt-6 grid grid-cols-2 gap-3">
+        <button id="confirm-cancel" class="btn btn-secondary" data-autofocus>Cancel</button>
+        <button id="confirm-ok" class="btn btn-danger">Confirm</button>
+      </div>
     </div>
-    <div class="fixed top-4 left-4 flex">
-        <button id="leave-room" class="flex items-center gap-2 px-4 py-2 text-white rounded-xl bg-white/10 hover:bg-red-600 transition-all" onclick="leaveRoomPopup()">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
-            </svg>
-            <span class="font-medium">Leave</span>
-        </button>
-    </div>
-
-    <!-- Nickname popup -->
-    <div id="nickname-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-        <div class="relative p-4 w-full max-w-md">
-            <div class="glass-card rounded-2xl p-8">
-                <div class="text-center mb-6">
-                    <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <span class="text-3xl">👤</span>
-                    </div>
-                    <h3 class="text-2xl font-bold text-white mb-2">Choose a Nickname</h3>
-                    <p class="text-gray-400">Pick a name for this game session</p>
-                </div>
-                <div class="space-y-4">
-                    <div class="relative">
-                        <input onkeydown="if (event.key === 'Enter') checkName()" type="text" id="nickname" class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500/50 transition-all" placeholder="Enter nickname" maxlength="16" required />
-                    </div>
-                    <p id="nickname-input-reply" class="text-sm text-red-400 hidden"></p>
-                    <button onclick="checkName()" class="glow-button w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-semibold text-white transition-all transform hover:scale-[1.02]">
-                        Continue →
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Leave Room popup -->
-    <div id="leave-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-        <div class="relative p-4 w-full max-w-sm">
-            <div class="glass-card rounded-2xl p-8 text-center">
-                <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <span class="text-3xl">👋</span>
-                </div>
-                <h3 class="text-2xl font-bold text-white mb-2">Leave Room?</h3>
-                <p class="text-gray-400 mb-6">You'll need to rejoin with the room code</p>
-                <div class="flex gap-4">
-                    <button id="leave-room-cancel" onclick="closeLeaveRoomPopup()" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
-                        Stay
-                    </button>
-                    <button onclick="leaveRoom()" class="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-medium rounded-xl transition-all">
-                        Leave
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Kick popup -->
-    <div id="kick-popup" class="hidden overflow-y-auto overflow-x-hidden fixed top-0 left-0 z-50 w-full h-full bg-black/60 backdrop-blur-sm flex items-center justify-center">
-        <div class="relative p-4 w-full max-w-sm">
-            <div class="glass-card rounded-2xl p-8 text-center">
-                <div id="kick-id" class="hidden"></div>
-                <div class="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <span class="text-3xl">🚫</span>
-                </div>
-                <h3 id="kick-name" class="text-xl font-bold text-white mb-2">Kick player?</h3>
-                <p class="text-gray-400 mb-6">They won't be able to rejoin this room</p>
-                <div class="flex gap-4">
-                    <button onclick="closeKickPopup()" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
-                        Cancel
-                    </button>
-                    <button onclick="kickPlayer(document.getElementById('kick-id').textContent); closeKickPopup();" class="flex-1 py-3 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-medium rounded-xl transition-all">
-                        Kick
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toast -->
-    <div id="toast-container" class="fixed top-0 left-0 z-50 p-4 space-y-2 mt-16"></div>
-
-    <script>
-        console.log("game debug start");
-        const socket = io();
-        window.socket = socket; // Make socket globally accessible
-        let hasJoinedRoom = false; // Flag to prevent double-joining
-
-        function escapeHtml(value) {
-            return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-        }
-
-        socket.onAny((eventName, ...args) => {
-            console.log(eventName, "in with args: ", args);
-        });
-
-        socket.on("error", ({ message }) => {
-            console.error("Error from server:", message);
-            showToast(message || "An error occurred", "error");
-        });
-
-        function tryJoinURLRoom() {
-            let params = new URLSearchParams(window.location.search);
-            if (params.has("room")) {
-                let roomCode = params.get("room");
-                joinRoom(roomCode);
-            } else {
-                //redirect to home page
-                window.location.href = "/index.html";
-            }
-        }
-
-        function getURLRoomCode() {
-            let params = new URLSearchParams(window.location.search);
-            return params.get("room");
-        }
-
-        function joinRoom(roomCode) {
-            socket.emit("join-room", roomCode);
-        }
-
-        // Server connection status
-        socket.on("connect", () => {
-            document.getElementById("server-status-icon").classList.remove("text-red-500", "text-yellow-500");
-            document.getElementById("server-status-icon").classList.add("text-green-500");
-            hideConnectionBanner();
-        });
-
-        socket.on("disconnect", () => {
-            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-yellow-500");
-            document.getElementById("server-status-icon").classList.add("text-red-500");
-            showConnectionBanner("Connection lost. Attempting to reconnect...", "error");
-        });
-        
-        socket.on("connecting", () => {
-            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-red-500");
-            document.getElementById("server-status-icon").classList.add("text-yellow-500");
-        });
-        
-        socket.on("reconnecting", ({ attempt, delay }) => {
-            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-red-500");
-            document.getElementById("server-status-icon").classList.add("text-yellow-500");
-            showConnectionBanner(`Reconnecting... (attempt ${attempt})`, "warning");
-        });
-        
-        socket.on("reconnect_failed", () => {
-            document.getElementById("server-status-icon").classList.remove("text-green-500", "text-yellow-500");
-            document.getElementById("server-status-icon").classList.add("text-red-500");
-            showConnectionBanner("Connection failed. Click to retry.", "error", true);
-        });
-        
-        socket.on("error", () => {
-            // Connection errors are handled by disconnect/reconnecting events
-        });
-        
-        function showConnectionBanner(message, type = "warning", showRetry = false) {
-            let banner = document.getElementById("connection-banner");
-            if (!banner) {
-                banner = document.createElement("div");
-                banner.id = "connection-banner";
-                banner.className = "fixed bottom-0 left-0 right-0 p-3 text-center text-white font-medium z-50 transition-all duration-300";
-                document.body.appendChild(banner);
-            }
-            
-            const bgClass = type === "error" 
-                ? "bg-gradient-to-r from-red-600 to-rose-600" 
-                : "bg-gradient-to-r from-yellow-600 to-orange-600";
-            
-            banner.className = `fixed bottom-0 left-0 right-0 p-3 text-center text-white font-medium z-50 transition-all duration-300 ${bgClass}`;
-            
-            if (showRetry) {
-                banner.innerHTML = `
-                    <span>${message}</span>
-                    <button onclick="socket.forceReconnect(); this.parentElement.classList.add('hidden');" class="ml-4 px-4 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-all">
-                        🔄 Retry Now
-                    </button>
-                `;
-            } else {
-                banner.innerHTML = `
-                    <span>${message}</span>
-                    <span class="ml-2 inline-block animate-pulse">●</span>
-                `;
-            }
-            banner.classList.remove("hidden");
-        }
-        
-        function hideConnectionBanner() {
-            const banner = document.getElementById("connection-banner");
-            if (banner) {
-                banner.classList.add("hidden");
-            }
-        }
-
-        socket.on("connect-user", ({ odId, name, inRoom }) => {
-            console.log('connect-user received:', { odId, name, inRoom });
-            console.log('  hasJoinedRoom:', hasJoinedRoom);
-            localStorage.setItem("userId", odId);
-            if (name) {
-                localStorage.setItem("userName", name);
-                document.getElementById("nickname-display").textContent = name;
-                console.log('  name is set, updated display to:', name);
-            }
-            const urlRoomCode = getURLRoomCode();
-            document.getElementById("room-code").textContent = urlRoomCode || "?????";
-            
-            // Join if we have a name
-            if (name && urlRoomCode) {
-                if (!hasJoinedRoom) {
-                    hasJoinedRoom = true;
-                    console.log('  calling joinRoom with:', urlRoomCode);
-                    joinRoom(urlRoomCode);
-                } else if (!inRoom) {
-                    // We submitted a name but haven't joined the room yet
-                    console.log('  already set hasJoinedRoom but not inRoom, calling joinRoom again');
-                    joinRoom(urlRoomCode);
-                } else {
-                    console.log('  hasJoinedRoom is true and inRoom, not calling joinRoom');
-                }
-            } else if (!name) {
-                // No name - wait for request-nickname event
-                console.log('  No name, waiting for nickname request');
-            } else if (!urlRoomCode) {
-                console.log('  No urlRoomCode, redirecting to index');
-                window.location.href = "/index.html";
-            }
-        });
-
-        socket.on("return-to-main-page", () => {
-            window.location.href = "/index.html";
-        });
-
-        let host;
-        let isHost;
-        let started;
-        let game;
-        let minPlayers;
-        let maxPlayers;
-        socket.on("send-room-data", ({ players, host: receivedHost, started: isStarted, game: selectedGame, gameMin, gameMax, gameName }) => {
-            const urlRoomCode = getURLRoomCode();
-            document.getElementById("room-code").textContent = urlRoomCode;
-            host = receivedHost;
-            isHost = localStorage.getItem("userId") === host;
-            started = isStarted;
-            game = selectedGame;
-            minPlayers = gameMin;
-            maxPlayers = gameMax;
-            if (!started) showSelectedGame(game, minPlayers, maxPlayers, gameName);
-            updatePlayerList(players);
-        });
-
-        socket.on("request-user-id", () => {
-            const storedId = localStorage.getItem("userId") || null;
-            const storedName = localStorage.getItem("userName") || null;
-            console.log('request-user-id received');
-            console.log('  storedId from localStorage:', storedId);
-            console.log('  storedName from localStorage:', storedName);
-            socket.emit("send-user-id", { odId: storedId, name: storedName, secret: getUserSecret() });
-            console.log('  emitted send-user-id with:', { odId: storedId, name: storedName });
-        });
-
-        socket.on("request-nickname", (data) => {
-            const nameTaken = !!(data && data.taken);
-            console.log('request-nickname received');
-            // Check if we have a stored name and auto-submit it
-            const storedName = localStorage.getItem("userName");
-            console.log('  storedName from localStorage:', storedName);
-            if (!nameTaken && storedName && storedName.length >= 3 && storedName.length <= 16) {
-                console.log('  Auto-submitting stored name:', storedName);
-                // Auto-submit the stored name
-                // The server will send connect-user back, which will trigger joinRoom
-                socket.emit("submit-name", { name: storedName, isInGame: true });
-                return;
-            }
-            
-            // Otherwise show the nickname popup
-            console.log('  No valid stored name, showing nickname popup');
-            const nicknamePopup = document.getElementById("nickname-popup");
-            nicknamePopup.classList.remove("hidden");
-            if (nameTaken) nicknameReply("That name is not available in this room, please pick another one.");
-            const nicknameInput = document.getElementById("nickname");
-            if (storedName) {
-                nicknameInput.value = storedName;
-            }
-            nicknameInput.focus();
-        });
-
-        function checkName() {
-            let name = document.getElementById('nickname').value.trim();
-
-            if (name.length < 3) {
-                nicknameReply("Minimum nickname length is 3");
-                return;
-            } else if (name.length > 16) {
-                nicknameReply("Maximum nickname length is 16");
-                return;
-            }
-
-            submitName(name);
-        }
-
-        function submitName(name) {
-            console.log('submitName called with:', name);
-            // name, isInGame
-            localStorage.setItem("userName", name);
-            socket.emit("submit-name", { name: name, isInGame: true });
-
-            const nicknameForm = document.getElementById('nickname-popup');
-            nicknameForm.classList.add("hidden");
-            
-            document.getElementById("nickname-display").textContent = name;
-            // Don't call joinRoom here - wait for connect-user response from server
-        }
-
-        function nicknameReply(message) {
-            let reply = document.getElementById("nickname-input-reply");
-            reply.classList.remove("hidden");
-            reply.textContent = message;
-        }
-
-        socket.on("player-joined", ({ name }) => {
-            showToast(`${name} joined.`);
-            sendSystemMessage(`${name} joined the game.`);
-        });
-
-        socket.on("player-left", ({ name }) => {
-            showToast(`${name} left.`);
-            sendSystemMessage(`${name} left the game.`);
-        });
-
-        socket.on("player-kicked", ({ name }) => {
-            showToast(`${name} got kicked.`);
-            sendSystemMessage(`${name} got kicked.`);
-        });
-
-        socket.on("you-got-kicked", () => {
-            alert("You got kicked from the room.");
-            window.location.href = "/index.html";
-        });
-
-        socket.on("player-list", ({ players }) => {
-            updatePlayerList(players);
-        });
-
-        socket.on("chat-message", ({ message, name }) => {
-            const messageBox = document.getElementById("message-box");
-            const messageDiv = document.createElement("div");
-            messageDiv.classList.add(
-                "p-3", 
-                "bg-white/10", 
-                "rounded-xl", 
-                "mb-2", 
-                "text-white",
-                "break-words"
-            );
-            const author = document.createElement("strong");
-            author.className = "text-indigo-400";
-            author.textContent = `${name}: `;
-            messageDiv.append(author, document.createTextNode(message));
-            messageBox.appendChild(messageDiv);
-            messageBox.scrollTop = messageBox.scrollHeight;
-            if (!isDrawerOpen()) document.getElementById("notification-badge").classList.remove("hidden");
-        });
-
-        socket.on("system-message", ({ message }) => {
-            sendSystemMessage(message);
-        });
-
-        function sendSystemMessage(message) {
-            const messageBox = document.getElementById("message-box");
-            const messageDiv = document.createElement("div");
-            messageDiv.classList.add("p-2", "text-center", "text-gray-500", "text-sm", "italic", "mb-2");
-            messageDiv.textContent = message;
-            messageBox.appendChild(messageDiv);
-            messageBox.scrollTop = messageBox.scrollHeight;
-        }
-
-        function sendChatMessage() {
-            const chatInput = document.getElementById("chat-input");
-            let message = chatInput.value.trim();
-            if (message.length > 200) {
-                showToast("Message too long. Max 200 characters.");
-                message = message.substring(0, 200); // Trim to 200 characters
-            }
-            if (message) {
-                socket.emit("chat-message", { message: message });
-                chatInput.value = ""; // Clear the input field
-            }
-        }
-
-        function openPopup(id) {
-            document.getElementById(id).classList.remove('hidden');
-        }
-        function closePopup(id, event) {
-            if (!event || event.target.id === id) {
-                document.getElementById(id).classList.add('hidden');
-            }
-        }
-
-        let lastPlayers = [];
-
-        socket.on("host-changed", ({ host: newHost }) => {
-            host = newHost;
-            isHost = localStorage.getItem("userId") === host;
-            updatePlayerList(lastPlayers);
-            if (isHost) showToast("You are now the host.");
-        });
-
-        function updatePlayerList(players) {
-            lastPlayers = players;
-            const playersDiv = document.getElementById("players");
-            playersDiv.innerHTML = "";
-            const lobbyPlayersDiv = document.getElementById("lobby-players");
-            lobbyPlayersDiv.innerHTML = "";
-            players.forEach(player => {
-                for (let name in player) {
-                    let userId = player[name];
-                    const li = document.createElement("div");
-                    li.classList.add(
-                        "flex", "justify-between", "items-center", "p-3",
-                        "bg-gradient-to-r", "from-indigo-600/80", "to-purple-600/80", 
-                        "hover:from-indigo-500/80", "hover:to-purple-500/80",
-                        "text-white", "rounded-xl", "shadow-md", "transition-all", "duration-200"
-                    );
-                    
-                    const nameSpan = document.createElement("span");
-                    nameSpan.className = "font-medium";
-                    nameSpan.textContent = name;
-                    li.appendChild(nameSpan);
-
-                    if (userId === host) {
-                        const crown = document.createElement("span");
-                        crown.className = "text-yellow-400";
-                        crown.title = "Host";
-                        crown.textContent = "👑";
-                        li.appendChild(crown);
-                    } else if (isHost) {
-                        const kickButton = document.createElement("button");
-                        kickButton.className = "p-1.5 rounded-lg bg-white/10 hover:bg-red-500 transition-all";
-                        kickButton.title = "Kick player";
-                        kickButton.innerHTML = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
-                            </svg>`;
-                        kickButton.addEventListener("click", () => kickPlayerPopup(userId, name));
-                        li.appendChild(kickButton);
-                    }
-                    
-                    playersDiv.appendChild(li);
-
-                    const li2 = document.createElement("div");
-                    li2.id = `lobby-player-${userId}`;
-                    li2.classList.add(
-                        "flex", "justify-between", "items-center", "p-3",
-                        "bg-white/5", "border-2", "border-white/10", "h-12",
-                        "hover:bg-white/10", "transition-all", "duration-200", 
-                        "rounded-xl");
-
-                    li2.innerHTML = `
-                    <span class="text-white font-medium">${escapeHtml(name)}</span>
-                    <div id='lobby-player-ready-state-${escapeHtml(userId)}' class="text-red-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                        </svg>    
-                    </div>
-                    `;
-
-                    lobbyPlayersDiv.appendChild(li2);
-                }
-            });
-        }
-
-        function kickPlayer(userId) {
-            socket.emit("kick-player", { kickedUserId: userId });
-        }
-
-        socket.on("game-selected", ({ game, min, max, name }) => {
-            showSelectedGame(game, min, max, name);
-        });
-
-        function showSelectedGame(game, minPlayers, maxPlayers, gameName) {
-            const gamesGrid = document.getElementById("games");
-            for (let i = 0; i < gamesGrid.children.length; i++) {
-                const gameButton = gamesGrid.children[i];
-                if (gameButton.id === `game-${game}`) {
-                    gameButton.classList.add("border-emerald-500", "bg-emerald-500/20");
-                    gameButton.classList.remove("border-white/10");
-                } else {
-                    gameButton.classList.add("border-white/10");
-                    gameButton.classList.remove("border-emerald-500", "bg-emerald-500/20");
-                }
-            }
-            const gamesLabel = document.getElementById("games-label");
-            gamesLabel.innerHTML = gameName ? `<span>🎮</span> ${gameName} <span class="text-sm text-gray-400">(${minPlayers}-${maxPlayers} players)</span>` : "<span>🎮</span> Select Game";
-            const readyButton = document.getElementById("ready-button");
-            readyButton.classList.add("animation-pulse");
-        }
-
-        function selectGame(game) {
-            if (!isHost) return;
-            socket.emit("select-game", { game: game });
-        }
-
-        function toggleReady(button) {
-            socket.emit("toggle-ready");
-            button.disabled = true;
-            button.classList.remove("animation-pulse", "wbg-not-ready");
-            button.classList.add("cursor-not-allowed");
-            button.innerHTML = `<svg aria-hidden="true" class="w-8 h-8 text-gray-600 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-                                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
-                                </svg>`;
-        }
-
-        socket.on("ready-state", ({ odId, isReady }) => {
-            const playerDiv = document.getElementById("lobby-player-" + odId);
-            const readyStateDiv = document.getElementById("lobby-player-ready-state-" + odId);
-            if (playerDiv && readyStateDiv) {
-                if (isReady) {
-                    playerDiv.classList.add("border-emerald-500", "bg-emerald-500/10");
-                    playerDiv.classList.remove("border-white/10");
-                    readyStateDiv.classList.remove("text-red-400");
-                    readyStateDiv.classList.add("text-emerald-400");
-                    readyStateDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                                </svg>`;
-                } else {
-                    playerDiv.classList.remove("border-emerald-500", "bg-emerald-500/10");
-                    playerDiv.classList.add("border-white/10");
-                    readyStateDiv.classList.add("text-red-400");
-                    readyStateDiv.classList.remove("text-emerald-400");
-                    readyStateDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                                                </svg>`;
-                }
-            }
-
-            const readyButton = document.getElementById("ready-button");
-            readyButton.classList.remove("cursor-not-allowed");
-            readyButton.disabled = false;
-            if (odId === localStorage.getItem("userId")) {
-                if (isReady) {
-                    readyButton.classList.remove("wbg-not-ready");
-                    readyButton.classList.add("wbg-ready");
-                    readyButton.innerHTML = `<span class="text-white text-lg flex items-center gap-2">✓ Ready!</span>`;
-                } else {
-                    readyButton.classList.remove("wbg-ready");
-                    readyButton.classList.add("animation-pulse", "wbg-not-ready");
-                    readyButton.innerHTML = `<span class="text-white text-lg">✋ Ready Up</span>`;
-                }
-            }
-        });
-
-        // Toast system
-        let toastCounter = 0;
-        const maxToasts = 5;
-
-        function showToast(text, type = 'info') {
-            if (toastCounter >= maxToasts) {
-                const container = document.querySelector('#toast-container');
-                if (container.children[0]) container.children[0].remove();
-            }
-
-            const toast = document.createElement('div');
-            
-            // Different styles based on type
-            let bgClass = 'bg-gradient-to-r from-indigo-600 to-purple-600';
-            if (type === 'error') bgClass = 'bg-gradient-to-r from-red-600 to-rose-600';
-            if (type === 'success') bgClass = 'bg-gradient-to-r from-emerald-600 to-green-600';
-            
-            toast.className = `flex items-center w-full max-w-xs p-4 rounded-xl shadow-lg text-white ${bgClass} text-sm font-medium transition-all duration-300 transform translate-x-full opacity-0`;
-            toast.innerText = text;
-
-            const toastContainer = document.getElementById('toast-container');
-            toastContainer.appendChild(toast);
-
-            // Animate the toast
-            setTimeout(() => {
-                toast.classList.remove('opacity-0', 'translate-x-full');
-                toast.classList.add('opacity-100', 'translate-x-0');
-            }, 10);
-
-            toastCounter++;
-
-            // Automatically fade out after a few seconds
-            setTimeout(() => {
-                toast.classList.add('opacity-0', 'translate-x-full');
-                setTimeout(() => {
-                    toast.remove();
-                    toastCounter--;
-                }, 300);
-            }, 4000);
-        }
-
-        function copyRoomCode() {
-            const roomCode = document.getElementById("room-code").textContent;
-            navigator.clipboard.writeText(roomCode).then(() => {
-                showToast("Room code copied to clipboard!");
-            }).catch(err => {
-                console.error("Failed to copy: ", err);
-            });
-        }
-
-        //Drawer system
-        document.addEventListener("DOMContentLoaded", function () {
-        const drawer = document.getElementById("player-sidebar");
-        const openButton = document.querySelector("[data-drawer-show='player-sidebar']");
-        const closeButton = drawer.querySelector("[data-drawer-hide='player-sidebar']");
-        const notificationBadge = document.getElementById("notification-badge");
-
-        // Function to open the drawer
-        function openDrawer() {
-            drawer.classList.remove("translate-x-full");
-            notificationBadge.classList.add("hidden");
-        }
-
-        // Function to close the drawer
-        function closeDrawer() {
-            drawer.classList.add("translate-x-full");
-        }
-
-        // Event listeners
-        openButton.addEventListener("click", openDrawer);
-        closeButton.addEventListener("click", closeDrawer);
-
-        // Close the drawer when clicking outside of it
-        document.addEventListener("click", function (event) {
-            if (!drawer.contains(event.target) && !openButton.contains(event.target)) {
-                closeDrawer();
-            }});
-        });
-
-        function isDrawerOpen() {
-            const drawer = document.getElementById("player-sidebar");
-            return !drawer.classList.contains("translate-x-full");
-        }
-
-        function leaveRoomPopup() {
-            const leavePopup = document.getElementById("leave-popup");
-            leavePopup.classList.remove("hidden");
-            document.getElementById("leave-room-cancel").focus();
-        }
-
-        function closeLeaveRoomPopup() {
-            const leavePopup = document.getElementById("leave-popup");
-            leavePopup.classList.add("hidden");
-        }
-
-        function leaveRoom() {
-            socket.emit("leave-room");
-            // Give the message a moment to flush before navigating away.
-            setTimeout(() => { window.location.href = "/index.html"; }, 100);
-        }
-
-        function kickPlayerPopup(userId, name) {
-            const kickPopup = document.getElementById("kick-popup");
-            kickPopup.classList.remove("hidden");
-            document.getElementById("kick-id").textContent = userId;
-            document.getElementById("kick-name").textContent = `Kick ${name}?`;
-        }
-
-        function closeKickPopup() {
-            const kickPopup = document.getElementById("kick-popup");
-            kickPopup.classList.add("hidden");
-        }
-
-        function ping(button) {
-            if (button) {
-                if (button.disabled) return;
-                button.disabled = true;
-                button.classList.add("cursor-not-allowed");
-            }
-            socket.ping((latency) => {
-                if (latency === null) {
-                    showToast("Not connected to the server", "error");
-                    return;
-                }
-                console.log("Ping: " + latency + "ms");
-                showToast(`🏓 Ping: ${latency}ms`);
-            });
-            // Fixed: Use setTimeout instead of setInterval to prevent memory leak
-            setTimeout(() => {
-                if (button) {
-                    button.disabled = false;
-                    button.classList.remove("cursor-not-allowed");
-                }
-            }, 1000);
-        }
-
-        socket.on("game-started", ({ game }) => {
-            startGame(game);
-        });
-
-        function startGame(game) {
-            const lobbyPopup = document.getElementById("lobby-popup");
-            lobbyPopup.classList.add("hidden");
-
-            loadGameHTML(game);
-        }
-
-        socket.on("back-to-lobby", () => {
-            endGame();
-            //socket.emit("request-room-data", roomcode);
-        });
-
-        function endGame() {
-            const gameBoard = document.getElementById("game-board");
-            gameBoard.innerHTML = ""; // Clear the game board
-
-            const lobbyPopup = document.getElementById("lobby-popup");
-            lobbyPopup.classList.remove("hidden");
-
-            const gameScript = document.getElementById("game-script");
-            if (gameScript) {
-                gameScript.remove(); // Remove the game script if it exists
-            }
-
-            showSelectedGame(null, 0, 0, null);
-
-            const readyButton = document.getElementById("ready-button");
-            readyButton.classList.remove("cursor-not-allowed");
-            readyButton.disabled = false;
-            readyButton.classList.add("animation-pulse", "wbg-not-ready");
-            readyButton.innerHTML = `<span class="text-white text-lg">Ready</span>`;
-
-            const playersDiv = document.getElementById("lobby-players");
-            for (let i = 0; i < playersDiv.children.length; i++) {
-                const playerDiv = playersDiv.children[i];
-                playerDiv.classList.remove("border-green-700");
-                playerDiv.classList.add("border-gray-700");
-            }
-        }
-    </script>
-
-    <script type="module">
-        /**
-         * Fetch with retry logic for unstable connections
-         * @param {string} url - URL to fetch
-         * @param {object} options - Fetch options
-         * @param {number} maxRetries - Maximum number of retries
-         * @param {number} baseDelay - Base delay in ms between retries
-         */
-        async function fetchWithRetry(url, options = {}, maxRetries = 3, baseDelay = 1000) {
-            let lastError;
-            
-            for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-                    
-                    const response = await fetch(url, {
-                        ...options,
-                        signal: controller.signal
-                    });
-                    
-                    clearTimeout(timeoutId);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
-                    return response;
-                } catch (error) {
-                    lastError = error;
-                    console.warn(`[loadGameHTML] Fetch attempt ${attempt + 1}/${maxRetries + 1} failed for ${url}:`, error.message);
-                    
-                    if (attempt < maxRetries) {
-                        // Exponential backoff with jitter
-                        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
-            }
-            
-            throw lastError;
-        }
-        
-        /**
-         * Load a script with retry logic
-         */
-        async function loadScriptWithRetry(src, maxRetries = 3) {
-            let lastError;
-            
-            for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                try {
-                    await new Promise((resolve, reject) => {
-                        const script = document.createElement('script');
-                        script.src = src + (attempt > 0 ? `?retry=${attempt}` : ''); // Cache bust on retry
-                        
-                        const timeout = setTimeout(() => {
-                            script.remove();
-                            reject(new Error('Script load timeout'));
-                        }, 15000);
-                        
-                        script.onload = () => {
-                            clearTimeout(timeout);
-                            resolve();
-                        };
-                        script.onerror = () => {
-                            clearTimeout(timeout);
-                            script.remove();
-                            reject(new Error('Script load failed'));
-                        };
-                        document.head.appendChild(script);
-                    });
-                    return; // Success
-                } catch (error) {
-                    lastError = error;
-                    console.warn(`[loadGameHTML] Script load attempt ${attempt + 1}/${maxRetries + 1} failed for ${src}:`, error.message);
-                    
-                    if (attempt < maxRetries) {
-                        const delay = 1000 * Math.pow(2, attempt) + Math.random() * 500;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                    }
-                }
-            }
-            
-            throw lastError;
-        }
-        
-        /**
-         * Show loading overlay with status message
-         */
-        function showLoadingOverlay(message) {
-            let overlay = document.getElementById('game-loading-overlay');
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.id = 'game-loading-overlay';
-                overlay.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center z-50';
-                document.body.appendChild(overlay);
-            }
-            overlay.innerHTML = `
-                <div class="text-center">
-                    <svg class="animate-spin h-12 w-12 text-indigo-500 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <p class="text-white text-lg font-medium">${message}</p>
-                </div>
-            `;
-            overlay.classList.remove('hidden');
-        }
-        
-        /**
-         * Hide loading overlay
-         */
-        function hideLoadingOverlay() {
-            const overlay = document.getElementById('game-loading-overlay');
-            if (overlay) {
-                overlay.classList.add('hidden');
-            }
-        }
-        
-        /**
-         * Show retry dialog when loading fails
-         */
-        function showRetryDialog(game, errorMessage) {
-            let dialog = document.getElementById('game-retry-dialog');
-            if (!dialog) {
-                dialog = document.createElement('div');
-                dialog.id = 'game-retry-dialog';
-                dialog.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50';
-                document.body.appendChild(dialog);
-            }
-            dialog.innerHTML = `
-                <div class="glass-card rounded-2xl p-8 max-w-md mx-4 text-center">
-                    <div class="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <span class="text-3xl">⚠️</span>
-                    </div>
-                    <h3 class="text-2xl font-bold text-white mb-2">Connection Problem</h3>
-                    <p class="text-gray-400 mb-2">Failed to load the game. This might be due to an unstable connection.</p>
-                    <p class="text-sm text-red-400 mb-6">${errorMessage}</p>
-                    <div class="flex gap-4">
-                        <button id="retry-game-btn" class="flex-1 py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-medium rounded-xl transition-all">
-                            🔄 Retry
-                        </button>
-                        <button id="back-lobby-btn" class="flex-1 py-3 px-4 bg-white/10 hover:bg-white/20 text-white font-medium rounded-xl transition-all">
-                            Back to Lobby
-                        </button>
-                    </div>
-                </div>
-            `;
-            dialog.classList.remove('hidden');
-            
-            return new Promise((resolve) => {
-                document.getElementById('retry-game-btn').onclick = () => {
-                    dialog.classList.add('hidden');
-                    resolve('retry');
-                };
-                document.getElementById('back-lobby-btn').onclick = () => {
-                    dialog.classList.add('hidden');
-                    resolve('lobby');
-                };
-            });
-        }
-        
-        window.loadGameHTML = async function(game, retryCount = 0) {
-            const maxLoadRetries = 3;
-            
-            try {
-                showLoadingOverlay('Loading game...');
-                
-                // Fetch game HTML with retry
-                showLoadingOverlay('Loading game interface...');
-                const res = await fetchWithRetry(`/games/${game}.html`, { cache: 'no-cache' });
-                const html = await res.text();
-                
-                // Parse the HTML to extract scripts
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
-                
-                // Inject the HTML content (without scripts executing)
-                document.getElementById('game-board').innerHTML = html;
-                
-                // Find and load any external scripts from the game HTML
-                const scripts = doc.querySelectorAll('script[src]');
-                
-                // Load external scripts sequentially and wait for them
-                showLoadingOverlay('Loading game assets...');
-                for (const scriptTag of scripts) {
-                    await loadScriptWithRetry(scriptTag.src);
-                }
-                
-                // After external scripts are loaded, load the game script
-                showLoadingOverlay('Starting game...');
-                const script = document.createElement('script');
-                script.type = 'module';
-                script.id = 'game-script';
-                script.src = `/games/${game}.js?v=${Date.now()}`;
-                
-                await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('Game script load timeout'));
-                    }, 20000);
-                    
-                    script.onload = () => {
-                        clearTimeout(timeout);
-                        resolve();
-                    };
-                    script.onerror = () => {
-                        clearTimeout(timeout);
-                        reject(new Error('Failed to load game script'));
-                    };
-                    document.body.appendChild(script);
-                });
-                
-                hideLoadingOverlay();
-                
-            } catch (error) {
-                console.error('[loadGameHTML] Failed to load game:', error);
-                hideLoadingOverlay();
-                
-                const action = await showRetryDialog(game, error.message || 'Unknown error');
-                
-                if (action === 'retry') {
-                    // Clear any partial game state
-                    document.getElementById('game-board').innerHTML = '';
-                    const existingScript = document.getElementById('game-script');
-                    if (existingScript) existingScript.remove();
-                    
-                    // Retry loading the game
-                    return window.loadGameHTML(game, retryCount + 1);
-                } else {
-                    // Go back to lobby
-                    endGame();
-                    socket.emit('request-back-to-lobby');
-                }
-            }
-        }
-    </script>
+  </div>
+
+  <script src="/core.js"></script>
+  <script src="/socket-client.js"></script>
+  <script src="/game.js"></script>
 </body>
 </html>

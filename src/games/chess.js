@@ -87,6 +87,11 @@ export class Chess {
     }
   }
 
+  spectatorSync(odId) {
+    const ws = this.room.getWsByUserId(odId);
+    if (ws) this.room.send(ws, this.snapshot());
+  }
+
   snapshot() {
     return {
       type: 'chess-state',

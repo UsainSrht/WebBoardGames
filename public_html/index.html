@@ -1,489 +1,316 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
-    <title>Web Board Games - Play Chess, Uno, Dice & More Online with Friends</title>
-    <meta name="robots" content="index, follow, max-image-preview:large">
-    <meta name="theme-color" content="#0f0f23">
-    <link rel="canonical" href="/" data-abs>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="manifest" href="/manifest.webmanifest">
-    <meta property="og:type" content="website">
-    <meta property="og:site_name" content="Web Board Games">
-    <meta property="og:title" content="Web Board Games - Play Chess, Uno, Dice & More Online with Friends">
-    <meta property="og:description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
-    <meta property="og:url" content="/" data-abs>
-    <meta property="og:image" content="/images/kingdomino.png" data-abs>
-    <meta property="og:image:alt" content="Web Board Games">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Web Board Games - Play Chess, Uno, Dice & More Online with Friends">
-    <meta name="twitter:description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
-    <meta name="twitter:image" content="/images/kingdomino.png" data-abs>
-    <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Web Board Games","description":"Free multiplayer board games in your browser.","inLanguage":"en"},{"@type":"WebApplication","name":"Web Board Games","applicationCategory":"GameApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"browserRequirements":"Requires JavaScript and WebSocket support"},{"@type":"ItemList","name":"Games","itemListElement":[{"@type":"ListItem","position":1,"item":{"@type":"VideoGame","name":"Chess","description":"The classic strategy game with full rules: castling, en passant, promotion, check, checkmate and draws. Play a friend head-to-head in your browser.","numberOfPlayers":"2 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":2,"item":{"@type":"VideoGame","name":"Uno","description":"Match colours and numbers, play skips, reverses, draw twos and wilds, and be the first to empty your hand. Private hands, 30-second turns.","numberOfPlayers":"2-10 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":3,"item":{"@type":"VideoGame","name":"Kingdomino","description":"Build a 5x5 kingdom with domino-style terrain tiles. Claim tiles in turn order and score every property by its size times its crowns.","numberOfPlayers":"1-4 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":4,"item":{"@type":"VideoGame","name":"Dice","description":"A quick luck-based party game: roll two dice each round, highest total scores. Five rounds, most points wins.","numberOfPlayers":"2-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":5,"item":{"@type":"VideoGame","name":"Rock Paper Scissors","description":"Pick your move before the countdown ends. Every player is scored against every other player over three rounds.","numberOfPlayers":"2-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":6,"item":{"@type":"VideoGame","name":"Hamsterball","description":"Roll your hamster ball around a tilting plate in 3D, bump rivals off the edge and be the last one standing.","numberOfPlayers":"1-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Web Board Games free?","acceptedAnswer":{"@type":"Answer","text":"Yes. All games are free to play, with no account or download required."}},{"@type":"Question","name":"How do I play with friends?","acceptedAnswer":{"@type":"Answer","text":"Choose a nickname, create a room and share the 6-character room code (or the page link) with your friends. When everyone has joined, the host picks a game and everybody clicks Ready."}},{"@type":"Question","name":"How many people can play?","acceptedAnswer":{"@type":"Answer","text":"A room holds up to 12 players. Each game has its own limits: Chess is 2 players, Kingdomino 1-4, Uno 2-10, and Dice, Rock Paper Scissors and Hamsterball up to 12."}},{"@type":"Question","name":"Does it work on phones and tablets?","acceptedAnswer":{"@type":"Answer","text":"Yes, the site runs in any modern browser on desktop and mobile. Hamsterball is best played with a keyboard."}},{"@type":"Question","name":"What happens if I lose my connection?","acceptedAnswer":{"@type":"Answer","text":"The page reconnects automatically and you keep your seat in the room for a few seconds, so a short drop will not remove you from the game."}}]}]}</script>
-    <link rel="stylesheet" href="/tailwind.css">
-    <script src="/socket-client.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        * { font-family: 'Inter', sans-serif; }
-        body {
-            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 50%, #0d1b2a 100%);
-            min-height: 100vh;
-        }
-        .hero-gradient {
-            background: radial-gradient(ellipse at center, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
-        }
-        .card-hover {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .card-hover:hover {
-            transform: translateY(-8px) scale(1.02);
-            box-shadow: 0 25px 50px -12px rgba(99, 102, 241, 0.25);
-        }
-        .glow-button {
-            position: relative;
-            overflow: hidden;
-        }
-        .glow-button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: left 0.5s;
-        }
-        .glow-button:hover::before { left: 100%; }
-        .float-animation { animation: float 6s ease-in-out infinite; }
-        @keyframes float {
-            0%, 100% { transform: translateY(0px) rotate(0deg); }
-            33% { transform: translateY(-10px) rotate(2deg); }
-            66% { transform: translateY(-5px) rotate(-1deg); }
-        }
-        .pulse-ring { animation: pulseRing 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-        @keyframes pulseRing {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .slide-up {
-            animation: slideUp 0.8s ease-out forwards;
-            opacity: 0;
-        }
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .delay-100 { animation-delay: 0.1s; }
-        .delay-200 { animation-delay: 0.2s; }
-        .delay-300 { animation-delay: 0.3s; }
-        .delay-400 { animation-delay: 0.4s; }
-        .delay-500 { animation-delay: 0.5s; }
-        .game-card {
-            background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        .input-glow:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3); }
-        .particles {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            pointer-events: none;
-            overflow: hidden;
-            z-index: 0;
-        }
-        .particle {
-            position: absolute;
-            width: 4px; height: 4px;
-            background: rgba(99, 102, 241, 0.3);
-            border-radius: 50%;
-            animation: particleFloat 15s infinite linear;
-        }
-        @keyframes particleFloat {
-            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Web Board Games - Play Chess, Uno, Dice & More Online with Friends</title>
+  <meta name="description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="theme-color" content="#07090f">
+  <link rel="canonical" href="/" data-abs>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Web Board Games">
+  <meta property="og:title" content="Web Board Games - Play Chess, Uno, Dice & More Online with Friends">
+  <meta property="og:description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
+  <meta property="og:url" content="/" data-abs>
+  <meta property="og:image" content="/og-image.png" data-abs>
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Web Board Games: play Chess, Uno, Kingdomino, Dice and more with friends">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Web Board Games - Play Chess, Uno, Dice & More Online with Friends">
+  <meta name="twitter:description" content="Free multiplayer board games in your browser: Chess, Uno, Kingdomino, Dice, Rock Paper Scissors and Hamsterball. No sign-up - create a room and share the code.">
+  <meta name="twitter:image" content="/og-image.png" data-abs>
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"Web Board Games","description":"Free multiplayer board games in your browser.","inLanguage":"en"},{"@type":"WebApplication","name":"Web Board Games","applicationCategory":"GameApplication","operatingSystem":"Any (web browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"browserRequirements":"Requires JavaScript and WebSocket support"},{"@type":"ItemList","name":"Games","itemListElement":[{"@type":"ListItem","position":1,"item":{"@type":"VideoGame","name":"Chess","description":"The classic strategy game with full rules: castling, en passant, promotion, check, checkmate and draws. Play a friend head-to-head in your browser.","numberOfPlayers":"2 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":2,"item":{"@type":"VideoGame","name":"Uno","description":"Match colours and numbers, play skips, reverses, draw twos and wilds, and be the first to empty your hand. Private hands, 30-second turns.","numberOfPlayers":"2-10 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":3,"item":{"@type":"VideoGame","name":"Kingdomino","description":"Build a 5x5 kingdom with domino-style terrain tiles. Claim tiles in turn order and score every property by its size times its crowns.","numberOfPlayers":"1-4 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":4,"item":{"@type":"VideoGame","name":"Dice","description":"A quick luck-based party game: roll two dice each round, highest total scores. Five rounds, most points wins.","numberOfPlayers":"2-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":5,"item":{"@type":"VideoGame","name":"Rock Paper Scissors","description":"Pick your move before the countdown ends. Every player is scored against every other player over three rounds.","numberOfPlayers":"2-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}},{"@type":"ListItem","position":6,"item":{"@type":"VideoGame","name":"Hamsterball","description":"Roll your hamster ball around a tilting plate in 3D, bump rivals off the edge and be the last one standing.","numberOfPlayers":"1-12 players","playMode":"MultiPlayer","gamePlatform":"Web browser"}}]},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is Web Board Games free?","acceptedAnswer":{"@type":"Answer","text":"Yes. All games are free to play, with no account or download required."}},{"@type":"Question","name":"How do I play with friends?","acceptedAnswer":{"@type":"Answer","text":"Choose a nickname, create a room and share the 6-character room code, the page link or the QR code with your friends. When everyone has joined, the host picks a game and everybody taps Ready."}},{"@type":"Question","name":"How does joining with a QR code work?","acceptedAnswer":{"@type":"Answer","text":"Every room shows a QR code. Point a phone camera at it and the room opens straight away; if your browser supports it you can also scan from the Scan button on the home page."}},{"@type":"Question","name":"Can the host manage the room without playing?","acceptedAnswer":{"@type":"Answer","text":"Yes. Create the room with Host only enabled, or switch to host view in the lobby. The host then watches every game as a spectator and can pick, start, restart or end games, kick players and hand the host role to someone else."}},{"@type":"Question","name":"How many people can play?","acceptedAnswer":{"@type":"Answer","text":"A room holds up to 12 players. Each game has its own limits: Chess is 2 players, Kingdomino 1-4, Uno 2-10, and Dice, Rock Paper Scissors and Hamsterball up to 12."}},{"@type":"Question","name":"Does it work on phones and tablets?","acceptedAnswer":{"@type":"Answer","text":"Yes, the site runs in any modern browser on desktop and mobile. Hamsterball shows an on-screen joystick on touch devices."}},{"@type":"Question","name":"What happens if I lose my connection?","acceptedAnswer":{"@type":"Answer","text":"The page reconnects automatically and your seat is held for a while, so a short drop or a locked phone will not remove you from the room."}}]}]}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/tailwind.css">
+  <!-- Warm the cache for the room page so entering a room feels instant -->
+  <link rel="prefetch" href="/game" as="document">
+  <link rel="prefetch" href="/game.js" as="script">
+  <link rel="prefetch" href="/socket-client.js" as="script">
 </head>
-<body class="text-white overflow-x-hidden">
-    <!-- Particles Background -->
-    <div class="particles" id="particles"></div>
+<body>
+  <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-ink-900">Skip to content</a>
 
-    <!-- Hero Section -->
-    <div class="hero-gradient min-h-screen flex flex-col relative z-10">
-        <!-- Navigation -->
-        <nav class="p-6 slide-up" aria-label="Main">
-            <div class="max-w-7xl mx-auto flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                    <span class="text-3xl">🎮</span>
-                    <span class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                        Web Board Games
-                    </span>
-                </div>
-                <div id="user-status" class="flex items-center gap-4">
-                    <div id="connection-status" class="flex items-center gap-2 text-sm text-gray-400">
-                        <span class="w-2 h-2 rounded-full bg-red-500 pulse-ring"></span>
-                        <span>Connecting...</span>
-                    </div>
-                </div>
+  <header class="sticky top-0 z-30 border-b border-white/6 bg-ink-950/70 backdrop-blur-xl safe-t">
+    <nav class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6" aria-label="Main">
+      <a href="/" class="flex items-center gap-3" aria-label="Web Board Games home">
+        <span class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 text-white shadow-lg shadow-brand-500/30"><i data-icon="logo" class="size-5"></i></span>
+        <span class="text-base font-bold tracking-tight text-white">Web Board Games</span>
+      </a>
+      <div class="flex items-center gap-1 text-sm font-medium text-slate-300">
+        <a class="btn btn-ghost btn-sm hidden sm:inline-flex" href="#games">Games</a>
+        <a class="btn btn-ghost btn-sm hidden sm:inline-flex" href="#how-it-works">How it works</a>
+        <a class="btn btn-ghost btn-sm" href="#faq">FAQ</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="mx-auto grid max-w-6xl items-center gap-10 px-4 pt-10 pb-16 sm:px-6 sm:pt-16 lg:grid-cols-[1.15fr_1fr] lg:gap-16 lg:pt-24">
+      <div class="text-center lg:text-left">
+        <p class="eyebrow reveal">Free &middot; No sign-up &middot; Real-time</p>
+        <h1 class="reveal-2 mt-3 text-4xl leading-[1.05] font-extrabold tracking-tight text-white sm:text-5xl lg:text-6xl">
+          Board games with friends,
+          <span class="bg-gradient-to-r from-brand-300 via-violet-400 to-pink-400 bg-clip-text text-transparent">instantly.</span>
+        </h1>
+        <p class="reveal-3 mx-auto mt-5 max-w-xl text-lg leading-relaxed text-slate-400 lg:mx-0">
+          Create a room, share the code or let friends scan a QR, and play Chess, Uno, Kingdomino and more together. No accounts, no downloads.
+        </p>
+        <ul class="reveal-4 mt-6 flex flex-wrap justify-center gap-2 lg:justify-start">
+          <li class="chip"><i data-icon="check" class="size-3.5 text-emerald-300"></i>No sign-up</li>
+          <li class="chip"><i data-icon="users" class="size-3.5 text-brand-300"></i>Up to 12 players</li>
+          <li class="chip"><i data-icon="qr" class="size-3.5 text-brand-300"></i>Join by QR code</li>
+          <li class="chip"><i data-icon="mobile" class="size-3.5 text-brand-300"></i>Phone friendly</li>
+        </ul>
+        <div class="mt-10 hidden flex-wrap gap-3 lg:flex" aria-hidden="true">
+            <div class="grid size-14 place-items-center rounded-2xl border border-white/8 bg-white/5 text-brand-300 animate-float" style="animation-delay:0s" title="Chess"><i data-icon="chess" class="size-6"></i></div>
+            <div class="grid size-14 place-items-center rounded-2xl border border-white/8 bg-white/5 text-brand-300 animate-float" style="animation-delay:0.35s" title="Uno"><i data-icon="cards" class="size-6"></i></div>
+            <div class="grid size-14 place-items-center rounded-2xl border border-white/8 bg-white/5 text-brand-300 animate-float" style="animation-delay:0.7s" title="Kingdomino"><i data-icon="castle" class="size-6"></i></div>
+            <div class="grid size-14 place-items-center rounded-2xl border border-white/8 bg-white/5 text-brand-300 animate-float" style="animation-delay:1.0499999999999998s" title="Dice"><i data-icon="dice" class="size-6"></i></div>
+            <div class="grid size-14 place-items-center rounded-2xl border border-white/8 bg-white/5 text-brand-300 animate-float" style="animation-delay:1.4s" title="Rock Paper Scissors"><i data-icon="scissors" class="size-6"></i></div>
+            <div class="grid size-14 place-items-center rounded-2xl border border-white/8 bg-white/5 text-brand-300 animate-float" style="animation-delay:1.75s" title="Hamsterball"><i data-icon="ball" class="size-6"></i></div>
+        </div>
+      </div>
+
+      <!-- Entry card -->
+      <div class="reveal-3 mx-auto w-full max-w-md" id="entry">
+        <div class="card p-6 sm:p-8">
+          <!-- Step 1: nickname -->
+          <form id="name-form" class="space-y-5" novalidate hidden>
+            <div>
+              <h2 class="text-2xl font-bold tracking-tight text-white">Pick a nickname</h2>
+              <p class="mt-1 text-sm text-slate-400">This is what other players see. You can change it any time.</p>
             </div>
-        </nav>
+            <div>
+              <label class="field-label" for="nickname">Nickname</label>
+              <div class="relative">
+                <input id="nickname" class="input pr-16" type="text" maxlength="16" autocomplete="nickname" autocapitalize="words" spellcheck="false" placeholder="e.g. Alex" aria-describedby="name-error">
+                <span id="char-count" class="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-xs text-slate-500">0/16</span>
+              </div>
+              <p id="name-error" class="field-error" role="alert" hidden></p>
+            </div>
+            <button class="btn btn-primary btn-lg w-full" type="submit">Continue <i data-icon="arrow-right" class="size-5"></i></button>
+          </form>
 
-        <!-- Main Content -->
-        <main class="flex-1 flex items-center justify-center px-4 py-12">
-            <div class="max-w-6xl mx-auto w-full">
-                <div class="grid lg:grid-cols-2 gap-12 items-center">
-                    <!-- Left: Hero Text -->
-                    <div class="text-center lg:text-left">
-                        <h1 class="text-5xl md:text-6xl lg:text-7xl font-extrabold mb-6 slide-up delay-100">
-                            <span class="block">Play Games</span>
-                            <span class="block bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-                                Together Online
-                            </span>
-                        </h1>
-                        <p class="text-xl text-gray-400 mb-8 slide-up delay-200 max-w-lg mx-auto lg:mx-0">
-                            Create a room, invite friends, and enjoy classic board games with real-time multiplayer action.
-                        </p>
-                        
-                        <!-- Stats -->
-                        <div class="flex justify-center lg:justify-start gap-8 mb-8 slide-up delay-300">
-                            <div class="text-center">
-                                <div class="text-3xl font-bold text-indigo-400">6</div>
-                                <div class="text-sm text-gray-500">Games</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="text-3xl font-bold text-purple-400">12</div>
-                                <div class="text-sm text-gray-500">Max Players</div>
-                            </div>
-                            <div class="text-center">
-                                <div class="text-3xl font-bold text-pink-400">∞</div>
-                                <div class="text-sm text-gray-500">Fun</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Right: Action Card -->
-                    <div id="action-card" class="slide-up delay-400">
-                        <!-- Nickname Form (shown first) -->
-                        <div id="nickname-section" class="game-card rounded-3xl p-8 max-w-md mx-auto">
-                            <div class="text-center mb-6">
-                                <div class="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                    <span class="text-3xl">👤</span>
-                                </div>
-                                <h2 class="text-2xl font-bold mb-2">Welcome, Player!</h2>
-                                <p class="text-gray-400">Choose a nickname to get started</p>
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <div class="relative">
-                                    <input 
-                                        type="text" 
-                                        id="nickname" 
-                                        placeholder="Enter your nickname" 
-                                        maxlength="16"
-                                        class="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none input-glow transition-all"
-                                        onkeydown="if(event.key === 'Enter') checkName()"
-                                    >
-                                    <span id="char-count" class="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">0/16</span>
-                                </div>
-                                <p id="nickname-error" class="text-red-400 text-sm hidden"></p>
-                                <button 
-                                    onclick="checkName()" 
-                                    class="glow-button w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-semibold transition-all transform hover:scale-[1.02]"
-                                >
-                                    Continue →
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Room Actions (shown after nickname) -->
-                        <div id="room-section" class="hidden game-card rounded-3xl p-8 max-w-md mx-auto">
-                            <div class="text-center mb-6">
-                                <div class="flex items-center justify-center gap-2 mb-4">
-                                    <span class="text-2xl">👋</span>
-                                    <h2 class="text-2xl font-bold">Hello, <span id="display-name" class="text-indigo-400">Player</span>!</h2>
-                                </div>
-                                <p class="text-gray-400">Create a new room or join an existing one</p>
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <button 
-                                    id="create-room-btn"
-                                    onclick="createRoom()" 
-                                    class="glow-button w-full py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 rounded-xl font-semibold transition-all transform hover:scale-[1.02] flex items-center justify-center gap-3"
-                                >
-                                    <span class="text-xl">🎯</span>
-                                    Create New Room
-                                </button>
-                                
-                                <div class="relative">
-                                    <div class="absolute inset-0 flex items-center">
-                                        <div class="w-full border-t border-white/10"></div>
-                                    </div>
-                                    <div class="relative flex justify-center">
-                                        <span class="px-4 bg-transparent text-gray-500 text-sm">or join existing</span>
-                                    </div>
-                                </div>
-                                
-                                <div class="flex gap-3">
-                                    <input 
-                                        type="text" 
-                                        id="room-code" 
-                                        placeholder="Room code" 
-                                        maxlength="6"
-                                        class="flex-1 px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none input-glow transition-all uppercase tracking-widest text-center font-mono"
-                                        onkeydown="if(event.key === 'Enter') joinRoom()"
-                                        oninput="this.value = this.value.toUpperCase()"
-                                    >
-                                    <button 
-                                        onclick="joinRoom()" 
-                                        class="px-6 py-4 bg-emerald-600 hover:bg-emerald-500 rounded-xl font-semibold transition-all transform hover:scale-[1.02]"
-                                    >
-                                        Join
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <button onclick="changeName()" class="w-full mt-4 text-sm text-gray-500 hover:text-gray-300 transition-colors">
-                                Change nickname
-                            </button>
-                        </div>
-                    </div>
+          <!-- Step 2: room -->
+          <div id="room-panel" class="space-y-6" hidden>
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex min-w-0 items-center gap-3">
+                <span id="hello-avatar"></span>
+                <div class="min-w-0">
+                  <p class="text-xs text-slate-400">Playing as</p>
+                  <p id="hello-name" class="truncate font-semibold text-white"></p>
                 </div>
+              </div>
+              <button id="change-name" class="btn btn-ghost btn-sm" type="button">Change</button>
             </div>
-        </main>
 
-        <!-- Games -->
-        <section id="games" class="py-16 px-4 relative z-10" aria-labelledby="games-heading">
-            <div class="max-w-6xl mx-auto">
-                <h2 id="games-heading" class="text-3xl font-bold text-center mb-4">
-                    <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Free Online Multiplayer Games</span>
-                </h2>
-                <p class="text-center text-gray-400 max-w-2xl mx-auto mb-12">Pick a game, invite your friends with a room code and play in real time. No downloads, no accounts.</p>
-                <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <article class="game-card card-hover rounded-2xl p-6 text-center">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0s;" aria-hidden="true">♟️</div>
-                        <h3 class="font-semibold text-lg mb-1">Chess</h3>
-                        <p class="text-sm text-indigo-300 mb-2">2 players</p>
-                        <p class="text-sm text-gray-400">The classic strategy game with full rules: castling, en passant, promotion, check, checkmate and draws. Play a friend head-to-head in your browser.</p>
-                    </article>
-                    <article class="game-card card-hover rounded-2xl p-6 text-center">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0.5s;" aria-hidden="true">🃏</div>
-                        <h3 class="font-semibold text-lg mb-1">Uno</h3>
-                        <p class="text-sm text-indigo-300 mb-2">2-10 players</p>
-                        <p class="text-sm text-gray-400">Match colours and numbers, play skips, reverses, draw twos and wilds, and be the first to empty your hand. Private hands, 30-second turns.</p>
-                    </article>
-                    <article class="game-card card-hover rounded-2xl p-6 text-center">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 1s;" aria-hidden="true">👑</div>
-                        <h3 class="font-semibold text-lg mb-1">Kingdomino</h3>
-                        <p class="text-sm text-indigo-300 mb-2">1-4 players</p>
-                        <p class="text-sm text-gray-400">Build a 5x5 kingdom with domino-style terrain tiles. Claim tiles in turn order and score every property by its size times its crowns.</p>
-                    </article>
-                    <article class="game-card card-hover rounded-2xl p-6 text-center">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0s;" aria-hidden="true">🎲</div>
-                        <h3 class="font-semibold text-lg mb-1">Dice</h3>
-                        <p class="text-sm text-indigo-300 mb-2">2-12 players</p>
-                        <p class="text-sm text-gray-400">A quick luck-based party game: roll two dice each round, highest total scores. Five rounds, most points wins.</p>
-                    </article>
-                    <article class="game-card card-hover rounded-2xl p-6 text-center">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 0.5s;" aria-hidden="true">🪨</div>
-                        <h3 class="font-semibold text-lg mb-1">Rock Paper Scissors</h3>
-                        <p class="text-sm text-indigo-300 mb-2">2-12 players</p>
-                        <p class="text-sm text-gray-400">Pick your move before the countdown ends. Every player is scored against every other player over three rounds.</p>
-                    </article>
-                    <article class="game-card card-hover rounded-2xl p-6 text-center">
-                        <div class="text-5xl mb-4 float-animation" style="animation-delay: 1s;" aria-hidden="true">🐹</div>
-                        <h3 class="font-semibold text-lg mb-1">Hamsterball</h3>
-                        <p class="text-sm text-indigo-300 mb-2">1-12 players</p>
-                        <p class="text-sm text-gray-400">Roll your hamster ball around a tilting plate in 3D, bump rivals off the edge and be the last one standing.</p>
-                    </article>
-                </div>
+            <button id="rejoin" class="btn btn-secondary w-full justify-between" type="button" hidden>
+              <span class="flex items-center gap-2"><i data-icon="refresh" class="size-4 text-brand-300"></i>Rejoin room <strong id="rejoin-code" class="font-mono tracking-widest"></strong></span>
+              <i data-icon="arrow-right" class="size-4"></i>
+            </button>
+
+            <div class="space-y-3">
+              <button id="create-room" class="btn btn-primary btn-lg w-full" type="button"><i data-icon="plus" class="size-5"></i>Create a room</button>
+              <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-white/8 bg-white/4 p-3.5">
+                <input id="host-only" type="checkbox" class="switch mt-0.5">
+                <span>
+                  <span class="flex items-center gap-1.5 text-sm font-semibold text-white"><i data-icon="eye" class="size-4 text-brand-300"></i>Host only</span>
+                  <span class="mt-0.5 block text-xs leading-relaxed text-slate-400">Manage the room and watch games without playing. You can switch any time in the lobby.</span>
+                </span>
+              </label>
             </div>
-        </section>
 
-        <section id="how-it-works" class="py-12 px-4 relative z-10" aria-labelledby="how-heading">
-            <div class="max-w-4xl mx-auto">
-                <h2 id="how-heading" class="text-3xl font-bold text-center mb-10">How it works</h2>
-                <ol class="grid md:grid-cols-3 gap-6 text-center">
-                    <li class="game-card rounded-2xl p-6"><div class="text-3xl mb-2" aria-hidden="true">1️⃣</div><h3 class="font-semibold mb-1">Pick a nickname</h3><p class="text-sm text-gray-400">No registration needed. Choose a name and you are in.</p></li>
-                    <li class="game-card rounded-2xl p-6"><div class="text-3xl mb-2" aria-hidden="true">2️⃣</div><h3 class="font-semibold mb-1">Create or join a room</h3><p class="text-sm text-gray-400">Share the 6-character code with friends, or enter theirs to join.</p></li>
-                    <li class="game-card rounded-2xl p-6"><div class="text-3xl mb-2" aria-hidden="true">3️⃣</div><h3 class="font-semibold mb-1">Choose a game and play</h3><p class="text-sm text-gray-400">The host selects a game, everyone clicks Ready and the match starts.</p></li>
-                </ol>
+            <div class="flex items-center gap-3 text-xs font-semibold tracking-wider text-slate-500 uppercase"><span class="divider flex-1"></span><span class="shrink-0">or join</span><span class="divider flex-1"></span></div>
+
+            <form id="join-form" class="space-y-2" novalidate>
+              <label class="field-label" for="room-code">Room code</label>
+              <div class="flex gap-2">
+                <input id="room-code" class="input flex-1 text-center font-mono text-xl font-bold tracking-[0.35em] uppercase" type="text" maxlength="64" inputmode="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC123" aria-describedby="join-error">
+                <button id="scan-btn" class="btn btn-secondary btn-icon size-12" type="button" aria-label="Scan a QR code" hidden><i data-icon="qr" class="size-5"></i></button>
+              </div>
+              <button id="join-btn" class="btn btn-secondary w-full" type="submit">Join room</button>
+              <p id="join-error" class="field-error" role="alert" hidden></p>
+            </form>
+          </div>
+
+          <!-- skeleton while we read saved state -->
+          <div id="entry-skeleton" class="space-y-4" aria-hidden="true">
+            <div class="skeleton h-8 w-2/3"></div><div class="skeleton h-12"></div><div class="skeleton h-14"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Games -->
+    <section id="games" class="mx-auto max-w-6xl px-4 py-14 sm:px-6" aria-labelledby="games-heading">
+      <div class="mx-auto mb-10 max-w-2xl text-center">
+        <p class="eyebrow">The lineup</p>
+        <h2 id="games-heading" class="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Free online multiplayer games</h2>
+        <p class="mt-3 text-slate-400">Pick a game, invite your friends with a room code and play in real time.</p>
+      </div>
+      <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <article class="card group p-6 transition duration-200 hover:-translate-y-1 hover:border-white/15 reveal-1">
+            <div class="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/25 text-brand-300 ring-1 ring-white/10 transition group-hover:scale-105">
+              <i data-icon="chess" class="size-6"></i>
             </div>
-        </section>
-
-        <section id="faq" class="py-12 px-4 relative z-10" aria-labelledby="faq-heading">
-            <div class="max-w-3xl mx-auto">
-                <h2 id="faq-heading" class="text-3xl font-bold text-center mb-8">Frequently asked questions</h2>
-                <div class="space-y-3">
-                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">Is Web Board Games free?</summary><p class="mt-3 text-gray-400">Yes. All games are free to play, with no account or download required.</p></details>
-                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">How do I play with friends?</summary><p class="mt-3 text-gray-400">Choose a nickname, create a room and share the 6-character room code (or the page link) with your friends. When everyone has joined, the host picks a game and everybody clicks Ready.</p></details>
-                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">How many people can play?</summary><p class="mt-3 text-gray-400">A room holds up to 12 players. Each game has its own limits: Chess is 2 players, Kingdomino 1-4, Uno 2-10, and Dice, Rock Paper Scissors and Hamsterball up to 12.</p></details>
-                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">Does it work on phones and tablets?</summary><p class="mt-3 text-gray-400">Yes, the site runs in any modern browser on desktop and mobile. Hamsterball is best played with a keyboard.</p></details>
-                    <details class="game-card rounded-xl p-5"><summary class="font-semibold cursor-pointer">What happens if I lose my connection?</summary><p class="mt-3 text-gray-400">The page reconnects automatically and you keep your seat in the room for a few seconds, so a short drop will not remove you from the game.</p></details>
-                </div>
+            <div class="mb-1 flex items-center justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white">Chess</h3>
+              <span class="chip">2 players</span>
             </div>
-        </section>
+            <p class="text-sm leading-relaxed text-slate-400">The classic strategy game with full rules: castling, en passant, promotion, check, checkmate and draws. Play a friend head-to-head in your browser.</p>
+          </article>
+          <article class="card group p-6 transition duration-200 hover:-translate-y-1 hover:border-white/15 reveal-2">
+            <div class="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/25 text-brand-300 ring-1 ring-white/10 transition group-hover:scale-105">
+              <i data-icon="cards" class="size-6"></i>
+            </div>
+            <div class="mb-1 flex items-center justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white">Uno</h3>
+              <span class="chip">2-10 players</span>
+            </div>
+            <p class="text-sm leading-relaxed text-slate-400">Match colours and numbers, play skips, reverses, draw twos and wilds, and be the first to empty your hand. Private hands, 30-second turns.</p>
+          </article>
+          <article class="card group p-6 transition duration-200 hover:-translate-y-1 hover:border-white/15 reveal-3">
+            <div class="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/25 text-brand-300 ring-1 ring-white/10 transition group-hover:scale-105">
+              <i data-icon="castle" class="size-6"></i>
+            </div>
+            <div class="mb-1 flex items-center justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white">Kingdomino</h3>
+              <span class="chip">1-4 players</span>
+            </div>
+            <p class="text-sm leading-relaxed text-slate-400">Build a 5x5 kingdom with domino-style terrain tiles. Claim tiles in turn order and score every property by its size times its crowns.</p>
+          </article>
+          <article class="card group p-6 transition duration-200 hover:-translate-y-1 hover:border-white/15 reveal-1">
+            <div class="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/25 text-brand-300 ring-1 ring-white/10 transition group-hover:scale-105">
+              <i data-icon="dice" class="size-6"></i>
+            </div>
+            <div class="mb-1 flex items-center justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white">Dice</h3>
+              <span class="chip">2-12 players</span>
+            </div>
+            <p class="text-sm leading-relaxed text-slate-400">A quick luck-based party game: roll two dice each round, highest total scores. Five rounds, most points wins.</p>
+          </article>
+          <article class="card group p-6 transition duration-200 hover:-translate-y-1 hover:border-white/15 reveal-2">
+            <div class="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/25 text-brand-300 ring-1 ring-white/10 transition group-hover:scale-105">
+              <i data-icon="scissors" class="size-6"></i>
+            </div>
+            <div class="mb-1 flex items-center justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white">Rock Paper Scissors</h3>
+              <span class="chip">2-12 players</span>
+            </div>
+            <p class="text-sm leading-relaxed text-slate-400">Pick your move before the countdown ends. Every player is scored against every other player over three rounds.</p>
+          </article>
+          <article class="card group p-6 transition duration-200 hover:-translate-y-1 hover:border-white/15 reveal-3">
+            <div class="mb-4 grid size-12 place-items-center rounded-2xl bg-gradient-to-br from-brand-500/30 to-violet-500/25 text-brand-300 ring-1 ring-white/10 transition group-hover:scale-105">
+              <i data-icon="ball" class="size-6"></i>
+            </div>
+            <div class="mb-1 flex items-center justify-between gap-3">
+              <h3 class="text-lg font-semibold text-white">Hamsterball</h3>
+              <span class="chip">1-12 players</span>
+            </div>
+            <p class="text-sm leading-relaxed text-slate-400">Roll your hamster ball around a tilting plate in 3D, bump rivals off the edge and be the last one standing.</p>
+          </article>
+      </div>
+    </section>
 
-        <!-- Footer -->
-        <footer class="py-6 text-center text-gray-600 text-sm">
-            <nav aria-label="Footer" class="mb-2 space-x-4"><a class="hover:text-gray-300" href="#games">Games</a><a class="hover:text-gray-300" href="#how-it-works">How it works</a><a class="hover:text-gray-300" href="#faq">FAQ</a></nav>
-            <p>Made with ❤️ for game nights everywhere</p>
-        </footer>
+    <!-- How it works -->
+    <section id="how-it-works" class="mx-auto max-w-5xl px-4 py-14 sm:px-6" aria-labelledby="how-heading">
+      <h2 id="how-heading" class="mb-10 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">How it works</h2>
+      <ol class="grid gap-5 md:grid-cols-3">
+        <li class="card-flat p-6"><span class="mb-4 grid size-10 place-items-center rounded-full bg-brand-500/20 font-bold text-brand-300">1</span><h3 class="mb-1 font-semibold text-white">Pick a nickname</h3><p class="text-sm text-slate-400">No registration needed. Choose a name and you are in.</p></li>
+        <li class="card-flat p-6"><span class="mb-4 grid size-10 place-items-center rounded-full bg-brand-500/20 font-bold text-brand-300">2</span><h3 class="mb-1 font-semibold text-white">Create or join a room</h3><p class="text-sm text-slate-400">Share the 6-character code or QR code, or enter a friend's code to join.</p></li>
+        <li class="card-flat p-6"><span class="mb-4 grid size-10 place-items-center rounded-full bg-brand-500/20 font-bold text-brand-300">3</span><h3 class="mb-1 font-semibold text-white">Choose a game and play</h3><p class="text-sm text-slate-400">The host selects a game, everyone taps Ready and the match starts.</p></li>
+      </ol>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="mx-auto max-w-3xl px-4 py-14 sm:px-6" aria-labelledby="faq-heading">
+      <h2 id="faq-heading" class="mb-8 text-center text-3xl font-bold tracking-tight text-white sm:text-4xl">Frequently asked questions</h2>
+      <div class="space-y-3">
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              Is Web Board Games free?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">Yes. All games are free to play, with no account or download required.</p>
+          </details>
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              How do I play with friends?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">Choose a nickname, create a room and share the 6-character room code, the page link or the QR code with your friends. When everyone has joined, the host picks a game and everybody taps Ready.</p>
+          </details>
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              How does joining with a QR code work?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">Every room shows a QR code. Point a phone camera at it and the room opens straight away; if your browser supports it you can also scan from the Scan button on the home page.</p>
+          </details>
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              Can the host manage the room without playing?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">Yes. Create the room with Host only enabled, or switch to host view in the lobby. The host then watches every game as a spectator and can pick, start, restart or end games, kick players and hand the host role to someone else.</p>
+          </details>
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              How many people can play?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">A room holds up to 12 players. Each game has its own limits: Chess is 2 players, Kingdomino 1-4, Uno 2-10, and Dice, Rock Paper Scissors and Hamsterball up to 12.</p>
+          </details>
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              Does it work on phones and tablets?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">Yes, the site runs in any modern browser on desktop and mobile. Hamsterball shows an on-screen joystick on touch devices.</p>
+          </details>
+          <details class="card-flat group p-5 open:bg-white/6">
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-white">
+              What happens if I lose my connection?
+              <i data-icon="chevron-down" class="size-5 text-slate-400 transition group-open:rotate-180"></i>
+            </summary>
+            <p class="mt-3 leading-relaxed text-slate-400">The page reconnects automatically and your seat is held for a while, so a short drop or a locked phone will not remove you from the room.</p>
+          </details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="border-t border-white/6 py-10 text-center text-sm text-slate-500 safe-b">
+    <nav aria-label="Footer" class="mb-3 flex justify-center gap-5">
+      <a class="hover:text-slate-300" href="#games">Games</a>
+      <a class="hover:text-slate-300" href="#how-it-works">How it works</a>
+      <a class="hover:text-slate-300" href="#faq">FAQ</a>
+    </nav>
+    <p>Made for game nights everywhere.</p>
+  </footer>
+
+  <!-- QR scanner -->
+  <div id="scan-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="scan-title">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 id="scan-title" class="modal-title">Scan a room QR code</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+      </div>
+      <div class="relative aspect-square overflow-hidden rounded-2xl bg-black">
+        <video id="scan-video" class="size-full object-cover" playsinline muted></video>
+        <div class="pointer-events-none absolute inset-8 rounded-2xl border-2 border-white/70"></div>
+      </div>
+      <p id="scan-status" class="mt-3 text-center text-sm text-slate-400">Point your camera at the QR code on the host's screen.</p>
     </div>
+  </div>
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
-
-    <script>
-        // Create particles
-        const particlesContainer = document.getElementById('particles');
-        for (let i = 0; i < 20; i++) {
-            const particle = document.createElement('div');
-            particle.className = 'particle';
-            particle.style.left = Math.random() * 100 + '%';
-            particle.style.animationDelay = Math.random() * 15 + 's';
-            particle.style.animationDuration = (15 + Math.random() * 10) + 's';
-            particlesContainer.appendChild(particle);
-        }
-
-        // Socket connection
-        const socket = io();
-        let userId = null;
-        let userName = null;
-
-        // Character counter for nickname
-        const nicknameInput = document.getElementById('nickname');
-        const charCount = document.getElementById('char-count');
-        nicknameInput.addEventListener('input', () => {
-            charCount.textContent = `${nicknameInput.value.length}/16`;
-        });
-
-        // Socket events
-        socket.on('connect', () => updateConnectionStatus(true));
-        socket.on('disconnect', () => updateConnectionStatus(false));
-
-        socket.on('connect-user', ({ odId, name, inRoom }) => {
-            userId = odId;
-            localStorage.setItem('userId', odId);
-            // Store name if received from server
-            if (name) {
-                localStorage.setItem('userName', name);
-            }
-            if (inRoom) {
-                // Already in a room - but we don't have room code here, just show room section
-                if (name) {
-                    userName = name;
-                    showRoomSection(name);
-                }
-            } else if (name) {
-                userName = name;
-                showRoomSection(name);
-            } else {
-                // Pre-populate with stored name if available
-                const storedName = localStorage.getItem('userName');
-                if (storedName) {
-                    nicknameInput.value = storedName;
-                    charCount.textContent = `${storedName.length}/16`;
-                }
-            }
-        });
-
-        socket.on('request-user-id', () => {
-            const storedId = localStorage.getItem('userId');
-            const storedName = localStorage.getItem('userName');
-            socket.emit('send-user-id', { odId: storedId, name: storedName, secret: getUserSecret() });
-        });
-
-        socket.on('error', ({ message }) => showToast(message || 'An error occurred', 'error'));
-
-        function updateConnectionStatus(connected) {
-            const status = document.getElementById('connection-status');
-            if (connected) {
-                status.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-emerald-400">Connected</span>`;
-            } else {
-                status.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 pulse-ring"></span><span class="text-red-400">Disconnected</span>`;
-            }
-        }
-
-        function checkName() {
-            const name = nicknameInput.value.trim();
-            const errorEl = document.getElementById('nickname-error');
-            if (name.length < 3) {
-                errorEl.textContent = 'Nickname must be at least 3 characters';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-            if (name.length > 16) {
-                errorEl.textContent = 'Nickname must be 16 characters or less';
-                errorEl.classList.remove('hidden');
-                return;
-            }
-            errorEl.classList.add('hidden');
-            submitName(name);
-        }
-
-        function submitName(name) {
-            userName = name;
-            localStorage.setItem('userName', name);
-            console.log('submitName: stored userName in localStorage:', name);
-            socket.emit('submit-name', { name: name, isInGame: false });
-            showRoomSection(name);
-        }
-
-        function showRoomSection(name) {
-            document.getElementById('nickname-section').classList.add('hidden');
-            document.getElementById('room-section').classList.remove('hidden');
-            document.getElementById('display-name').textContent = name;
-        }
-
-        function changeName() {
-            document.getElementById('room-section').classList.add('hidden');
-            document.getElementById('nickname-section').classList.remove('hidden');
-            nicknameInput.value = userName || '';
-            nicknameInput.focus();
-        }
-
-        function createRoom() {
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            let roomCode = '';
-            for (let i = 0; i < 6; i++) roomCode += chars.charAt(Math.floor(Math.random() * chars.length));
-            // No need to emit create-room - the Durable Object creates the room when first player joins
-            window.location.href = `/game.html?room=${roomCode}`;
-        }
-
-        function joinRoom() {
-            const roomCode = document.getElementById('room-code').value.trim().toUpperCase();
-            if (!roomCode) {
-                showToast('Please enter a room code', 'error');
-                return;
-            }
-            if (roomCode.length !== 6) {
-                showToast('Room code must be 6 characters', 'error');
-                return;
-            }
-            window.location.href = `/game.html?room=${roomCode}`;
-        }
-
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            const bgColor = type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-emerald-600' : 'bg-indigo-600';
-            toast.className = `${bgColor} px-6 py-3 rounded-xl shadow-lg transform transition-all duration-300 translate-x-full`;
-            toast.textContent = message;
-            container.appendChild(toast);
-            setTimeout(() => toast.classList.remove('translate-x-full'), 10);
-            setTimeout(() => {
-                toast.classList.add('translate-x-full', 'opacity-0');
-                setTimeout(() => toast.remove(), 300);
-            }, 4000);
-        }
-    </script>
+  <script src="/core.js"></script>
+  <script src="/index.js"></script>
 </body>
 </html>

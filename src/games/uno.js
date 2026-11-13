@@ -228,7 +228,7 @@ export class Uno {
     return {
       type: 'uno-state',
       you: odId,
-      hand: this.hands[odId],
+      hand: this.hands[odId] || [],
       players: this.order.map(id => ({ id, name: this.names[id], count: this.hands[id].length })),
       turn: this.turn,
       dir: this.dir,
@@ -247,8 +247,15 @@ export class Uno {
     if (ws) this.room.send(ws, this.stateFor(odId));
   }
 
+  /** Host view: everything public, no hand. */
+  spectatorSync(odId) {
+    const ws = this.room.getWsByUserId(odId);
+    if (ws) this.room.send(ws, { ...this.stateFor(null), you: odId, hand: [], spectator: true });
+  }
+
   broadcastState() {
     for (const id of this.order) this.sendState(id);
+    for (const id of this.room.spectatorIds()) this.spectatorSync(id);
   }
 
   onPlayerLeft(odId) {

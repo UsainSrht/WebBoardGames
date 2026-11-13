@@ -1,10 +1,28 @@
-<div id="chess-root" class="absolute inset-0 flex flex-col items-center justify-center px-2 pt-16 text-white">
-    <div id="chess-opponent" class="mb-2 font-semibold text-lg"></div>
-    <div id="chess-board" class="grid grid-cols-8 border-4 border-amber-900 rounded-md overflow-hidden select-none" style="width:min(90vw,70vh);aspect-ratio:1/1"></div>
-    <div id="chess-me" class="mt-2 font-semibold text-lg"></div>
-    <p id="chess-status" class="mt-2 text-indigo-300 h-6"></p>
-    <button id="chess-resign" class="mt-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-red-600 text-sm transition-all">Resign</button>
-    <div id="chess-promo" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-        <div class="glass-card rounded-2xl p-6 flex gap-4 text-5xl" id="chess-promo-options"></div>
+<div id="chess-root" class="scroll-y absolute inset-0 flex flex-col items-center justify-center gap-2.5 px-3 pt-16 pb-4" style="--board: min(94vw, max(17rem, calc(100dvh - 18.5rem)))">
+  <div id="chess-top" class="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2" style="width: var(--board)"></div>
+
+  <div class="relative" style="width: var(--board)">
+    <div id="chess-board" class="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-xl shadow-2xl ring-4 ring-white/10 select-none" role="grid" aria-label="Chess board"></div>
+
+    <div id="chess-result" class="card animate-pop absolute inset-x-4 top-1/2 -translate-y-1/2 p-5 text-center" hidden>
+      <span class="mx-auto mb-2 grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"><i data-icon="trophy" class="size-6"></i></span>
+      <p id="chess-result-title" class="text-xl font-bold text-white"></p>
+      <p id="chess-result-sub" class="mt-1 text-sm text-slate-400"></p>
     </div>
+  </div>
+
+  <div id="chess-bottom" class="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2" style="width: var(--board)"></div>
+
+  <div class="flex items-center gap-2" style="width: var(--board)">
+    <p id="chess-status" class="min-w-0 flex-1 truncate text-sm font-medium text-slate-300" aria-live="polite"></p>
+    <button id="chess-flip" class="btn btn-secondary btn-sm"><i data-icon="swap" class="size-4"></i>Flip</button>
+    <button id="chess-resign" class="btn btn-secondary btn-sm hover:!bg-rose-600"><i data-icon="flag" class="size-4"></i>Resign</button>
+  </div>
+
+  <div id="chess-promo" class="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm" hidden>
+    <div class="card p-5 text-center">
+      <p class="mb-3 text-sm font-semibold text-white">Promote pawn to</p>
+      <div id="chess-promo-options" class="flex gap-2"></div>
+    </div>
+  </div>
 </div>

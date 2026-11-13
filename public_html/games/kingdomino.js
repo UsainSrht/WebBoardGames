@@ -22,11 +22,8 @@ class KingdominoScene extends Phaser.Scene {
     
         const loadingLabel = document.createElement("div");
         loadingLabel.id = "loading-label";
-        loadingLabel.className = "flex items-center justify-center h-screen w-screen bg-gray-800 bg-opacity-50 fixed top-0 left-0 z-50";
-        loadingLabel.innerHTML = `<svg aria-hidden="true" class="w-8 h-8 text-gray-600 animate-spin fill-blue-600" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor"/>
-                                        <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill"/>
-                                    </svg>`;
+        loadingLabel.className = "absolute inset-0 z-20 grid place-items-center bg-ink-950/80 text-brand-300";
+        loadingLabel.innerHTML = WBG.icon('spinner', 'size-10 animate-spin');
         gameBoard.appendChild(loadingLabel);
 
         this.load.image('castle', './images/kingdomino/castle.png');
@@ -100,7 +97,7 @@ class KingdominoScene extends Phaser.Scene {
     
     createPlayerEntry(player) {
         const index = player.turnIndex;
-        const yOffset = -(index * 60 + 40);
+        const yOffset = -((index - 1) * 60 + 40);
         
         // Player container
         const playerContainer = this.add.container(10, yOffset);
@@ -158,7 +155,7 @@ class KingdominoScene extends Phaser.Scene {
     }
 
     isMyTurn() {
-        return this.myData.turnIndex === this.currentPlayerIndex;
+        return !!this.myData && this.myData.turnIndex === this.currentPlayerIndex;
     }
     
     updateTurnProgress() {
@@ -186,7 +183,7 @@ class KingdominoScene extends Phaser.Scene {
 
     drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, color, placedGroup, userId) {
         const container = scene.add.container(); // Acts like a group
-        const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff } });
+        const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff, alpha: 0.3 } });
         container.add(graphics);
     
         const gridWidth = gridSize * tileSize;
@@ -434,6 +431,10 @@ class KingdominoScene extends Phaser.Scene {
     
     create() {
         socket.emit("kingdomino-create-start");
+
+        // Every text in the scene uses the site font unless it asks for another one.
+        const addText = this.add.text.bind(this.add);
+        this.add.text = (x, y, text, style = {}) => addText(x, y, text, { fontFamily: 'Inter, system-ui, sans-serif', ...style });
     
         const gameBoard = document.getElementById('game-board');
     
@@ -446,9 +447,9 @@ class KingdominoScene extends Phaser.Scene {
             this.scale.height
         )
         .setOrigin(0)
-        .setStrokeStyle(1, 0xffffff);
+        .setStrokeStyle(1, 0xffffff, 0.08);
     
-        this.add.text(150, 5, 'Kingdomino', { fontSize: '32px', color: '#ffffff' });
+        this.add.text(150, 5, 'Kingdomino', { fontSize: '32px', color: '#a5b4fc', fontFamily: 'Inter, system-ui, sans-serif', fontStyle: 'bold' });
     
         this.placedTiles = this.add.group();
         this.placedTiles2ndGrid = this.add.group();
@@ -462,22 +463,28 @@ class KingdominoScene extends Phaser.Scene {
         this.previewTile = this.add.container(0,0).setVisible(false);
 
         // Socket event listeners
+        for (const ev of ["kingdomino-game-start", "kingdomino-draw-tiles", "kingdomino-players-update", "kingdomino-turn-info", "kingdomino-tile-selected", "kingdomino-tile-placed", "kingdomino-tile-selection-end", "kingdomino-tile-selection-start", "kingdomino-game-end"]) socket.off(ev);
+
         socket.on("kingdomino-game-start", ({ players: gameDataPlayers, currentPlayerIndex: gameDataCurrentPlayerIndex, turnStartTime: gameDataTurnStartTime, tileCount: gameDataTileCount }) => {
-            gameBoard.removeChild(loadingLabel);
+            document.getElementById("loading-label")?.remove();
             
             // Initialize players from server data
             this.players = gameDataPlayers;
 
             this.myUserId = localStorage.getItem('userId');
-            this.myData = this.players[this.myUserId];
-            this.myColorName = this.getColorName(this.myData.color);
+            this.isSpectator = WBG.isSpectator;
+            this.myData = this.isSpectator ? null : this.players[this.myUserId]; // host view has no seat
+            // Host view: the first player's kingdom takes the big slot.
+            this.mainId = this.isSpectator ? Object.keys(this.players)[0] : this.myUserId;
+            const mainPlayer = this.players[this.mainId];
+            this.myColorName = this.getColorName(mainPlayer.color);
 
             // Player grid
-            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, this.myData.name, 5, 100, this.myData.color, this.placedTiles, this.myUserId);
+            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, mainPlayer.name, 5, 100, mainPlayer.color, this.placedTiles, this.mainId);
         
             // Other players (no interactivity needed)
             const playerKeys = Object.keys(this.players);
-            playerKeys.splice(playerKeys.indexOf(this.myUserId), 1); // Remove current player from the list
+            playerKeys.splice(playerKeys.indexOf(this.mainId), 1); // Remove current player from the list
             const playerSize = playerKeys.length;
             if (playerSize > 0) {
                 const userId = playerKeys[0];
@@ -499,7 +506,7 @@ class KingdominoScene extends Phaser.Scene {
             const iconKey = 'pawn-' + this.myColorName;
             const targetX = 0;
             const targetY = this.scale.height;
-            this.showTitleEffect('You are ' + this.myColorName, iconKey, targetX, targetY, {
+            if (!this.isSpectator) this.showTitleEffect('You are ' + this.myColorName, iconKey, targetX, targetY, {
                 fontSize: '42px',
                 animationDuration: 400,
                 displayDuration: 1000,
@@ -520,7 +527,7 @@ class KingdominoScene extends Phaser.Scene {
         
         socket.on("kingdomino-players-update", ({ players: playersData }) => {
             this.players = playersData;
-            this.myData = this.players[this.myUserId]; // Update myData reference
+            if (!this.isSpectator) this.myData = this.players[this.myUserId]; // Update myData reference
             if (this.playerListContainer) {
                 this.playerListContainer.destroy();
                 this.createPlayerList();
@@ -616,7 +623,7 @@ class KingdominoScene extends Phaser.Scene {
             if (row === -1 && col === -1) {
                 // Tile was discarded due to timeout
                 tile.destroy();
-                showToast(`${this.players[odId].name} timed out - tile discarded`);
+                WBG.toast(`${this.players[odId].name} timed out - tile discarded`);
             } else {
                 if (odId !== this.myUserId) {
                     this.placeOtherPlayersTile(odId, tile, row, col, rotation);
@@ -643,7 +650,7 @@ class KingdominoScene extends Phaser.Scene {
                 displayDuration: 1000,
                 fadeOutDuration: 400
             });*/
-            showToast('Tile selection ended.');
+            WBG.toast('Tile selection ended.');
         });
 
         socket.on("kingdomino-tile-selection-start", () => {
@@ -654,7 +661,7 @@ class KingdominoScene extends Phaser.Scene {
                 displayDuration: 1000,
                 fadeOutDuration: 400
             });*/
-            showToast('Tile selection started.');
+            WBG.toast('Tile selection started.');
         });
 
         socket.on("kingdomino-game-end", ({ players }) => {
@@ -664,10 +671,10 @@ class KingdominoScene extends Phaser.Scene {
                 displayDuration: 1000,
                 fadeOutDuration: 400
             });
-            showToast('Game ended.');
+            WBG.toast('Game ended.');
         });
 
-        socket.emit("kingdomino-create-finish");
+        WBG.gameReady("kingdomino-create-finish");
     }
     
     resize(width, height) {
@@ -697,42 +704,16 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-const onChangeScreen = () => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-    
-    console.log('Screen changed:', width, height);
-    
-    // Use refresh() for FIT mode - it handles everything automatically
-    game.scale.refresh();
-    
-    // Optional: Force a small delay to ensure DOM has updated
-    setTimeout(() => {
-        game.scale.refresh();
-    }, 10);
-};
+const refreshScale = () => game.scale.refresh();
+window.addEventListener('resize', refreshScale);
+screen.orientation?.addEventListener('change', refreshScale);
+const onVisible = () => { if (!document.hidden) setTimeout(refreshScale, 100); };
+document.addEventListener('visibilitychange', onVisible);
+setTimeout(refreshScale, 100);
 
-// Handle window resize (browser resize, dev tools, etc.)
-window.addEventListener('resize', onChangeScreen);
-
-// Handle orientation change (mobile devices)
-if (screen.orientation) {
-    screen.orientation.addEventListener('change', onChangeScreen);
-} else if (screen.mozOrientation) {
-    screen.addEventListener('mozorientationchange', onChangeScreen);
-} else if (screen.msOrientation) {
-    screen.addEventListener('msorientationchange', onChangeScreen);
-}
-
-// Optional: Handle visibility change to ensure proper scaling when tab becomes visible
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-        // Small delay to ensure page is fully visible
-        setTimeout(onChangeScreen, 100);
-    }
+WBG.onTeardown(() => {
+    window.removeEventListener('resize', refreshScale);
+    screen.orientation?.removeEventListener('change', refreshScale);
+    document.removeEventListener('visibilitychange', onVisible);
+    game.destroy(true);
 });
-
-// Optional: Force initial scale check after a short delay
-setTimeout(() => {
-    onChangeScreen();
-}, 100);

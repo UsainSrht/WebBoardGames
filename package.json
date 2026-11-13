@@ -1,16 +1,17 @@
 {
   "name": "web-board-games",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "A multiplayer web-based board game platform on Cloudflare Workers + Durable Objects",
   "main": "src/worker.js",
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "npm run build:css",
+    "build": "npm run build:css && node scripts/vendor.mjs",
     "build:css": "tailwindcss -i ./styles/tailwind.css -o ./public_html/tailwind.css --minify",
     "dev": "npm run build:css && wrangler dev",
     "deploy": "wrangler deploy",
     "test": "node --test \"test/*.test.js\"",
+    "test:e2e": "node test/e2e/protocol.mjs",
     "tail": "wrangler tail"
   },
   "keywords": [
@@ -24,6 +25,7 @@
   "license": "ISC",
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
+    "qrcode-generator": "^2.0.4",
     "tailwindcss": "^4.3.3",
     "wrangler": "^4.59.2"
   }

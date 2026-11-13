@@ -1,7 +1,47 @@
-/* Compiled to public_html/tailwind.css with `npm run build:css`. */
+/*
+ * Design system for Web Board Games. Compiled to public_html/tailwind.css with `npm run build`.
+ * Tailwind scans public_html (HTML + JS strings), so any class used there is generated.
+ */
 @import "tailwindcss" source("../public_html");
 
-/* Keep Tailwind v3 defaults the pages were designed with. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-ink-950: #07090f;
+  --color-ink-900: #0b0e1a;
+  --color-ink-850: #0f1322;
+  --color-ink-800: #141a2e;
+  --color-ink-700: #1d2440;
+  --color-ink-600: #2a3358;
+
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #5457e0;
+  --color-violet-500: #8b5cf6;
+
+  --animate-fade-in: fade-in 0.28s ease-out both;
+  --animate-slide-up: slide-up 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: pop 0.3s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-soft: pulse-soft 2.2s ease-in-out infinite;
+
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slide-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes pop { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes pulse-soft { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+}
+
+/* Same-origin navigations cross-fade instead of flashing white. */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: 140ms ease-in both fade-out; }
+::view-transition-new(root) { animation: 220ms ease-out both fade-in; }
+@keyframes fade-out { to { opacity: 0; } }
+
 @layer base {
   *,
   ::after,
@@ -11,8 +51,187 @@
     border-color: var(--color-gray-200, currentColor);
   }
 
-  button:not(:disabled),
-  [role="button"]:not(:disabled) {
-    cursor: pointer;
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    background: var(--color-ink-950);
   }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    font-family: var(--font-sans);
+    color: #e6e9f7;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgb(99 102 241 / 0.18), transparent 60%),
+      radial-gradient(800px 480px at 100% 0%, rgb(139 92 246 / 0.14), transparent 55%),
+      var(--color-ink-950);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a, input, select, textarea, summary { touch-action: manipulation; }
+  button:not(:disabled), [role="button"]:not(:disabled), summary { cursor: pointer; }
+  button { font: inherit; color: inherit; }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
+  ::selection { background: rgb(99 102 241 / 0.45); }
+
+  [data-icon] { display: inline-block; flex: none; }
+  [hidden] { display: none !important; }
+
+  .reduce-motion *, .reduce-motion ::before, .reduce-motion ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Declared after the rule above so it wins for people who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  @view-transition { navigation: none; }
+}
+
+@layer components {
+  /* ---------- surfaces ---------- */
+  .card {
+    @apply rounded-3xl border border-white/8 bg-white/4 backdrop-blur-xl;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 20px 50px -24px rgb(0 0 0 / 0.6);
+  }
+  .card-flat { @apply rounded-2xl border border-white/8 bg-white/4; }
+  .divider { @apply h-px w-full bg-white/8; }
+  .scroll-y { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / 0.2) transparent; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    @apply inline-flex h-11 select-none items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold whitespace-nowrap transition duration-150;
+    @apply active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45;
+  }
+  .btn-primary {
+    @apply text-white;
+    background: linear-gradient(135deg, var(--color-brand-500), var(--color-violet-500));
+    box-shadow: 0 10px 24px -10px rgb(99 102 241 / 0.8), 0 1px 0 rgb(255 255 255 / 0.25) inset;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-secondary { @apply border border-white/10 bg-white/7 text-slate-100 hover:bg-white/12; }
+  .btn-ghost { @apply text-slate-300 hover:bg-white/8 hover:text-white; }
+  .btn-success { @apply bg-emerald-500 text-white hover:bg-emerald-400; box-shadow: 0 10px 24px -12px rgb(16 185 129 / 0.8); }
+  .btn-danger { @apply bg-rose-600 text-white hover:bg-rose-500; }
+  .btn-sm { @apply h-9 rounded-lg px-3.5 text-[13px]; }
+  .btn-lg { @apply h-14 rounded-2xl px-7 text-base; }
+  .btn-icon { @apply size-10 shrink-0 rounded-xl p-0; }
+  .btn-icon.btn-sm { @apply size-9 rounded-lg; }
+
+  /* ---------- forms ---------- */
+  .input {
+    @apply h-12 w-full rounded-xl border border-white/10 bg-white/6 px-4 text-base text-white outline-none transition;
+    @apply placeholder:text-slate-500 focus:border-brand-400 focus:bg-white/8;
+    box-shadow: 0 0 0 0 rgb(129 140 248 / 0);
+  }
+  .input:focus { box-shadow: 0 0 0 4px rgb(129 140 248 / 0.2); }
+  .input[aria-invalid="true"] { @apply border-rose-400; box-shadow: 0 0 0 4px rgb(244 63 94 / 0.18); }
+  .field-label { @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-400 uppercase; }
+  .field-error { @apply mt-1.5 text-sm text-rose-300; }
+
+  .switch { @apply relative inline-block h-6 w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-white/15 transition; }
+  .switch::after {
+    content: ""; @apply absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform duration-200;
+  }
+  .switch:checked { background: linear-gradient(135deg, var(--color-brand-500), var(--color-violet-500)); }
+  .switch:checked::after { transform: translateX(1.25rem); }
+
+  /* ---------- small elements ---------- */
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full bg-white/8 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-slate-300; }
+  .chip-brand { @apply bg-brand-500/20 text-brand-300; }
+  .chip-success { @apply bg-emerald-500/15 text-emerald-300; }
+  .chip-warn { @apply bg-amber-500/15 text-amber-300; }
+  .chip-danger { @apply bg-rose-500/15 text-rose-300; }
+  .kbd { @apply inline-flex min-w-6 items-center justify-center rounded-md border border-white/15 bg-white/8 px-1.5 py-0.5 font-mono text-[11px] text-slate-200; }
+  .avatar { @apply grid size-9 shrink-0 place-items-center rounded-full text-sm font-bold text-white select-none; }
+  .dot { @apply inline-block size-2 shrink-0 rounded-full; }
+
+  .skeleton {
+    @apply rounded-xl;
+    background: linear-gradient(100deg, rgb(255 255 255 / 0.04) 30%, rgb(255 255 255 / 0.1) 50%, rgb(255 255 255 / 0.04) 70%);
+    background-size: 200% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  /* ---------- overlays ---------- */
+  .modal-backdrop {
+    @apply fixed inset-0 z-50 grid place-items-end bg-black/60 backdrop-blur-sm sm:place-items-center;
+    opacity: 0; transition: opacity 0.2s ease;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .modal-backdrop[data-open] { opacity: 1; }
+  .modal {
+    @apply w-full rounded-t-3xl border border-white/10 bg-ink-800 p-6 shadow-2xl sm:max-w-md sm:rounded-3xl;
+    max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
+    transform: translateY(24px) scale(0.98); transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+  }
+  .modal-backdrop[data-open] .modal { transform: none; }
+  .modal-title { @apply text-xl font-bold tracking-tight text-white; }
+
+  .drawer-backdrop {
+    @apply fixed inset-0 z-40 bg-black/50 opacity-0 transition-opacity duration-200;
+  }
+  .drawer-backdrop[data-open] { opacity: 1; }
+  .drawer-panel {
+    @apply absolute right-0 bottom-0 flex h-[84dvh] w-full flex-col rounded-t-3xl border border-white/10 bg-ink-850 shadow-2xl sm:top-0 sm:h-auto sm:w-[26rem] sm:rounded-none sm:rounded-l-3xl;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  @media (min-width: 640px) { .drawer-panel { transform: translateX(100%); } }
+  .drawer-backdrop[data-open] .drawer-panel { transform: none; }
+
+  .tab { @apply flex-1 rounded-lg px-3 py-2 text-sm font-semibold text-slate-400 transition hover:text-white; }
+  .tab[aria-selected="true"] { @apply bg-white/10 text-white; }
+
+  .menu {
+    @apply absolute z-50 min-w-44 overflow-hidden rounded-xl border border-white/10 bg-ink-700 p-1 shadow-2xl;
+    animation: var(--animate-pop);
+  }
+  .menu-item { @apply flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-200 hover:bg-white/10; }
+  .menu-item-danger { @apply text-rose-300 hover:bg-rose-500/15; }
+
+  .toasts {
+    @apply pointer-events-none fixed inset-x-0 z-[60] flex flex-col items-center gap-2 px-4;
+    top: calc(env(safe-area-inset-top) + 4.25rem);
+  }
+  .toast {
+    @apply pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-2xl border border-white/10 bg-ink-700/95 py-2.5 pr-4 pl-3 text-sm font-medium text-white shadow-xl backdrop-blur-md;
+    animation: var(--animate-pop);
+  }
+  .toast[data-leaving] { opacity: 0; transform: translateY(-8px) scale(0.97); transition: 0.25s ease; }
+  .toast-error { @apply border-rose-400/30; }
+  .toast-success { @apply border-emerald-400/30; }
+
+  /* ---------- sections ---------- */
+  .eyebrow { @apply text-xs font-semibold tracking-[0.14em] text-brand-300 uppercase; }
+  .reveal { animation: var(--animate-slide-up); }
+  .reveal-2 { animation: var(--animate-slide-up); animation-delay: 0.07s; }
+  .reveal-3 { animation: var(--animate-slide-up); animation-delay: 0.14s; }
+  .reveal-4 { animation: var(--animate-slide-up); animation-delay: 0.21s; }
+
+  .safe-b { padding-bottom: max(env(safe-area-inset-bottom), 0.75rem); }
+  .safe-t { padding-top: env(safe-area-inset-top); }
 }

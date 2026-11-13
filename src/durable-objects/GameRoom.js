@@ -1,6 +1,14 @@
 /**
  * GameRoom Durable Object
- * Handles WebSocket connections, lobby state and the running game for a single room.
+ * One instance per room: WebSocket sessions, lobby, roles and the running game.
+ *
+ * Roles
+ *  - player:    takes part in games
+ *  - spectator: only the host can choose this ("host view"); watches and manages
+ *               the room (pick/start/restart/end games, kick, hand over host) without playing
+ *
+ * The lobby is synchronised with a single idempotent `room-state` message that is
+ * pushed after every change, so clients never have to merge partial updates.
  */
 
 import { RockPaperScissors } from '../games/rock-paper-scissors.js';
@@ -20,7 +28,9 @@ const GAME_CLASSES = {
   'chess': Chess
 };
 
-const RECONNECT_GRACE_MS = 10000;
+const LOBBY_GRACE_MS = 60 * 1000;       // phones sleep / tabs switch; don't drop people quickly
+const GAME_GRACE_MS = 3 * 60 * 1000;
+const IDLE_ROOM_TTL_MS = 3 * 60 * 60 * 1000;
 const MAX_MESSAGE_BYTES = 4096;
 const MAX_CHAT_LENGTH = 200;
 const CHAT_COOLDOWN_MS = 400;
@@ -38,8 +48,8 @@ export class GameRoom {
     this.state = state;
     this.env = env;
 
-    this.sessions = new Map();          // WebSocket -> { odId, name, ws, lastChat }
-    this.players = new Map();           // odId -> { odId, name }
+    this.sessions = new Map();          // WebSocket -> { odId, name, ws, lastChat, closed }
+    this.players = new Map();           // odId -> { odId, name, spectator }
     this.secrets = new Map();           // odId -> sha256(secret); proves identity on reconnect
     this.kickedPlayers = new Set();
     this.readyPlayers = new Set();
@@ -53,14 +63,13 @@ export class GameRoom {
     this.state.blockConcurrencyWhile(async () => {
       const stored = await this.state.storage.get('roomState');
       if (stored) {
-        this.players = new Map(stored.players || []);
+        this.players = new Map((stored.players || []).map(([id, p]) => [id, { spectator: false, ...p }]));
         this.secrets = new Map(stored.secrets || []);
         this.kickedPlayers = new Set(stored.kickedPlayers || []);
         this.host = stored.host ?? null;
         this.selectedGame = stored.selectedGame ?? null;
         this.created = stored.created || Date.now();
-        // A game cannot survive a Durable Object restart (state lives in memory),
-        // so always come back in the lobby.
+        // A game lives in memory and cannot survive a restart: come back in the lobby.
         this.started = false;
         this.readyPlayers = new Set();
       }
@@ -75,7 +84,7 @@ export class GameRoom {
     if (url.pathname === '/status') {
       return new Response(JSON.stringify({
         exists: this.players.size > 0,
-        playerCount: this.players.size,
+        playerCount: this.activePlayers().length,
         started: this.started,
         game: this.selectedGame
       }), { headers: { 'Content-Type': 'application/json' } });
@@ -84,7 +93,6 @@ export class GameRoom {
     if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
       return this.handleWebSocket();
     }
-
     return new Response('Expected WebSocket', { status: 426 });
   }
 
@@ -99,13 +107,10 @@ export class GameRoom {
 
     const session = { odId: null, name: null, ws, lastChat: 0, closed: false };
     this.sessions.set(ws, session);
-
     this.send(ws, { type: 'request-user-id' });
 
     ws.addEventListener('message', async (event) => {
-      if (typeof event.data !== 'string' || event.data.length > MAX_MESSAGE_BYTES) {
-        return;
-      }
+      if (typeof event.data !== 'string' || event.data.length > MAX_MESSAGE_BYTES) return;
       let data;
       try {
         data = JSON.parse(event.data);
@@ -123,47 +128,48 @@ export class GameRoom {
       }
     });
 
-    const onClose = () => this.handleDisconnect(ws, session);
-    ws.addEventListener('close', onClose);
-    ws.addEventListener('error', onClose);
+    // Workers do not answer a client's close frame on their own: without this the
+    // browser sits in CLOSING forever and never notices it should reconnect.
+    ws.addEventListener('close', (event) => {
+      try {
+        const code = event.code === 1005 || event.code === 1006 || !event.code ? 1000 : event.code;
+        ws.close(code, 'closing');
+      } catch {
+        // already closed
+      }
+      this.handleDisconnect(ws, session);
+    });
+    ws.addEventListener('error', () => this.handleDisconnect(ws, session));
   }
 
   async handleMessage(ws, session, data) {
     const { type, ...payload } = data;
 
     switch (type) {
-      case 'send-user-id':
-        return this.handleSendUserId(ws, session, payload);
-      case 'submit-name':
-        return this.handleSubmitName(ws, session, payload);
-      case 'join-room':
-        return this.handleJoinRoom(ws, session);
-      case 'ping':
-        return this.send(ws, { type: 'pong' });
-      case 'request-back-to-lobby':
-        // Client failed to load the game UI; let it fall back to the lobby view.
-        return this.send(ws, { type: 'back-to-lobby' });
+      case 'send-user-id': return this.handleSendUserId(ws, session, payload);
+      case 'submit-name': return this.handleSubmitName(ws, session, payload);
+      case 'join-room': return this.handleJoinRoom(ws, session, payload);
+      case 'ping': return this.send(ws, { type: 'pong' });
+      case 'request-back-to-lobby': return this.send(ws, { type: 'back-to-lobby' });
     }
 
-    // Everything below requires an identified session.
     if (!session.odId) return;
 
     switch (type) {
-      case 'create-room':
-        return this.handleJoinRoom(ws, session);
-      case 'chat-message':
-        return this.handleChatMessage(session, payload);
-      case 'select-game':
-        return this.handleSelectGame(ws, session, payload);
-      case 'toggle-ready':
-        return this.handleToggleReady(session);
-      case 'kick-player':
-        return this.handleKickPlayer(ws, session, payload);
-      case 'leave-room':
-        return this.handleLeaveRoom(session);
+      case 'chat-message': return this.handleChatMessage(session, payload);
+      case 'select-game': return this.handleSelectGame(ws, session, payload);
+      case 'toggle-ready': return this.handleToggleReady(session);
+      case 'set-role': return this.handleSetRole(ws, session, payload);
+      case 'start-game': return this.handleStartGame(ws, session);
+      case 'end-game': return this.handleEndGame(ws, session);
+      case 'restart-game': return this.handleRestartGame(ws, session);
+      case 'transfer-host': return this.handleTransferHost(ws, session, payload);
+      case 'kick-player': return this.handleKickPlayer(ws, session, payload);
+      case 'leave-room': return this.handleLeaveRoom(session);
+      case 'spectate-ready': return this.handleSpectateReady(session);
       default:
-        // Game-specific messages are only accepted from people in the room.
-        if (this.gameInstance && this.players.has(session.odId)) {
+        // Game-specific messages are only accepted from people who are playing.
+        if (this.gameInstance && this.isActive(session.odId)) {
           this.gameInstance.handleMessage(session.odId, type, payload);
         }
     }
@@ -173,19 +179,14 @@ export class GameRoom {
 
   async handleSendUserId(ws, session, payload) {
     let odId = payload.odId ?? payload.value;
-    const name = payload.name;
-    const secret = payload.secret;
+    const { name, secret } = payload;
 
-    if (typeof odId !== 'string' || !ID_RE.test(odId)) {
-      odId = crypto.randomUUID();
-    }
+    if (typeof odId !== 'string' || !ID_RE.test(odId)) odId = crypto.randomUUID();
 
-    // Prove ownership of an existing identity so ids leaked via the player list can't be hijacked.
+    // Prove ownership of an existing identity so ids seen in the player list can't be hijacked.
     const secretHash = typeof secret === 'string' && SECRET_RE.test(secret) ? await sha256Hex(secret) : null;
     const knownHash = this.secrets.get(odId);
-    if (knownHash && knownHash !== secretHash) {
-      odId = crypto.randomUUID();
-    }
+    if (knownHash && knownHash !== secretHash) odId = crypto.randomUUID();
     if (secretHash && !this.secrets.has(odId)) {
       this.secrets.set(odId, secretHash);
       await this.saveState();
@@ -197,17 +198,9 @@ export class GameRoom {
     const existing = this.players.get(odId);
     session.name = existing?.name || (this.isValidName(name) ? name.trim() : null);
 
-    this.send(ws, {
-      type: 'connect-user',
-      odId,
-      name: session.name,
-      inRoom: !!existing
-    });
+    this.send(ws, { type: 'connect-user', odId, name: session.name, inRoom: !!existing });
 
-    if (existing) {
-      // Returning player (socket reconnect): resync lobby state.
-      this.sendRoomData(ws);
-    }
+    if (existing) this.pushState(); // returning player: resync everyone (online flag changes)
   }
 
   isValidName(name) {
@@ -233,7 +226,7 @@ export class GameRoom {
     name = name.trim();
 
     if (this.isNameTaken(name, session.odId)) {
-      this.send(ws, { type: 'error', message: 'Name already taken in this room' });
+      this.send(ws, { type: 'error', message: 'That name is already taken in this room' });
       this.send(ws, { type: 'request-nickname', taken: true });
       return;
     }
@@ -244,79 +237,117 @@ export class GameRoom {
     if (player) {
       player.name = name;
       await this.saveState();
-      this.broadcastPlayerList();
+      this.pushState();
     }
 
     if (isInGame) {
-      this.send(ws, {
-        type: 'connect-user',
-        odId: session.odId,
-        name: session.name,
-        inRoom: !!player
-      });
+      this.send(ws, { type: 'connect-user', odId: session.odId, name, inRoom: !!player });
     }
+  }
+
+  // --------------------------------------------------------------------- Roles
+
+  activePlayers() {
+    return Array.from(this.players.values()).filter(p => !p.spectator);
+  }
+
+  isActive(odId) {
+    const p = this.players.get(odId);
+    return !!p && !p.spectator;
+  }
+
+  spectatorIds() {
+    return Array.from(this.players.values()).filter(p => p.spectator).map(p => p.odId);
+  }
+
+  isHost(odId) {
+    return this.host === odId;
+  }
+
+  requireHost(ws, session) {
+    if (!this.isHost(session.odId)) {
+      this.send(ws, { type: 'error', message: 'Only the host can do that' });
+      return false;
+    }
+    return true;
   }
 
   // ---------------------------------------------------------------------- Lobby
 
-  async handleJoinRoom(ws, session) {
+  async handleJoinRoom(ws, session, { spectate } = {}) {
     if (!session.name) {
       this.send(ws, { type: 'request-nickname' });
       return;
     }
 
-    const isMember = this.players.has(session.odId);
+    const existing = this.players.get(session.odId);
 
     if (this.kickedPlayers.has(session.odId)) {
-      this.send(ws, { type: 'error', message: 'You have been kicked from this room!' });
+      this.send(ws, { type: 'error', message: 'You have been removed from this room' });
       this.send(ws, { type: 'you-got-kicked' });
       return;
     }
-
-    if (this.started && !isMember) {
-      this.send(ws, { type: 'error', message: 'Room already started' });
+    if (this.started && !existing) {
+      this.send(ws, { type: 'error', message: 'This room already started a game' });
+      this.send(ws, { type: 'join-failed', reason: 'started' });
       return;
     }
 
-    if (!isMember) {
-      if (this.players.size >= MAX_ROOM_PLAYERS) {
-        this.send(ws, { type: 'error', message: 'Room is full' });
+    if (!existing) {
+      if (this.activePlayers().length >= MAX_ROOM_PLAYERS) {
+        this.send(ws, { type: 'error', message: 'This room is full' });
+        this.send(ws, { type: 'join-failed', reason: 'full' });
         return;
       }
       if (this.isNameTaken(session.name, session.odId)) {
-        this.send(ws, { type: 'error', message: 'Name already taken in this room' });
+        this.send(ws, { type: 'error', message: 'That name is already taken in this room' });
         this.send(ws, { type: 'request-nickname', taken: true });
         return;
       }
     }
 
-    if (!this.host || this.players.size === 0) {
-      this.host = session.odId;
-    }
+    const becomesHost = !this.host || this.players.size === 0;
+    if (becomesHost) this.host = session.odId;
 
-    this.players.set(session.odId, { odId: session.odId, name: session.name });
+    // Only the host may choose the spectator ("host view") role when entering.
+    const spectator = existing ? existing.spectator : (becomesHost && spectate === true);
+
+    this.players.set(session.odId, { odId: session.odId, name: session.name, spectator });
     await this.saveState();
 
-    if (!isMember) {
-      this.broadcast({ type: 'player-joined', name: session.name });
-    }
-    this.broadcastPlayerList();
-    this.sendRoomData(ws);
+    if (!existing) this.broadcast({ type: 'player-joined', name: session.name });
+    this.pushState();
 
     if (this.started) {
       // Page reload in the middle of a game: load the game UI again.
       this.send(ws, { type: 'game-started', game: this.selectedGame });
-    } else {
-      // Show current ready states to the (re)joining client.
-      for (const odId of this.readyPlayers) {
-        this.send(ws, { type: 'ready-state', odId, isReady: true });
-      }
     }
   }
 
+  async handleSetRole(ws, session, { spectator }) {
+    const me = this.players.get(session.odId);
+    if (!me || this.started) {
+      return this.send(ws, { type: 'error', message: 'Roles can only be changed in the lobby' });
+    }
+
+    const wantSpectator = spectator === true;
+    if (wantSpectator && !this.isHost(session.odId)) {
+      return this.send(ws, { type: 'error', message: 'Only the host can use host view' });
+    }
+    if (!wantSpectator && me.spectator && this.activePlayers().length >= MAX_ROOM_PLAYERS) {
+      return this.send(ws, { type: 'error', message: 'This room is full' });
+    }
+    if (me.spectator === wantSpectator) return;
+
+    me.spectator = wantSpectator;
+    this.readyPlayers.delete(session.odId);
+    await this.saveState();
+    this.pushState();
+    await this.maybeStartGame();
+  }
+
   handleChatMessage(session, { message }) {
-    if (!this.players.has(session.odId)) return;
-    if (typeof message !== 'string') return;
+    if (!this.players.has(session.odId) || typeof message !== 'string') return;
 
     const now = Date.now();
     if (now - session.lastChat < CHAT_COOLDOWN_MS) return;
@@ -325,78 +356,101 @@ export class GameRoom {
     const text = message.trim().slice(0, MAX_CHAT_LENGTH);
     if (!text) return;
 
-    this.broadcast({ type: 'chat-message', message: text, name: session.name });
+    this.broadcast({ type: 'chat-message', message: text, name: session.name, odId: session.odId, at: now });
   }
 
   async handleSelectGame(ws, session, { game }) {
-    if (this.host !== session.odId) {
-      return this.send(ws, { type: 'error', message: 'You are not the host of this room' });
-    }
-    if (this.started) {
-      return this.send(ws, { type: 'error', message: 'A game is already running' });
-    }
+    if (!this.requireHost(ws, session)) return;
+    if (this.started) return this.send(ws, { type: 'error', message: 'A game is already running' });
 
-    const gameConfig = Object.hasOwn(GAME_CONFIGS, game) ? GAME_CONFIGS[game] : null;
-    if (!gameConfig) {
-      return this.send(ws, { type: 'error', message: 'Invalid game selected' });
-    }
-    if (!gameConfig.available) {
-      return this.send(ws, { type: 'error', message: `${gameConfig.name} is not available yet` });
-    }
+    const config = Object.hasOwn(GAME_CONFIGS, game) ? GAME_CONFIGS[game] : null;
+    if (!config) return this.send(ws, { type: 'error', message: 'Invalid game selected' });
+    if (!config.available) return this.send(ws, { type: 'error', message: `${config.name} is not available yet` });
 
     this.selectedGame = game;
     this.readyPlayers.clear();
     await this.saveState();
-
-    this.broadcast({
-      type: 'game-selected',
-      game,
-      min: gameConfig.min,
-      max: gameConfig.max,
-      name: gameConfig.name
-    });
-
-    for (const odId of this.players.keys()) {
-      this.broadcast({ type: 'ready-state', odId, isReady: false });
-    }
+    this.pushState();
   }
 
   async handleToggleReady(session) {
-    if (!this.players.has(session.odId) || this.started) return;
+    if (!this.isActive(session.odId) || this.started) return;
 
-    const isReady = !this.readyPlayers.has(session.odId);
-    if (isReady) this.readyPlayers.add(session.odId);
-    else this.readyPlayers.delete(session.odId);
+    if (this.readyPlayers.has(session.odId)) this.readyPlayers.delete(session.odId);
+    else this.readyPlayers.add(session.odId);
 
-    await this.saveState();
-    this.broadcast({ type: 'ready-state', odId: session.odId, isReady });
-
+    this.pushState();
     await this.maybeStartGame();
   }
 
-  async maybeStartGame() {
-    if (this.started || !this.selectedGame) return;
+  /** Why the current selection can't start, or null when it can. */
+  startBlocker() {
+    if (!this.selectedGame) return 'Pick a game first';
+    const { min, max, name } = GAME_CONFIGS[this.selectedGame];
+    const count = this.activePlayers().length;
+    if (count < min) return `${name} needs at least ${min} player${min === 1 ? '' : 's'}`;
+    if (count > max) return `${name} supports at most ${max} players`;
+    return null;
+  }
 
-    const { min, max } = GAME_CONFIGS[this.selectedGame];
-    const readyCount = this.readyPlayers.size;
-    if (readyCount >= min && readyCount <= max && readyCount === this.players.size) {
+  async maybeStartGame() {
+    if (this.started || this.startBlocker()) return;
+    const actives = this.activePlayers();
+    if (actives.length > 0 && actives.every(p => this.readyPlayers.has(p.odId))) {
       await this.startGame();
-    } else if (readyCount === this.players.size && this.players.size > max) {
-      this.broadcast({ type: 'error', message: `${GAME_CONFIGS[this.selectedGame].name} supports at most ${max} players` });
     }
   }
 
-  async handleKickPlayer(ws, session, { kickedUserId }) {
-    if (this.host !== session.odId) {
-      return this.send(ws, { type: 'error', message: 'You are not the host of this room!' });
+  async handleStartGame(ws, session) {
+    if (!this.requireHost(ws, session)) return;
+    if (this.started) return;
+    const blocker = this.startBlocker();
+    if (blocker) return this.send(ws, { type: 'error', message: blocker });
+    await this.startGame();
+  }
+
+  async handleEndGame(ws, session) {
+    if (!this.requireHost(ws, session)) return;
+    if (!this.started) return;
+    this.broadcast({ type: 'system-message', message: 'The host ended the game.' });
+    await this.endGame();
+  }
+
+  async handleRestartGame(ws, session) {
+    if (!this.requireHost(ws, session)) return;
+    if (!this.started) return;
+    if (this.startBlocker()) {
+      this.broadcast({ type: 'system-message', message: 'Not enough players to restart.' });
+      return this.endGame();
     }
+    this.broadcast({ type: 'system-message', message: 'The host restarted the game.' });
+    this.gameInstance?.cleanup?.();
+    this.gameInstance = null;
+    await this.startGame();
+  }
+
+  async handleTransferHost(ws, session, { id }) {
+    if (!this.requireHost(ws, session)) return;
+    const target = this.players.get(id);
+    if (!target || id === session.odId) return this.send(ws, { type: 'error', message: 'Pick another player' });
+
+    const old = this.players.get(session.odId);
+    this.host = id;
+    // A spectator is only meaningful for the host; hand the old host a seat again.
+    if (old?.spectator && !this.started) old.spectator = false;
+
+    await this.saveState();
+    this.broadcast({ type: 'system-message', message: `${target.name} is now the host.` });
+    this.pushState();
+  }
+
+  async handleKickPlayer(ws, session, { kickedUserId }) {
+    if (!this.requireHost(ws, session)) return;
     if (kickedUserId === session.odId) {
       return this.send(ws, { type: 'error', message: 'You cannot kick yourself' });
     }
     const kicked = this.players.get(kickedUserId);
-    if (!kicked) {
-      return this.send(ws, { type: 'error', message: 'Player not in room!' });
-    }
+    if (!kicked) return this.send(ws, { type: 'error', message: 'Player not in room' });
 
     this.kickedPlayers.add(kickedUserId);
     this.broadcast({ type: 'player-kicked', name: kicked.name });
@@ -408,14 +462,17 @@ export class GameRoom {
   }
 
   async handleLeaveRoom(session) {
-    if (!this.players.has(session.odId)) return;
-    await this.removePlayer(session.odId);
+    if (this.players.has(session.odId)) await this.removePlayer(session.odId);
   }
 
-  /**
-   * Remove a player from the room, migrate the host if needed and
-   * reset the room once it is empty.
-   */
+  handleSpectateReady(session) {
+    const me = this.players.get(session.odId);
+    if (me?.spectator && this.gameInstance) {
+      this.gameInstance.spectatorSync?.(session.odId);
+    }
+  }
+
+  /** Remove a member, migrate the host if needed and reset the room once it is empty. */
   async removePlayer(odId, { announce = true } = {}) {
     const player = this.players.get(odId);
     if (!player) return;
@@ -431,28 +488,28 @@ export class GameRoom {
     }
 
     if (this.host === odId) {
-      this.host = this.players.keys().next().value;
-      this.broadcast({ type: 'host-changed', host: this.host });
+      const next = this.activePlayers()[0] || this.players.values().next().value;
+      this.host = next.odId;
+      // A hosting-only spectator who leaves must not leave the room without a seat for the new host.
+      this.broadcast({ type: 'system-message', message: `${next.name} is now the host.` });
     }
 
     await this.saveState();
-
     if (announce) this.broadcast({ type: 'player-left', name: player.name });
-    this.broadcastPlayerList();
+    this.pushState();
 
-    if (this.gameInstance?.onPlayerLeft) {
-      this.gameInstance.onPlayerLeft(odId);
+    this.gameInstance?.onPlayerLeft?.(odId);
+
+    if (this.started && this.activePlayers().length === 0) {
+      await this.endGame();
+      return;
     }
-
-    // The remaining players may all be ready now.
     await this.maybeStartGame();
   }
 
   async resetRoom() {
-    if (this.gameInstance) {
-      this.gameInstance.cleanup?.();
-      this.gameInstance = null;
-    }
+    this.gameInstance?.cleanup?.();
+    this.gameInstance = null;
     for (const t of this.disconnectTimers.values()) clearTimeout(t);
     this.disconnectTimers.clear();
 
@@ -463,6 +520,7 @@ export class GameRoom {
     this.host = null;
     this.started = false;
     this.selectedGame = null;
+    await this.state.storage.deleteAlarm();
     await this.state.storage.deleteAll();
   }
 
@@ -475,15 +533,16 @@ export class GameRoom {
 
     const { odId } = session;
     if (!odId || !this.players.has(odId)) return;
-    // Another tab/socket of the same player is still connected.
-    if (this.getWsByUserId(odId)) return;
+    if (this.getWsByUserId(odId)) return; // another tab of the same player is still open
+
+    this.pushState(); // show them as offline
 
     this.cancelDisconnectTimer(odId);
     const timer = setTimeout(async () => {
       this.disconnectTimers.delete(odId);
       if (this.getWsByUserId(odId)) return;
       await this.removePlayer(odId);
-    }, RECONNECT_GRACE_MS);
+    }, this.started ? GAME_GRACE_MS : LOBBY_GRACE_MS);
     this.disconnectTimers.set(odId, timer);
   }
 
@@ -492,6 +551,15 @@ export class GameRoom {
     if (timer) {
       clearTimeout(timer);
       this.disconnectTimers.delete(odId);
+    }
+  }
+
+  /** Abandoned rooms (everybody gone, process evicted) are wiped after a while. */
+  async alarm() {
+    if (this.sessions.size === 0) {
+      await this.resetRoom();
+    } else {
+      await this.state.storage.setAlarm(Date.now() + IDLE_ROOM_TTL_MS);
     }
   }
 
@@ -505,23 +573,25 @@ export class GameRoom {
     }
 
     this.started = true;
+    this.readyPlayers.clear();
     await this.saveState();
+    this.pushState();
 
     this.broadcast({ type: 'game-started', game: this.selectedGame });
-    this.gameInstance = new GameClass(this, Object.fromEntries(this.players));
+    const players = Object.fromEntries(this.activePlayers().map(p => [p.odId, { odId: p.odId, name: p.name }]));
+    this.gameInstance = new GameClass(this, players);
   }
 
   async endGame() {
-    if (this.gameInstance) {
-      this.gameInstance.cleanup?.();
-      this.gameInstance = null;
-    }
+    this.gameInstance?.cleanup?.();
+    this.gameInstance = null;
     this.started = false;
     this.selectedGame = null;
     this.readyPlayers.clear();
     await this.saveState();
 
     this.broadcast({ type: 'back-to-lobby' });
+    this.pushState();
   }
 
   // -------------------------------------------------------------------- Helpers
@@ -543,32 +613,36 @@ export class GameRoom {
         try {
           ws.send(message);
         } catch {
-          // ignore dead sockets; close handler will clean up
+          // dead socket; the close handler cleans up
         }
       }
     }
   }
 
-  broadcastPlayerList() {
-    this.broadcast({ type: 'player-list', players: this.playerList() });
-  }
-
-  playerList() {
-    return Array.from(this.players.values(), p => ({ [p.name]: p.odId }));
-  }
-
-  sendRoomData(ws) {
-    const gameConfig = this.selectedGame ? GAME_CONFIGS[this.selectedGame] : null;
-    this.send(ws, {
-      type: 'send-room-data',
-      players: this.playerList(),
+  roomState() {
+    const config = this.selectedGame ? GAME_CONFIGS[this.selectedGame] : null;
+    return {
+      type: 'room-state',
       host: this.host,
       started: this.started,
       game: this.selectedGame,
-      gameMin: gameConfig?.min,
-      gameMax: gameConfig?.max,
-      gameName: gameConfig?.name
-    });
+      gameName: config?.name ?? null,
+      gameMin: config?.min ?? null,
+      gameMax: config?.max ?? null,
+      blocker: this.startBlocker(),
+      players: Array.from(this.players.values(), p => ({
+        id: p.odId,
+        name: p.name,
+        spectator: p.spectator,
+        ready: this.readyPlayers.has(p.odId),
+        online: !!this.getWsByUserId(p.odId),
+        host: p.odId === this.host
+      }))
+    };
+  }
+
+  pushState() {
+    this.broadcast(this.roomState());
   }
 
   getWsByUserId(odId) {
@@ -587,5 +661,6 @@ export class GameRoom {
       selectedGame: this.selectedGame,
       created: this.created
     });
+    await this.state.storage.setAlarm(Date.now() + IDLE_ROOM_TTL_MS);
   }
 }
