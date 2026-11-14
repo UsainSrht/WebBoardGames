@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Chess, parseClock } from '../src/games/chess.js';
+import { Chess, parseClock, REASON_KEYS } from '../src/games/chess.js';
 import { parseFen, legalMoves, toSan, squareIndex } from '../src/games/chess-engine.js';
 
 function fakeRoom() {
@@ -140,14 +140,14 @@ test('resign, leaving and spectator sync', () => {
   assert.equal(room.sent.at(-1).type, 'chess-state');
   c.onPlayerLeft(c.white);
   assert.equal(c.result.winner, c.black);
-  assert.equal(c.result.reason, 'opponent left');
+  assert.equal(c.result.reason, 'left');
   c.cleanup();
 
   const r2 = fakeRoom();
   const d = new Chess(r2, PLAYERS, { clock: 'none' });
   d.handleMessage(d.black, 'chess-resign', {});
   assert.equal(d.result.winner, d.white);
-  assert.equal(r2.finished.title.includes('wins'), true);
+  assert.equal(r2.finished.title.k, 'chess.title.wins');
   d.cleanup();
 });
 
@@ -162,4 +162,28 @@ test('checkmate finishes the game with standings', () => {
   assert.equal(room.finished.rows[0].id, c.black);
   assert.deepEqual(room.finished.rows.map(r => r.rank), [1, 2]);
   c.cleanup();
+});
+
+test('server messages are keys and every referenced key is translated', async () => {
+  const { assertKeysExist, assertOptionKeys, assertMsg } = await import('./helpers/i18n-keys.mjs');
+  assertKeysExist('chess', ['src/games/chess.js', 'public_html/games/chess.js', 'public_html/games/chess.html']);
+  assertOptionKeys('chess');
+  const room = fakeRoom();
+  const c = new Chess(room, PLAYERS, { clock: 'none' });
+  c.handleMessage(c.white, 'chess-move', { from: 'e2', to: 'e5' });
+  assertMsg('chess', room.sent.find(m => m.type === 'error').message, 'chess.err.illegal');
+  c.handleMessage(c.black, 'chess-resign', {});
+  assertMsg('chess', room.finished.title, 'chess.title.wins');
+  assert.equal(room.finished.title.p.name, PLAYERS[c.white].name);
+  assertMsg('chess', room.finished.subtitle, 'chess.reason.resignation');
+  c.cleanup();
+
+  for (const [reason, key] of Object.entries(REASON_KEYS)) {
+    const r = fakeRoom();
+    const g = new Chess(r, PLAYERS, { clock: 'none' });
+    g.finish(null, reason);
+    assertMsg('chess', r.finished.subtitle, key);
+    assertMsg('chess', r.finished.title, 'chess.title.draw');
+    g.cleanup();
+  }
 });

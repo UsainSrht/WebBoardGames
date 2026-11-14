@@ -1,4 +1,8 @@
+await WBG.i18n.load('kingdomino');
+WBG.i18n.apply(document.getElementById('game-board'));
+
 (() => {
+  const t = WBG.t;
   const $ = (id) => document.getElementById(id);
   const esc = WBG.esc;
   const myId = WBG.store.get('userId');
@@ -35,34 +39,20 @@
   for (const ev of ['kingdomino-state', 'kingdomino-legal', 'kingdomino-reject']) socket.off(ev);
 
   WBG.setRules({
-    title: 'Kingdomino',
+    title: t('kingdomino.rules.title'),
     sections: [
-      { title: 'Goal', items: [
-        'Build the highest scoring 5x5 (or 7x7) kingdom. The game ends when every domino has been placed.',
-        'Each connected area of the same land type scores its number of squares times the crowns in it. Areas without crowns score nothing.'
-      ] },
-      { title: 'A round', items: [
-        'A new row of dominoes is revealed, lowest number first. Players act in the order of the previous row: whoever owns the lowest tile goes first.',
-        'On your turn first place the domino you took last round into your kingdom, then move your king onto one of the new dominoes. Picking last means acting first next round.',
-        'The very first row has nothing to place: kings are set on it in random order. The last round is place-only.',
-        'With 3 players 3 dominoes are drawn, otherwise 4. With 2 players everyone has two kings and acts twice per round.'
-      ] },
-      { title: 'Placing a domino', items: [
-        'Both halves must lie on empty squares, and your kingdom must always fit inside the size x size area.',
-        'At least one half must touch your castle or a square of the same land type. The castle matches every land type.',
-        'Tap a square to preview the domino (green fits, red does not), rotate it, then press Place or tap the square again. On desktop you can hover and click, or drag the tile.',
-        'A domino that fits nowhere is discarded automatically.'
-      ] },
-      { title: 'Bonuses', items: [
-        'Middle Kingdom +10: your castle is in the exact centre of your kingdom.',
-        'Harmony +5: a complete kingdom with no discarded domino.',
-        'Ties are broken by the largest property, then by total crowns.'
-      ] },
-      { title: 'Time', items: [
-        'You have 20 seconds to pick and 30 seconds to place. When time runs out the game plays for you. Players who leave are played automatically.'
-      ] }
+      { title: t('kingdomino.rules.goal'), items: [t('kingdomino.rules.goal.1'), t('kingdomino.rules.goal.2')] },
+      { title: t('kingdomino.rules.round'), items: [t('kingdomino.rules.round.1'), t('kingdomino.rules.round.2'), t('kingdomino.rules.round.3'), t('kingdomino.rules.round.4')] },
+      { title: t('kingdomino.rules.placing'), items: [t('kingdomino.rules.placing.1'), t('kingdomino.rules.placing.2'), t('kingdomino.rules.placing.3'), t('kingdomino.rules.placing.4')] },
+      { title: t('kingdomino.rules.bonuses'), items: [t('kingdomino.rules.bonuses.1'), t('kingdomino.rules.bonuses.2'), t('kingdomino.rules.bonuses.3')] },
+      { title: t('kingdomino.rules.time'), items: [t('kingdomino.rules.time.1')] }
     ]
   });
+
+  const TERRAIN_KEY = {
+    farm: 'kingdomino.terrain.farm', forest: 'kingdomino.terrain.forest', water: 'kingdomino.terrain.water',
+    plains: 'kingdomino.terrain.plains', swamp: 'kingdomino.terrain.swamp', mine: 'kingdomino.terrain.mine'
+  };
 
   // ---------------------------------------------------------------- helpers
   function setHtml(el, markup) {
@@ -81,8 +71,8 @@
   const tileInfo = (s, n) => [...(s.cur || []), ...(s.prev || [])].find((x) => x.tile === n);
 
   function describe(slot) {
-    const half = (h) => `${h[0]}${h[1] ? ` with ${h[1]} crown${h[1] > 1 ? 's' : ''}` : ''}`;
-    return `Tile ${slot.tile}: ${half(slot.l)} and ${half(slot.r)}`;
+    const half = (h) => (h[1] ? t('kingdomino.half', { terrain: t(TERRAIN_KEY[h[0]]), n: h[1] }) : t(TERRAIN_KEY[h[0]]));
+    return t('kingdomino.tileDesc', { n: slot.tile, l: half(slot.l), r: half(slot.r) });
   }
 
   function animate(el, frames, opts) {
@@ -178,18 +168,18 @@
     for (const n of fx.notices) {
       if (n.kind === 'discard') {
         WBG.sound.play('bump');
-        const name = player(n.odId)?.name || 'A player';
-        WBG.toast(n.odId === myId ? `Tile ${n.tile} fits nowhere and was discarded` : `${name} discarded tile ${n.tile}: no legal spot`, { type: 'info', icon: 'info' });
+        const name = player(n.odId)?.name || t('kingdomino.aPlayer');
+        WBG.toast(n.odId === myId ? t('kingdomino.toast.discardMine', { n: n.tile }) : t('kingdomino.toast.discard', { name, n: n.tile }), { type: 'info', icon: 'info' });
         animate($('kd-prev-row').querySelector(`[data-tile="${n.tile}"]`), [
           { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' },
           { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }
         ], { duration: 360 });
       } else if (n.kind === 'place' && n.auto && n.odId === myId) {
-        WBG.toast('Time ran out: your tile was placed for you', { type: 'info' });
+        WBG.toast(t('kingdomino.toast.autoPlace'), { type: 'info' });
       } else if (n.kind === 'pick' && n.auto && n.odId === myId) {
-        WBG.toast('Time ran out: a tile was picked for you', { type: 'info' });
+        WBG.toast(t('kingdomino.toast.autoPick'), { type: 'info' });
       } else if (n.kind === 'left') {
-        WBG.toast(`${player(n.odId)?.name || 'A player'} left: their turns are played automatically`, { type: 'info' });
+        WBG.toast(t('kingdomino.toast.left', { name: player(n.odId)?.name || t('kingdomino.aPlayer') }), { type: 'info' });
       }
     }
     if (fx.scoreUp) WBG.sound.later('coin', 260);
@@ -209,7 +199,7 @@
 
   function slotHtml(slot, o) {
     const pawn = slot.owner
-      ? `<img class="kd-pawn" src="${pawnSrc(colorOf(slot.owner))}" alt="${esc(player(slot.owner)?.name || '')}'s king" title="${esc(player(slot.owner)?.name || '')}">`
+      ? `<img class="kd-pawn" src="${pawnSrc(colorOf(slot.owner))}" alt="${esc(t('kingdomino.king', { name: player(slot.owner)?.name || '' }))}" title="${esc(player(slot.owner)?.name || '')}">`
       : '';
     let mark = '';
     if (slot.placed === 'placed') mark = `<span class="kd-mark">${WBG.icon('check', 'size-6')}</span>`;
@@ -232,7 +222,7 @@
     curLabel.classList.toggle('mt-2', !!S.prev);
 
     if (S.prev) {
-      setHtml(prevLabel, `${WBG.icon('hourglass', 'size-3.5')}<span>${S.cur ? 'Place in this order' : S.phase === 'over' ? 'Last row' : 'Final round: place only'}</span>`);
+      setHtml(prevLabel, `${WBG.icon('hourglass', 'size-3.5')}<span>${S.cur ? t('kingdomino.label.order') : S.phase === 'over' ? t('kingdomino.label.last') : t('kingdomino.label.final')}</span>`);
       prevRow.style.setProperty('--n', n);
       setHtml(prevRow, S.prev.map((s) => slotHtml(s, {
         active: S.phase === 'play' && S.stage === 'place' && S.tile === s.tile
@@ -241,8 +231,8 @@
     if (S.cur) {
       const mine = myPick();
       const left = S.tilesLeft;
-      const text = S.phase === 'over' ? '' : S.prev ? 'New row: pick one' : 'First row: choose your starting tiles';
-      setHtml(curLabel, `${WBG.icon('target', 'size-3.5')}<span>${text}</span><span class="ml-auto font-medium tracking-normal text-slate-500 normal-case">${left} in the deck</span>`);
+      const text = S.phase === 'over' ? '' : S.prev ? t('kingdomino.label.pick') : t('kingdomino.label.first');
+      setHtml(curLabel, `${WBG.icon('target', 'size-3.5')}<span>${text}</span><span class="ml-auto font-medium tracking-normal text-slate-500 normal-case">${t('kingdomino.deck', { n: left })}</span>`);
       curRow.style.setProperty('--n', n);
       setHtml(curRow, S.cur.map((s) => slotHtml(s, {
         pick: mine && !s.owner && !sending, sel: picked === s.tile
@@ -258,17 +248,17 @@
     const bar = $('kd-bar');
     let msg;
     let color = null;
-    if (S.phase === 'wait') msg = 'Waiting for everyone to load...';
+    if (S.phase === 'wait') msg = t('kingdomino.banner.wait');
     else if (S.phase === 'over') {
       const top = S.final?.filter((r) => r.rank === 1) || [];
-      msg = top.length === 1 ? `${top[0].name} wins` : top.length ? `Tie: ${top.map((t) => t.name).join(' and ')}` : 'Game over';
+      msg = top.length === 1 ? t('kingdomino.title.wins', { name: top[0].name }) : top.length ? t('kingdomino.title.tie', { names: top.map((w) => w.name).join(', ') }) : t('kingdomino.banner.over');
     } else {
       const a = player(S.actor);
       color = a?.color;
       const mine = S.actor === myId && !spectator;
-      if (S.stage === 'place') msg = mine ? `Your turn: place tile ${S.tile}` : `${a?.name} is placing tile ${S.tile}`;
-      else msg = mine ? 'Your turn: pick a tile' : `${a?.name} is picking a tile`;
-      if (a?.left) msg += ' (left)';
+      if (S.stage === 'place') msg = mine ? t('kingdomino.banner.minePlace', { n: S.tile }) : t('kingdomino.banner.place', { name: a?.name, n: S.tile });
+      else msg = mine ? t('kingdomino.banner.minePick') : t('kingdomino.banner.pick', { name: a?.name });
+      if (a?.left) msg = t('kingdomino.banner.withLeft', { msg });
     }
     text.textContent = msg;
     pawn.hidden = !color;
@@ -279,7 +269,7 @@
     $('kd-order').hidden = !steps.length;
     const orderHtml = steps.map((st, i) => {
       const p = player(st.id);
-      const label = st.id === myId && !spectator ? 'You' : firstName(p?.name);
+      const label = st.id === myId && !spectator ? t('kingdomino.youCap') : firstName(p?.name);
       return `<span class="kd-oc" data-done="${i < S.stepIdx ? 1 : 0}" data-active="${i === S.stepIdx ? 1 : 0}">
         <img src="${pawnSrc(p?.color || 'red')}" alt=""><span>${esc(label)}</span>${st.place ? `<span class="n">#${st.place}</span>` : ''}</span>`;
     }).join('');
@@ -320,20 +310,20 @@
       let extra = '';
       if (S.phase === 'over') {
         const bits = [];
-        if (p.middle) bits.push('Middle +10');
-        if (p.harmony) bits.push('Harmony +5');
+        if (p.middle) bits.push(t('kingdomino.bonus.middle'));
+        if (p.harmony) bits.push(t('kingdomino.bonus.harmony'));
         if (bits.length) extra = `<p class="mt-0.5 text-[11px] font-semibold text-amber-300">${bits.join('  ')}</p>`;
       }
-      return `<button type="button" class="kd-pcard card-flat flex items-center gap-2.5 p-2" data-id="${esc(p.id)}" aria-pressed="${p.id === viewId}" aria-label="Show ${esc(p.name)}'s kingdom">
+      return `<button type="button" class="kd-pcard card-flat flex items-center gap-2.5 p-2" data-id="${esc(p.id)}" aria-pressed="${p.id === viewId}" aria-label="${esc(t('kingdomino.showKingdom', { name: p.name }))}">
         ${miniHtml(p)}
         <span class="min-w-0 flex-1">
           <span class="flex items-center gap-1.5 text-[13px] font-semibold text-white">
             <img src="${pawnSrc(p.color)}" class="size-5 shrink-0" alt="">
-            <span class="truncate">${esc(p.name)}</span>${you ? '<span class="chip shrink-0 !px-1.5 !py-0">you</span>' : ''}
+            <span class="truncate">${esc(p.name)}</span>${you ? `<span class="chip shrink-0 !px-1.5 !py-0">${t('kingdomino.you')}</span>` : ''}
             ${active ? '<span class="dot shrink-0 animate-pulse-soft bg-amber-400"></span>' : ''}
           </span>
-          <span class="block text-lg leading-tight font-extrabold text-white tabular-nums">${p.score}<span class="ml-1 text-[11px] font-medium text-slate-400">pts</span></span>
-          <span class="flex items-center gap-2 text-[11px] text-slate-400"><span class="inline-flex items-center gap-0.5 text-amber-300">${CROWN_SVG}${p.crowns}</span><span>best ${p.largest}</span>${p.left ? '<span class="text-rose-300">left</span>' : ''}</span>
+          <span class="block text-lg leading-tight font-extrabold text-white tabular-nums">${p.score}<span class="ml-1 text-[11px] font-medium text-slate-400">${t('kingdomino.pts')}</span></span>
+          <span class="flex items-center gap-2 text-[11px] text-slate-400"><span class="inline-flex items-center gap-0.5 text-amber-300">${CROWN_SVG}${p.crowns}</span><span>${t('kingdomino.best', { n: p.largest })}</span>${p.left ? `<span class="text-rose-300">${t('kingdomino.leftChip')}</span>` : ''}</span>
           ${extra}
         </span>
       </button>`;
@@ -389,7 +379,7 @@
     }
     h += '</div>';
 
-    h += `<div class="kd-castle" style="${px(0, 0)};width:${cs}px;height:${cs}px;box-shadow:0 0 0 2px ${COLOR[p.color]}, 0 3px 6px rgb(0 0 0 / .4)"><img src="${IMG}castle.png" alt="Castle" draggable="false"></div>`;
+    h += `<div class="kd-castle" style="${px(0, 0)};width:${cs}px;height:${cs}px;box-shadow:0 0 0 2px ${COLOR[p.color]}, 0 3px 6px rgb(0 0 0 / .4)"><img src="${IMG}castle.png" alt="${esc(t('kingdomino.castle'))}" draggable="false"></div>`;
 
     for (const d of p.doms) {
       const meta = { a: d.a };
@@ -450,33 +440,33 @@
         tile.dataset.tile = String(S.tile);
         trayAngle = rot * 90;
         tile.style.cssText = 'width:4.4rem;height:4.4rem;display:grid;place-items:center';
-        tile.innerHTML = `<img src="${tileSrc(meta.a)}" alt="Tile ${meta.tile}" draggable="false" style="width:4.4rem;height:2.2rem;border-radius:.35rem;box-shadow:0 0 0 1px rgb(0 0 0 / .5),0 4px 10px rgb(0 0 0 / .45);transition:transform .22s cubic-bezier(.2,.9,.3,1.2);transform:rotate(${trayAngle}deg)">`;
+        tile.innerHTML = `<img src="${tileSrc(meta.a)}" alt="${esc(t('kingdomino.tile', { n: meta.tile }))}" draggable="false" style="width:4.4rem;height:2.2rem;border-radius:.35rem;box-shadow:0 0 0 1px rgb(0 0 0 / .5),0 4px 10px rgb(0 0 0 / .45);transition:transform .22s cubic-bezier(.2,.9,.3,1.2);transform:rotate(${trayAngle}deg)">`;
       }
       const img = tile.firstElementChild;
       if (img) img.style.transform = `rotate(${trayAngle}deg)`;
       const ok = anchor && legal && legal.set.has(`${anchor.r},${anchor.c},${rot}`);
-      confirm.innerHTML = `${WBG.icon('check', 'size-5')}<span>Place</span>`;
+      confirm.innerHTML = `${WBG.icon('check', 'size-5')}<span>${t('kingdomino.btn.place')}</span>`;
       confirm.disabled = !ok || sending || !legal;
-      if (!legal) hint.textContent = 'Loading placements...';
-      else if (!anchor) hint.textContent = 'Tap a square to preview. Dots show where it fits. Rotate to turn the tile.';
-      else if (ok) hint.textContent = 'Fits. Tap Place, or tap the square again.';
+      if (!legal) hint.textContent = t('kingdomino.hint.loading');
+      else if (!anchor) hint.textContent = t('kingdomino.hint.tap');
+      else if (ok) hint.textContent = t('kingdomino.hint.fits');
       else {
         const other = [0, 1, 2, 3].some((k) => legal.set.has(`${anchor.r},${anchor.c},${k}`));
-        hint.textContent = other ? 'Does not fit like this. Try rotating.' : 'It cannot go there. Try another square.';
+        hint.textContent = other ? t('kingdomino.hint.rotate') : t('kingdomino.hint.cannot');
       }
     } else if (pick) {
       tile.dataset.tile = '';
-      confirm.innerHTML = `${WBG.icon('check', 'size-5')}<span>Take tile</span>`;
+      confirm.innerHTML = `${WBG.icon('check', 'size-5')}<span>${t('kingdomino.btn.take')}</span>`;
       confirm.disabled = picked === null || sending;
-      hint.textContent = picked === null ? 'Choose a domino from the new row. Tap it again to confirm.' : `Tile ${picked} selected. Tap it again or press Take tile.`;
+      hint.textContent = picked === null ? t('kingdomino.hint.choose') : t('kingdomino.hint.selected', { n: picked });
     } else {
       tile.dataset.tile = '';
-      if (S.phase === 'over') hint.textContent = 'Final kingdoms. Tap a player to look at their board.';
-      else if (S.phase === 'wait') hint.textContent = 'The game starts once everyone has loaded.';
+      if (S.phase === 'over') hint.textContent = t('kingdomino.hint.final');
+      else if (S.phase === 'wait') hint.textContent = t('kingdomino.hint.start');
       else {
         const a = player(S.actor);
         const mineLater = S.steps.some((st, i) => i > S.stepIdx && st.id === myId);
-        hint.textContent = `${a?.name || 'Someone'} is ${S.stage === 'place' ? 'placing' : 'picking'}.${mineLater ? ' You are up soon.' : ''}`;
+        hint.textContent = t(S.stage === 'place' ? 'kingdomino.hint.placing' : 'kingdomino.hint.picking', { name: a?.name || t('kingdomino.someone') }) + (mineLater ? ` ${t('kingdomino.hint.soon')}` : '');
       }
     }
   }
@@ -497,7 +487,7 @@
     const secs = Math.ceil(remaining / 1000);
     const mine = S.actor === myId && !spectator;
     clock.hidden = false;
-    clock.textContent = `${secs}s`;
+    clock.textContent = t('kingdomino.secs', { s: secs });
     clock.classList.toggle('chip-danger', secs <= 5 && mine);
     if (mine && secs <= 5 && secs > 0 && secs !== lastSecond) WBG.sound.play('tick');
     lastSecond = secs;
@@ -640,7 +630,7 @@
     sending = false;
     WBG.sound.play('error');
     WBG.haptic([20, 40, 20]);
-    WBG.toast(m.message || 'That move is not allowed', { type: 'error' });
+    WBG.toast(m.message ? WBG.tr(m.message) : t('kingdomino.err.default'), { type: 'error' });
     render();
   });
 

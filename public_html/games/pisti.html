@@ -1,0 +1,81 @@
+<style>
+  #pisti-root { --cw: 4.1rem; }
+  @media (min-width: 640px) { #pisti-root { --cw: 5rem; } }
+  @media (min-width: 1024px) and (min-height: 760px) { #pisti-root { --cw: 6rem; } }
+  .pi-felt { background: radial-gradient(ellipse at 50% 45%, #1f8a5d 0%, #146c47 55%, #0d4a31 100%); box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.08), inset 0 10px 40px rgba(0, 0, 0, 0.35), 0 12px 30px rgba(0, 0, 0, 0.35); }
+  .pi-card { width: var(--cw); transform: translateY(var(--y, 0)) rotate(var(--r, 0deg)); transform-origin: 50% 120%; transition: transform 0.18s ease, filter 0.18s ease, opacity 0.18s ease; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35)); }
+  .pi-card.is-live { cursor: pointer; }
+  .pi-card.is-live:hover, .pi-card.is-live:focus-visible { transform: translateY(calc(var(--y, 0px) - 1rem)) rotate(var(--r, 0deg)); }
+  .pi-card.is-live:active { transform: translateY(calc(var(--y, 0px) - 0.6rem)) rotate(var(--r, 0deg)) scale(0.97); }
+  .pi-card.is-dim { filter: brightness(0.78) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.3)); }
+  .pi-card:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 3px; border-radius: 8px; }
+  .pi-deal { animation: pi-deal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes pi-deal { from { opacity: 0; transform: translateY(-40vh) scale(0.55) rotate(-12deg); } }
+  .pi-pop { animation: pop 0.3s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+  .pi-fly { position: fixed; z-index: 60; pointer-events: none; margin: 0; }
+  .pi-banner { animation: pi-banner 1.5s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+  @keyframes pi-banner {
+    0% { opacity: 0; transform: scale(0.3) rotate(-8deg); }
+    18% { opacity: 1; transform: scale(1.15) rotate(-3deg); }
+    30% { transform: scale(1) rotate(-3deg); }
+    80% { opacity: 1; transform: scale(1) rotate(-3deg); }
+    100% { opacity: 0; transform: scale(1.25) rotate(-3deg) translateY(-1rem); }
+  }
+  .pi-turn { box-shadow: 0 0 0 2px rgba(110, 231, 183, 0.8), 0 8px 22px rgba(16, 185, 129, 0.25); }
+  @media (prefers-reduced-motion: reduce) { .pi-deal, .pi-pop, .pi-banner { animation-duration: 0.01s; } }
+</style>
+<div id="pisti-root" class="absolute inset-0 flex flex-col gap-2 pt-16 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+  <!-- Header: deal, target and scores -->
+  <div class="shrink-0 px-3">
+    <p id="pi-deal" class="mb-1 text-center text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
+    <ul id="pi-scores" class="flex flex-wrap justify-center gap-2"></ul>
+  </div>
+
+  <!-- Opponents -->
+  <ul id="pi-opps" class="flex shrink-0 flex-wrap justify-center gap-2 px-3"></ul>
+
+  <!-- Table -->
+  <div class="relative mx-3 flex min-h-0 flex-1 items-center justify-center rounded-[2rem] pi-felt">
+    <div class="flex items-center gap-5 sm:gap-10">
+      <div class="flex flex-col items-center gap-1.5">
+        <div id="pi-deck" class="relative" style="width: var(--cw); aspect-ratio: 64 / 90"></div>
+        <span id="pi-deck-count" class="text-[11px] font-semibold text-emerald-100/80 tabular-nums"></span>
+      </div>
+      <div id="pi-pile" class="relative" style="width: calc(var(--cw) * 1.3); aspect-ratio: 64 / 90"></div>
+    </div>
+    <p id="pi-event" class="absolute right-3 bottom-2.5 left-3 text-center text-sm font-medium text-emerald-50 drop-shadow" aria-live="polite"></p>
+    <div id="pi-banner-wrap" class="pointer-events-none absolute inset-0 grid place-items-center"></div>
+  </div>
+
+  <!-- Me -->
+  <div id="pi-me" class="shrink-0 px-3">
+    <div class="flex items-center gap-2.5">
+      <span id="pi-me-avatar"></span>
+      <div class="min-w-0 flex-1">
+        <p id="pi-me-name" class="truncate text-sm font-semibold text-white"></p>
+        <p id="pi-status" class="truncate text-xs text-slate-300" aria-live="polite"></p>
+      </div>
+      <div id="pi-me-chips" class="flex shrink-0 items-center gap-1.5"></div>
+      <p id="pi-timer" class="w-10 shrink-0 text-right text-sm font-bold text-slate-200 tabular-nums"></p>
+    </div>
+    <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"><div id="pi-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500"></div></div>
+  </div>
+
+  <!-- Hand -->
+  <div class="shrink-0">
+    <p id="pi-hand-label" class="px-4 pb-1 text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
+    <div class="scroll-y px-3 pt-5 pb-3" style="overflow-y: hidden">
+      <div id="pi-hand" class="mx-auto flex w-max items-end justify-center gap-1.5 sm:gap-3" style="min-height: calc(var(--cw) * 1.5)"></div>
+    </div>
+  </div>
+
+  <!-- Deal summary -->
+  <div id="pi-summary" class="fixed inset-0 z-30 grid place-items-center overflow-y-auto bg-ink-950/75 p-4 backdrop-blur-sm" hidden>
+    <div class="card animate-pop my-auto w-full max-w-md p-4 sm:p-5">
+      <p class="eyebrow text-center" id="pi-sum-eyebrow"></p>
+      <ul id="pi-sum-rows" class="mt-3 space-y-2.5"></ul>
+      <p id="pi-sum-sweep" class="mt-3 text-center text-sm text-slate-300"></p>
+      <p id="pi-sum-next" class="mt-1 text-center text-sm text-slate-400" aria-live="polite"></p>
+    </div>
+  </div>
+</div>

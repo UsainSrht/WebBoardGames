@@ -1,5 +1,8 @@
 /* Hamsterball client: renders server snapshots (interpolated ~110 ms in the past), sends input. */
 
+await WBG.i18n.load('hamsterball');
+WBG.i18n.apply(document.getElementById('game-board'));
+const t = WBG.t;
 const THREE = window.THREE;
 const $ = (id) => document.getElementById(id);
 
@@ -22,33 +25,11 @@ const cleanups = [];
 WBG.onTeardown(() => { for (const fn of cleanups.splice(0)) { try { fn(); } catch { /* ignore */ } } });
 
 WBG.setRules({
-  title: 'Hamsterball',
+  title: t('hamsterball.rules.title'),
   sections: [
-    {
-      title: 'Goal',
-      items: [
-        'Roll your hamster ball around the wooden plate and bump rivals over the edge.',
-        'Every fall costs a life. With no lives left you are out for the round.',
-        'The last ball standing wins the round and scores a point. If the final two fall together, whoever went over the edge later wins; an exact tie gives both a point.',
-        'After the last round the player with the most round wins takes the match (ties are broken by lives left, then time survived).'
-      ]
-    },
-    {
-      title: 'Controls',
-      items: [
-        'Keyboard: W A S D or the arrow keys to roll, hold Space to boost.',
-        'Touch: drag anywhere on the left side to steer (the stick appears under your thumb) and hold the Boost button on the right.',
-        'Boost accelerates you and makes you heavier, so ramming someone while boosting hits much harder. The bar drains while boosting, refills when you stop, and locks briefly if you run it dry.'
-      ]
-    },
-    {
-      title: 'The plate',
-      items: [
-        'The plate tilts toward the middle of all the balls, so everybody slides downhill together. Watch the edge.',
-        'After a fall you respawn near the centre and are protected for about 1.5 seconds.',
-        'With the shrinking plate on, the edge starts closing in after 15 seconds until about 45 percent of the plate is left. Even with shrinking off, the plate closes in after 2 minutes so a round always ends.'
-      ]
-    }
+    { title: t('hamsterball.rules.goal'), items: [t('hamsterball.rules.goal.1'), t('hamsterball.rules.goal.2'), t('hamsterball.rules.goal.3'), t('hamsterball.rules.goal.4')] },
+    { title: t('hamsterball.rules.controls'), items: [t('hamsterball.rules.controls.1'), t('hamsterball.rules.controls.2'), t('hamsterball.rules.controls.3')] },
+    { title: t('hamsterball.rules.plate'), items: [t('hamsterball.rules.plate.1'), t('hamsterball.rules.plate.2'), t('hamsterball.rules.plate.3')] }
   ]
 });
 
@@ -60,7 +41,7 @@ function boot() {
   const loadingText = $('hb-loading-text');
 
   if (!THREE) {
-    loadingText.textContent = 'Could not load the 3D engine. Check your connection and reload.';
+    loadingText.textContent = t('hamsterball.err.engine');
     return;
   }
 
@@ -79,7 +60,7 @@ function boot() {
   try {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   } catch {
-    loadingText.textContent = 'Your browser could not start WebGL, so Hamsterball cannot be shown.';
+    loadingText.textContent = t('hamsterball.err.webgl');
     return;
   }
   renderer.setClearColor(0x0b1020, 0);
@@ -635,8 +616,8 @@ function boot() {
     if (!res) return;
     const names = res.winners.map((id) => S.names[id]?.name || '?');
     const mineWon = res.winners.includes(S.id);
-    $('hb-banner-title').textContent = !names.length ? 'Round over' : res.draw ? 'Draw' : mineWon ? 'You win the round' : `${names[0]} wins the round`;
-    $('hb-banner-sub').textContent = (res.draw ? `${names.join(' and ')} share the point. ` : '') + (snap.round < snap.rounds ? `Round ${snap.round} of ${snap.rounds} done. Next round is coming up.` : 'That was the final round.');
+    $('hb-banner-title').textContent = !names.length ? t('hamsterball.banner.over') : res.draw ? t('hamsterball.banner.draw') : mineWon ? t('hamsterball.banner.youWin') : t('hamsterball.banner.wins', { name: names[0] });
+    $('hb-banner-sub').textContent = (res.draw ? t('hamsterball.banner.share', { names: names.join(', ') }) + ' ' : '') + (snap.round < snap.rounds ? t('hamsterball.banner.next', { n: snap.round, total: snap.rounds }) : t('hamsterball.banner.final'));
     $('hb-banner-icon').innerHTML = WBG.icon(res.draw ? 'draw' : 'trophy', 'size-6');
     banner.hidden = false;
     banner.classList.remove('hb-banner-anim');
@@ -651,7 +632,7 @@ function boot() {
     if (ph !== lastPhase) {
       if (ph === 'countdown') { lastDigit = 0; banner.hidden = true; }
       if (lastPhase === 'countdown' && ph === 'playing') {
-        showCount('GO!');
+        showCount(t('hamsterball.go'));
         WBG.sound.play('go');
         clearTimeout(goTimer);
         goTimer = later(() => { if (lastPhase === 'playing') countEl.textContent = ''; }, 900);
@@ -668,7 +649,7 @@ function boot() {
     if (ph === 'roundover' && banner.hidden && snap.result && bannerRound === snap.round) banner.hidden = false; // resync
 
     const started = ph !== 'wait';
-    const rtxt = started ? `Round ${snap.round} of ${snap.rounds}` : '';
+    const rtxt = started ? t('hamsterball.round', { n: snap.round, total: snap.rounds }) : '';
     if (rtxt !== lastRoundTxt) { lastRoundTxt = rtxt; roundChip.textContent = rtxt; roundChip.hidden = !rtxt; }
     dangerChip.hidden = !(ph === 'playing' && snap.radius < R0 - 1);
 

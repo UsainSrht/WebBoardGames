@@ -170,7 +170,7 @@ export class Dice {
     const alive = this.activeIds();
     if (alive.length <= 1) {
       clearTimeout(this.timer);
-      this.finish('Last player standing');
+      this.finish({ k: 'dice.sub.last' });
       return;
     }
     if (this.turn === odId && this.phase !== 'busy' && this.phase !== 'over') {
@@ -274,7 +274,7 @@ export class Dice {
     clearTimeout(this.timer);
     const prevIdx = this.turnIdx;
     const next = prevIdx < 0 ? this.activeIds()[0] : this.nextActiveAfter(prevIdx);
-    if (!next) return this.finish('Game over');
+    if (!next) return this.finish({ k: 'dice.sub.over' });
 
     // The last round ends when play reaches somebody who has already had their final turn.
     if (this.finalTrigger && this.data[next].finalTurn) return this.finish();
@@ -293,7 +293,7 @@ export class Dice {
   /** Move on after a turn ended (farkle, bank or leave). */
   advance() {
     clearTimeout(this.timer);
-    if (this.activeIds().length <= 1) return this.finish('Last player standing');
+    if (this.activeIds().length <= 1) return this.finish({ k: 'dice.sub.last' });
     this.nextTurn();
   }
 
@@ -325,7 +325,7 @@ export class Dice {
   }
 
   onRoll(odId, keep) {
-    if (odId !== this.turn) return this.err(odId, 'It is not your turn');
+    if (odId !== this.turn) return this.err(odId, { k: 'dice.err.notYourTurn' });
     if (this.phase === 'roll') {
       // First roll of a turn: nothing to set aside.
       this.dice = Array.from({ length: 6 }, () => ({ v: this.roll(), held: false }));
@@ -335,7 +335,7 @@ export class Dice {
     if (this.phase !== 'pick') return;
 
     const chosen = this.checkKeep(keep);
-    if (!chosen) return this.err(odId, 'Set aside only scoring dice');
+    if (!chosen) return this.err(odId, { k: 'dice.err.keep' });
 
     this.turnScore += chosen.score;
     for (const i of chosen.indices) this.dice[i].held = true;
@@ -384,7 +384,7 @@ export class Dice {
   }
 
   onBank(odId, keep) {
-    if (odId !== this.turn) return this.err(odId, 'It is not your turn');
+    if (odId !== this.turn) return this.err(odId, { k: 'dice.err.notYourTurn' });
     if (this.phase !== 'pick') return;
     this.bank(odId, keep, true);
   }
@@ -393,13 +393,13 @@ export class Dice {
   bank(odId, keep, report = false) {
     const chosen = this.checkKeep(keep);
     if (!chosen) {
-      if (report) this.err(odId, 'Set aside only scoring dice');
+      if (report) this.err(odId, { k: 'dice.err.keep' });
       return false;
     }
     const d = this.data[odId];
     const total = this.turnScore + chosen.score;
     if (!d.opened && this.opening > 0 && total < this.opening) {
-      if (report) this.err(odId, `You need ${this.opening} in one turn to get on the board`);
+      if (report) this.err(odId, { k: 'dice.err.opening', p: { n: this.opening } });
       return false;
     }
     for (const i of chosen.indices) this.dice[i].held = true;
@@ -441,15 +441,15 @@ export class Dice {
       rows.push({ id, name: this.data[id].name, score: this.data[id].banked, rank, note: '' });
     });
     gone.forEach(id => {
-      rows.push({ id, name: this.data[id].name, score: this.data[id].banked, rank: rows.length + 1, note: 'Left the game' });
+      rows.push({ id, name: this.data[id].name, score: this.data[id].banked, rank: rows.length + 1, note: { k: 'dice.note.left' } });
     });
 
     const winners = rows.filter(r => r.rank === 1 && !r.note);
     const title = winners.length > 1
-      ? `Tie: ${winners.map(w => w.name).join(' and ')}`
-      : `${winners[0]?.name || 'Nobody'} wins`;
+      ? { k: 'dice.title.tie', p: { names: winners.map(w => w.name).join(', ') } }
+      : winners[0] ? { k: 'dice.title.wins', p: { name: winners[0].name } } : { k: 'dice.title.nobody' };
     const subtitle = subtitleOverride
-      || (winners[0] ? `${winners[0].score.toLocaleString('en-US')} points, target ${this.target.toLocaleString('en-US')}` : 'Farkle');
+      || (winners[0] ? { k: 'dice.sub.points', p: { score: winners[0].score, target: this.target } } : { k: 'dice.sub.name' });
     this.room.finishGame({ title, subtitle, rows, delayMs: 20000 });
   }
 }

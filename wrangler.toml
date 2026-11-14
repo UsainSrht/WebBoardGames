@@ -8,10 +8,10 @@ directory = "./public_html"
 binding = "ASSETS"
 not_found_handling = "404-page"
 # Requests the worker handles itself (SEO rewrites, robots/sitemap, WebSockets, API)
-run_worker_first = ["/", "/index.html", "/robots.txt", "/sitemap.xml", "/ws", "/api/*"]
+run_worker_first = ["/", "/index.html", "/tr", "/tr/", "/tr/index.html", "/robots.txt", "/sitemap.xml", "/ws", "/api/*"]
 
 [build]
-command = "npm run build:css"
+command = "npm run build"
 
 # One Durable Object per room: WebSockets + game state
 [[durable_objects.bindings]]

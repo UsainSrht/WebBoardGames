@@ -313,11 +313,12 @@ test('full match: rank by wins, then lives, then time; note text', () => {
   assert.ok(f);
   assert.equal(f.rows[0].id, 'p2');
   assert.equal(f.rows[0].score, 2);
-  assert.equal(f.rows[0].note, '2 round wins');
+  assert.deepEqual(f.rows[0].note, { k: 'hamsterball.note.wins', p: { n: 2 } });
   assert.equal(f.rows[1].id, 'p1');
-  assert.equal(f.rows[1].note, '1 round win');
+  assert.deepEqual(f.rows[1].note, { k: 'hamsterball.note.wins', p: { n: 1 } });
   assert.deepEqual(f.rows.map((r) => r.rank), [1, 2, 3]);
-  assert.match(f.title, /wins/);
+  assert.equal(f.title.k, 'hamsterball.title.wins');
+  assert.deepEqual(f.subtitle, { k: 'hamsterball.sub', p: { rounds: 3, lives: 1 } });
   assert.equal(g.snapshot().phase, 'over');
 });
 
@@ -378,4 +379,11 @@ test('ready timeout starts the game when someone never loads', async () => {
   assert.ok(g.readyTimer);
   g.cleanup();
   assert.equal(g.started, false);
+});
+
+test('every translation key referenced by the game exists in both languages', async () => {
+  const { assertKeysExist, assertOptionKeys, assertMsg } = await import('./helpers/i18n-keys.mjs');
+  assertKeysExist('hamsterball', ['src/games/hamsterball.js', 'public_html/games/hamsterball.js', 'public_html/games/hamsterball.html']);
+  assertOptionKeys('hamsterball');
+  for (const k of ['hamsterball.note.wins', 'hamsterball.sub', 'hamsterball.title.wins']) assertMsg('hamsterball', { k });
 });

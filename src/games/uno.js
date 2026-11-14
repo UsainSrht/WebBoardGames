@@ -18,6 +18,22 @@ const UNO_WINDOW_MS = 3500;
 const NEXT_ROUND_MS = 7000;
 const RETURN_TO_LOBBY_MS = 25000;
 
+// Dictionary keys (public_html/i18n/uno.json) for colour and card names; literal so tests can scan them.
+const COLOR_KEYS = { red: 'uno.color.red', yellow: 'uno.color.yellow', green: 'uno.color.green', blue: 'uno.color.blue' };
+const CARD_KEYS = {
+  num: 'uno.card.num', skip: 'uno.card.skip', reverse: 'uno.card.reverse', draw2: 'uno.card.draw2',
+  wild: 'uno.card.wild', wild4: 'uno.card.wild4'
+};
+
+/** A translatable description of a card ("red 5", "Wild +4 (blue)"); `chosen` is the colour picked for a wild. */
+export function cardMsg(card, chosen) {
+  const color = card.color === 'wild' ? chosen : card.color;
+  const p = { color: { k: COLOR_KEYS[color] } };
+  if (card.color === 'wild') return { k: CARD_KEYS[card.value], p };
+  if (/^d$/.test(card.value)) return { k: CARD_KEYS.num, p: { ...p, n: card.value } };
+  return { k: CARD_KEYS[card.value], p };
+}
+
 export function buildDeck() {
   const cards = [];
   let id = 0;
@@ -107,7 +123,7 @@ export class Uno {
     this.lastPlay = null;
     this.roundResult = null;
     this.phase = 'play';
-    this.log = `Round ${this.round}: ${this.names[this.turn]} starts`;
+    this.log = [{ k: 'uno.log.start', p: { round: this.round, name: this.names[this.turn] } }];
   }
 
   begin() {
@@ -183,9 +199,9 @@ export class Uno {
     const card = hand[idx];
 
     if (!this.canPlay(card)) {
-      return this.fail(odId, this.pendingDraw > 0 ? `Stack a ${this.pendingType === 'draw2' ? '+2' : '+4'} or draw` : "That card can't be played");
+      return this.fail(odId, this.pendingDraw > 0 ? { k: 'uno.err.stack', p: { type: this.pendingType === 'draw2' ? '+2' : '+4' } } : { k: 'uno.err.cantPlay' });
     }
-    if (card.color === 'wild' && !COLORS.includes(color)) return this.fail(odId, 'Choose a colour');
+    if (card.color === 'wild' && !COLORS.includes(color)) return this.fail(odId, { k: 'uno.err.chooseColor' });
 
     this.settleExposure(odId);
     hand.splice(idx, 1);
@@ -195,14 +211,14 @@ export class Uno {
     this.lastPlay = { by: odId, card, seq: ++this.playSeq };
 
     const name = this.names[odId];
-    this.log = `${name} played ${this.describe(card)}`;
+    this.log = [{ k: 'uno.log.played', p: { name, card: cardMsg(card, this.color) } }];
 
     const next = this.nextPlayer(odId, 1);
     let steps = 1;
     switch (card.value) {
       case 'skip':
         steps = 2;
-        this.log += `, ${this.names[next]} is skipped`;
+        this.log.push({ k: 'uno.log.skipped', p: { name: this.names[next] } });
         break;
       case 'reverse':
         this.dir *= -1;
@@ -214,11 +230,11 @@ export class Uno {
         if (this.stacking) {
           this.pendingDraw += n;
           this.pendingType = card.value;
-          this.log += `, ${this.names[next]} must stack or draw ${this.pendingDraw}`;
+          this.log.push({ k: 'uno.log.mustStack', p: { name: this.names[next], n: this.pendingDraw } });
         } else {
           this.drawCards(next, n);
           steps = 2;
-          this.log += `, ${this.names[next]} draws ${n}`;
+          this.log.push({ k: 'uno.log.draws', p: { name: this.names[next], n } });
         }
         break;
       }
@@ -227,7 +243,7 @@ export class Uno {
     if (hand.length === 0) return this.winRound(odId);
 
     if (hand.length === 1) {
-      this.log += `, ${name} has one card left`;
+      this.log.push({ k: 'uno.log.oneLeft', p: { name } });
       if (this.unoCall && this.preCalled !== odId) {
         this.exposed = { id: odId, until: this.now() + UNO_WINDOW_MS };
         clearTimeout(this.unoTimer);
@@ -243,10 +259,6 @@ export class Uno {
     this.nextTurn();
   }
 
-  describe(card) {
-    return card.color === 'wild' ? `${card.value === 'wild4' ? 'Wild +4' : 'Wild'} (${this.color})` : `${card.color} ${card.value}`;
-  }
-
   draw(odId) {
     if (!this.canAct(odId) || this.pending !== null) return;
     this.settleExposure(odId);
@@ -256,7 +268,7 @@ export class Uno {
       this.drawCards(odId, n);
       this.pendingDraw = 0;
       this.pendingType = null;
-      this.log = `${this.names[odId]} draws ${n}`;
+      this.log = [{ k: 'uno.log.draws', p: { name: this.names[odId], n } }];
       this.turn = this.nextPlayer(odId, 1);
       return this.nextTurn();
     }
@@ -266,11 +278,11 @@ export class Uno {
 
     if (this.matches(card)) {
       this.pending = card.id;
-      this.log = `${this.names[odId]} drew a card`;
+      this.log = [{ k: 'uno.log.drew', p: { name: this.names[odId] } }];
       this.startTurnTimer();
       this.broadcastState();
     } else {
-      this.log = `${this.names[odId]} drew a card and passed`;
+      this.log = [{ k: 'uno.log.drewPassed', p: { name: this.names[odId] } }];
       this.turn = this.nextPlayer(odId, 1);
       this.nextTurn();
     }
@@ -280,7 +292,7 @@ export class Uno {
     if (!this.canAct(odId) || (this.pending === null && !force)) return;
     this.settleExposure(odId);
     this.pending = null;
-    this.log = `${this.names[odId]} passed`;
+    this.log = [{ k: 'uno.log.passed', p: { name: this.names[odId] } }];
     this.turn = this.nextPlayer(odId, 1);
     this.nextTurn();
   }
@@ -290,11 +302,11 @@ export class Uno {
     if (!this.unoCall || this.phase !== 'play') return;
     if (this.exposed?.id === odId) {
       this.clearExposure();
-      this.log = `${this.names[odId]} says UNO!`;
+      this.log = [{ k: 'uno.log.saysUno', p: { name: this.names[odId] } }];
       this.broadcastState();
     } else if (this.turn === odId && this.hands[odId].length === 2) {
       this.preCalled = odId;
-      this.log = `${this.names[odId]} says UNO!`;
+      this.log = [{ k: 'uno.log.saysUno', p: { name: this.names[odId] } }];
       this.broadcastState();
     }
   }
@@ -304,7 +316,7 @@ export class Uno {
     if (!ex || ex.id === odId || this.phase !== 'play' || this.now() > ex.until) return;
     this.clearExposure();
     this.drawCards(ex.id, 2);
-    this.log = `${this.names[odId]} caught ${this.names[ex.id]} without UNO: draws 2`;
+    this.log = [{ k: 'uno.log.caught', p: { name: this.names[odId], victim: this.names[ex.id] } }];
     this.broadcastState();
   }
 
@@ -351,7 +363,7 @@ export class Uno {
     // out of time: draw one card and move on
     this.settleExposure(who);
     this.drawCards(who, 1);
-    this.log = `${this.names[who]} ran out of time and drew a card`;
+    this.log = [{ k: 'uno.log.timeout', p: { name: this.names[who] } }];
     this.turn = this.nextPlayer(who, 1);
     this.nextTurn();
   }
@@ -373,7 +385,7 @@ export class Uno {
     }
     this.scores[winner] += points;
     this.roundResult = { winner, points, left };
-    this.log = `${this.names[winner]} wins the round and scores ${points}`;
+    this.log = [{ k: 'uno.log.roundWon', p: { name: this.names[winner], points } }];
 
     const gameOver = this.target === 0 || this.scores[winner] >= this.target;
     if (gameOver) {
@@ -409,12 +421,12 @@ export class Uno {
         name: this.names[id],
         rank,
         score: this.target === 0 ? (id === winner ? this.scores[winner] : 0) : this.scores[id],
-        note: id === winner ? 'Played their last card' : `${this.hands[id].length} cards left (${left[id]} points)`
+        note: id === winner ? { k: 'uno.note.last' } : { k: 'uno.note.left', p: { n: this.hands[id].length, points: left[id] } }
       };
     });
     this.room.finishGame({
-      title: `${this.names[winner]} wins`,
-      subtitle: this.target ? `First to ${this.target} points` : 'Round won',
+      title: { k: 'uno.title.wins', p: { name: this.names[winner] } },
+      subtitle: this.target ? { k: 'uno.sub.target', p: { n: this.target } } : { k: 'uno.sub.round' },
       rows,
       delayMs: RETURN_TO_LOBBY_MS
     });
@@ -479,7 +491,7 @@ export class Uno {
     const next = wasTurn ? this.nextPlayer(odId, 1) : this.turn;
     this.order.splice(this.order.indexOf(odId), 1);
     if (this.exposed?.id === odId) this.clearExposure();
-    this.log = `${this.names[odId]} left the game`;
+    this.log = [{ k: 'uno.log.left', p: { name: this.names[odId] } }];
 
     if (this.phase !== 'play') return this.broadcastState();
     if (this.order.length < 2) {
@@ -490,8 +502,8 @@ export class Uno {
         this.broadcastState();
         clearTimeout(this.timer);
         this.room.finishGame({
-          title: `${this.names[this.order[0]]} wins`,
-          subtitle: 'Everyone else left',
+          title: { k: 'uno.title.wins', p: { name: this.names[this.order[0]] } },
+          subtitle: { k: 'uno.sub.allLeft' },
           rows: [{ id: this.order[0], name: this.names[this.order[0]], rank: 1, score: this.scores[this.order[0]] }],
           delayMs: 15000
         });

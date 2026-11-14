@@ -137,7 +137,7 @@ export class RockPaperScissors {
     if (this.liveIds().length <= 1) {
       clearTimeout(this.timer);
       clearTimeout(this.startTimer);
-      return this.finish('Last player standing');
+      return this.finish({ k: 'rock-paper-scissors.sub.last' });
     }
     if (this.phase === 'choosing') {
       this.contenders = this.contenders.filter(id => id !== odId);
@@ -332,12 +332,12 @@ export class RockPaperScissors {
       // Later elimination = better; same round shares the rank.
       const sortedOut = out.sort((a, b) => this.data[b].out - this.data[a].out);
       rows = [];
-      survivors.forEach(id => rows.push({ id, name: this.data[id].name, score: this.data[id].out || this.round, rank: 1, note: 'Last one standing' }));
+      survivors.forEach(id => rows.push({ id, name: this.data[id].name, score: this.data[id].out || this.round, rank: 1, note: { k: 'rock-paper-scissors.note.last' } }));
       let rank = survivors.length;
       let prev = null;
       sortedOut.forEach((id, i) => {
         if (this.data[id].out !== prev) { rank = survivors.length + i + 1; prev = this.data[id].out; }
-        rows.push({ id, name: this.data[id].name, score: this.data[id].out, rank, note: `Out in round ${this.data[id].out}` });
+        rows.push({ id, name: this.data[id].name, score: this.data[id].out, rank, note: { k: 'rock-paper-scissors.note.out', p: { round: this.data[id].out } } });
       });
     } else {
       const sorted = live.sort((a, b) => this.data[b].score - this.data[a].score);
@@ -350,14 +350,16 @@ export class RockPaperScissors {
       });
     }
     for (const id of gone) {
-      rows.push({ id, name: this.data[id].name, score: this.data[id].score, rank: rows.length + 1, note: 'Left the game' });
+      rows.push({ id, name: this.data[id].name, score: this.data[id].score, rank: rows.length + 1, note: { k: 'rock-paper-scissors.note.left' } });
     }
 
-    const winners = rows.filter(r => r.rank === 1 && r.note !== 'Left the game');
-    const title = winners.length === 1 ? `${winners[0].name} wins` : winners.length > 1 ? `${winners.map(w => w.name).join(' and ')} tie` : 'Game over';
+    const winners = rows.filter(r => r.rank === 1 && !this.data[r.id].left);
+    const title = winners.length === 1
+      ? { k: 'rock-paper-scissors.title.wins', p: { name: winners[0].name } }
+      : winners.length > 1 ? { k: 'rock-paper-scissors.title.tie', p: { names: winners.map(w => w.name).join(', ') } } : { k: 'rock-paper-scissors.title.over' };
     const subtitle = subtitleOverride || (this.mode === 'elimination'
-      ? `Survived ${this.round} round${this.round === 1 ? '' : 's'}`
-      : `${winners[0]?.score ?? 0} points after ${this.round} rounds`);
+      ? { k: 'rock-paper-scissors.sub.survived', p: { n: this.round } }
+      : { k: 'rock-paper-scissors.sub.points', p: { n: winners[0]?.score ?? 0, rounds: this.round } });
     this.room.finishGame({ title, subtitle, rows, delayMs: 20000 });
   }
 }

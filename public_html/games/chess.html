@@ -15,7 +15,7 @@
   <div class="flex flex-col gap-2.5 lg:row-span-2 lg:self-center" style="width: var(--board)">
     <div id="chess-top" class="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2"></div>
     <div class="relative">
-      <div id="chess-board" class="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-xl shadow-2xl ring-4 ring-white/10" role="grid" aria-label="Chess board"></div>
+      <div id="chess-board" class="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-xl shadow-2xl ring-4 ring-white/10" role="grid" data-i18n-attr="aria-label:chess.board" aria-label="Chess board"></div>
     </div>
     <div id="chess-bottom" class="flex items-center gap-3 rounded-2xl border border-white/8 bg-white/4 px-3 py-2"></div>
   </div>
@@ -26,29 +26,29 @@
 
     <div id="chess-offer" class="card-flat animate-pop flex items-center gap-2 p-2.5" hidden>
       <p class="flex min-w-0 flex-1 items-center gap-2 px-1 text-sm font-medium text-white"><i data-icon="draw" class="size-4 shrink-0 text-brand-300"></i><span id="chess-offer-text" class="truncate"></span></p>
-      <button id="chess-accept" class="btn btn-success btn-sm">Accept</button>
-      <button id="chess-decline" class="btn btn-secondary btn-sm">Decline</button>
+      <button id="chess-accept" class="btn btn-success btn-sm" data-i18n="chess.btn.accept">Accept</button>
+      <button id="chess-decline" class="btn btn-secondary btn-sm" data-i18n="chess.btn.decline">Decline</button>
     </div>
 
     <div class="grid grid-cols-3 gap-2">
-      <button id="chess-flip" class="btn btn-secondary btn-sm"><i data-icon="swap" class="size-4"></i>Flip</button>
-      <button id="chess-draw" class="btn btn-secondary btn-sm"><i data-icon="draw" class="size-4"></i><span>Draw</span></button>
-      <button id="chess-resign" class="btn btn-secondary btn-sm"><i data-icon="flag" class="size-4"></i><span>Resign</span></button>
+      <button id="chess-flip" class="btn btn-secondary btn-sm"><i data-icon="swap" class="size-4"></i><span data-i18n="chess.btn.flip">Flip</span></button>
+      <button id="chess-draw" class="btn btn-secondary btn-sm"><i data-icon="draw" class="size-4"></i><span data-i18n="chess.btn.draw">Draw</span></button>
+      <button id="chess-resign" class="btn btn-secondary btn-sm"><i data-icon="flag" class="size-4"></i><span data-i18n="chess.btn.resign">Resign</span></button>
     </div>
 
     <!-- phones: moves as a scrolling strip -->
-    <div id="chess-strip" class="scroll-y flex gap-1.5 overflow-x-auto overflow-y-hidden pb-1 whitespace-nowrap lg:hidden" aria-label="Moves"></div>
+    <div id="chess-strip" class="scroll-y flex gap-1.5 overflow-x-auto overflow-y-hidden pb-1 whitespace-nowrap lg:hidden" data-i18n-attr="aria-label:chess.moves" aria-label="Moves"></div>
   </div>
 
   <!-- desktop: full move list -->
-  <aside class="card-flat hidden min-h-48 flex-col p-3 lg:col-start-2 lg:row-start-1 lg:flex lg:self-end" style="max-height: calc(var(--board) - 6rem)" aria-label="Moves">
-    <p class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase"><i data-icon="clock" class="size-4 text-brand-300"></i>Moves</p>
+  <aside class="card-flat hidden min-h-48 flex-col p-3 lg:col-start-2 lg:row-start-1 lg:flex lg:self-end" style="max-height: calc(var(--board) - 6rem)" data-i18n-attr="aria-label:chess.moves" aria-label="Moves">
+    <p class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase"><i data-icon="clock" class="size-4 text-brand-300"></i><span data-i18n="chess.moves">Moves</span></p>
     <ol id="chess-moves" class="scroll-y grid min-h-0 flex-1 grid-cols-[2rem_1fr_1fr] content-start gap-x-2 gap-y-0.5 text-sm"></ol>
   </aside>
 
   <div id="chess-promo" class="fixed inset-0 z-40 grid place-items-center bg-black/60 backdrop-blur-sm" hidden>
     <div class="card p-5 text-center">
-      <p class="mb-3 text-sm font-semibold text-white">Promote pawn to</p>
+      <p class="mb-3 text-sm font-semibold text-white" data-i18n="chess.promote.title">Promote pawn to</p>
       <div id="chess-promo-options" class="flex gap-2"></div>
     </div>
   </div>

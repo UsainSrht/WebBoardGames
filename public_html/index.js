@@ -46,9 +46,7 @@
     const name = nicknameInput.value.trim();
     const error = $('name-error');
     if (!WBG.NAME_RE.test(name)) {
-      error.textContent = name.length < 3
-        ? 'Nickname must be at least 3 characters.'
-        : 'Use 3-16 letters, numbers, spaces, "_", "-" or ".".';
+      error.textContent = name.length < 3 ? WBG.t('name.short') : WBG.t('name.invalid');
       error.hidden = false;
       nicknameInput.setAttribute('aria-invalid', 'true');
       nicknameInput.focus();
@@ -107,20 +105,20 @@
   });
 
   async function joinRoom(code) {
-    if (!ROOM_RE.test(code)) return setJoinError('Enter the 4-16 character room code.');
+    if (!ROOM_RE.test(code)) return setJoinError(WBG.t('home.errCode'));
     const btn = $('join-btn');
     btn.disabled = true;
-    btn.innerHTML = WBG.icon('spinner', 'size-4 animate-spin') + 'Checking...';
+    btn.innerHTML = WBG.icon('spinner', 'size-4 animate-spin') + WBG.t('home.checking');
     try {
       const res = await fetch(`/api/room/check?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
       const info = await res.json();
-      if (!info.exists) throw new Error('No room with that code. Check it, or create a new room.');
-      if (info.started) throw new Error('That room has already started a game.');
+      if (!info.exists) throw new Error(WBG.t('home.errNoRoom'));
+      if (info.started) throw new Error(WBG.t('home.errStarted'));
       enterRoom(code);
     } catch (err) {
-      setJoinError(err instanceof SyntaxError ? 'Could not reach the server. Try again.' : err.message);
+      setJoinError(err instanceof SyntaxError ? WBG.t('home.errOffline') : err.message);
       btn.disabled = false;
-      btn.textContent = 'Join room';
+      btn.textContent = WBG.t('home.join');
     }
   }
 
@@ -150,14 +148,14 @@
   async function startScan() {
     const status = $('scan-status');
     WBG.openModal('scan-modal');
-    status.textContent = 'Starting camera...';
+    status.textContent = WBG.t('home.scanStarting');
     try {
       const detector = new BarcodeDetector({ formats: ['qr_code'] });
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       const video = $('scan-video');
       video.srcObject = stream;
       await video.play();
-      status.textContent = "Point your camera at the QR code on the host's screen.";
+      status.textContent = WBG.t('home.scanStatus');
       scanning = true;
       const tick = async () => {
         if (!scanning) return;
@@ -167,7 +165,7 @@
           if (code && ROOM_RE.test(code)) {
             scanning = false;
             WBG.haptic(30);
-            status.textContent = `Found room ${code}...`;
+            status.textContent = WBG.t('home.scanFound', { code });
             return enterRoom(code);
           }
         } catch { /* frame not ready */ }
@@ -175,7 +173,7 @@
       };
       tick();
     } catch {
-      status.textContent = 'Camera unavailable. Allow camera access, or type the room code instead.';
+      status.textContent = WBG.t('home.scanUnavailable');
     }
   }
 
@@ -201,3 +199,9 @@
     showNamePanel();
   }
 })();
+
+// Choosing a language link remembers it for the rest of the site.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a[data-lang]');
+  if (a) { try { localStorage.setItem('wbg.lang', a.dataset.lang); } catch { /* ignore */ } }
+});

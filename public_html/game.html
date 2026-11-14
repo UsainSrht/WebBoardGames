@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#07090f">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preload" href="/i18n/core.json" as="fetch" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,22 +18,22 @@
   <!-- Top bar -->
   <header id="topbar" class="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between gap-2 bg-gradient-to-b from-ink-950/95 to-ink-950/0 px-2.5 safe-t sm:px-4">
     <div class="flex min-w-0 items-center gap-1.5">
-      <button id="leave-btn" class="btn btn-ghost btn-icon btn-sm" aria-label="Leave room"><i data-icon="logout" class="size-5"></i></button>
-      <button id="room-chip" class="btn btn-secondary btn-sm gap-2 px-3" aria-label="Invite players: show QR code and link">
+      <button id="leave-btn" class="btn btn-ghost btn-icon btn-sm" aria-label="Leave room" data-i18n-attr="aria-label:room.leave"><i data-icon="logout" class="size-5"></i></button>
+      <button id="room-chip" class="btn btn-secondary btn-sm gap-2 px-3" aria-label="Invite players: show QR code and link" data-i18n-attr="aria-label:room.inviteAria">
         <i data-icon="qr" class="size-4 text-brand-300"></i>
         <span id="room-code" class="font-mono text-[13px] font-bold tracking-[0.2em] text-white">------</span>
       </button>
-      <span id="role-chip" class="chip chip-brand hidden sm:inline-flex" hidden><i data-icon="eye" class="size-3.5"></i>Host view</span>
+      <span id="role-chip" class="chip chip-brand hidden sm:inline-flex" hidden><i data-icon="eye" class="size-3.5"></i><span data-i18n="room.hostView">Host view</span></span>
     </div>
     <div class="flex items-center gap-1.5">
-      <button id="help-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="How to play" hidden><i data-icon="help" class="size-5"></i></button>
+      <button id="help-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="How to play" data-i18n-attr="aria-label:room.help" hidden><i data-icon="help" class="size-5"></i></button>
       <button id="sound-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="Sound"><i data-icon="volume" class="size-5"></i></button>
-      <span id="conn" class="grid size-9 place-items-center text-slate-500" title="Connecting" role="img" aria-label="Connecting"><i data-icon="wifi" class="size-5"></i></span>
-      <button id="people-btn" class="btn btn-secondary btn-icon btn-sm relative" aria-label="Players and chat">
+      <span id="conn" class="grid size-9 place-items-center text-slate-500" role="img" aria-label="Connecting"><i data-icon="wifi" class="size-5"></i></span>
+      <button id="people-btn" class="btn btn-secondary btn-icon btn-sm relative" aria-label="Players and chat" data-i18n-attr="aria-label:room.peopleChat">
         <i data-icon="users" class="size-5"></i>
         <span id="chat-badge" class="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[11px] leading-5 font-bold text-white" hidden>0</span>
       </button>
-      <button id="settings-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="Settings"><i data-icon="settings" class="size-5"></i></button>
+      <button id="settings-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="Settings" data-i18n-attr="aria-label:room.settings"><i data-icon="settings" class="size-5"></i></button>
     </div>
   </header>
 
@@ -41,33 +42,33 @@
     <div class="flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-ink-700/95 px-4 py-2.5 text-sm font-medium text-amber-200 shadow-xl backdrop-blur">
       <i data-icon="spinner" class="size-4 animate-spin" id="banner-icon"></i>
       <span id="banner-text">Reconnecting...</span>
-      <button id="banner-retry" class="btn btn-secondary btn-sm" hidden>Retry now</button>
+      <button id="banner-retry" class="btn btn-secondary btn-sm" data-i18n="conn.retryNow" hidden>Retry now</button>
     </div>
   </div>
 
   <!-- Lobby -->
   <main id="lobby" class="mx-auto w-full max-w-6xl px-4 pt-20 pb-40 sm:px-6 lg:pb-12">
     <div class="reveal mb-6">
-      <p class="eyebrow">Lobby</p>
-      <h1 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl" id="lobby-title">Getting your room ready</h1>
-      <p class="mt-1 text-sm text-slate-400" id="lobby-sub">Connecting...</p>
+      <p class="eyebrow" data-i18n="lobby.eyebrow">Lobby</p>
+      <h1 class="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl" id="lobby-title" data-i18n="lobby.preparing">Getting your room ready</h1>
+      <p class="mt-1 text-sm text-slate-400" id="lobby-sub" data-i18n="lobby.connecting">Connecting...</p>
     </div>
 
     <div class="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <div class="space-y-5">
         <!-- Invite -->
-        <section class="card reveal-2 flex items-center gap-4 p-4 sm:p-5" aria-label="Invite players">
-          <button id="invite-qr" class="relative size-24 shrink-0 overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg transition hover:scale-[1.03] sm:size-28" aria-label="Enlarge QR code">
+        <section class="card reveal-2 flex items-center gap-4 p-4 sm:p-5" aria-label="Invite players" data-i18n-attr="aria-label:lobby.invite">
+          <button id="invite-qr" class="relative size-24 shrink-0 overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg transition hover:scale-[1.03] sm:size-28" aria-label="Enlarge QR code" data-i18n-attr="aria-label:lobby.qrEnlarge">
             <span id="invite-qr-svg" class="block size-full"></span>
             <span class="skeleton absolute inset-0 rounded-2xl" id="invite-qr-skeleton"></span>
           </button>
           <div class="min-w-0 flex-1">
-            <p class="text-xs font-semibold tracking-wide text-slate-400 uppercase">Invite players</p>
+            <p class="text-xs font-semibold tracking-wide text-slate-400 uppercase" data-i18n="lobby.invite">Invite players</p>
             <p id="invite-code" class="mt-0.5 font-mono text-2xl font-bold tracking-[0.25em] text-white sm:text-3xl">------</p>
-            <p class="mt-0.5 hidden text-xs text-slate-500 sm:block">Scan the code or share the link</p>
+            <p class="mt-0.5 hidden text-xs text-slate-500 sm:block" data-i18n="lobby.inviteHint">Scan the code or share the link</p>
             <div class="mt-2.5 flex flex-wrap gap-2">
-              <button id="invite-copy" class="btn btn-secondary btn-sm"><i data-icon="copy" class="size-4"></i>Copy link</button>
-              <button id="invite-share" class="btn btn-secondary btn-sm" hidden><i data-icon="share" class="size-4"></i>Share</button>
+              <button id="invite-copy" class="btn btn-secondary btn-sm"><i data-icon="copy" class="size-4"></i><span data-i18n="common.copyLink">Copy link</span></button>
+              <button id="invite-share" class="btn btn-secondary btn-sm" hidden><i data-icon="share" class="size-4"></i><span data-i18n="common.share">Share</span></button>
             </div>
           </div>
         </section>
@@ -75,7 +76,7 @@
         <!-- Players -->
         <section class="card reveal-3 p-4 sm:p-5" aria-labelledby="players-title">
           <div class="mb-3 flex items-center justify-between">
-            <h2 id="players-title" class="flex items-center gap-2 text-base font-semibold text-white"><i data-icon="users" class="size-5 text-brand-300"></i>Players</h2>
+            <h2 id="players-title" class="flex items-center gap-2 text-base font-semibold text-white"><i data-icon="users" class="size-5 text-brand-300"></i><span data-i18n="lobby.players">Players</span></h2>
             <span id="players-count" class="chip">0</span>
           </div>
           <ul id="player-list" class="space-y-2" aria-live="polite">
@@ -84,8 +85,8 @@
           <label id="hostview-row" class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/8 bg-white/4 p-3.5" hidden>
             <input id="hostview-switch" type="checkbox" class="switch mt-0.5">
             <span>
-              <span class="flex items-center gap-1.5 text-sm font-semibold text-white"><i data-icon="eye" class="size-4 text-brand-300"></i>Host view</span>
-              <span class="mt-0.5 block text-xs leading-relaxed text-slate-400">Watch and manage games without playing. You will not take a seat or need to ready up.</span>
+              <span class="flex items-center gap-1.5 text-sm font-semibold text-white"><i data-icon="eye" class="size-4 text-brand-300"></i><span data-i18n="room.hostView">Host view</span></span>
+              <span class="mt-0.5 block text-xs leading-relaxed text-slate-400" data-i18n="lobby.hostViewDesc">Watch and manage games without playing. You will not take a seat or need to ready up.</span>
             </span>
           </label>
         </section>
@@ -95,26 +96,65 @@
         <!-- Games -->
         <section class="card reveal-3 p-4 sm:p-5" aria-labelledby="games-title">
           <div class="mb-3 flex items-center justify-between gap-3">
-            <h2 id="games-title" class="flex items-center gap-2 text-base font-semibold text-white"><i data-icon="dice" class="size-5 text-brand-300"></i>Game</h2>
+            <h2 id="games-title" class="flex items-center gap-2 text-base font-semibold text-white"><i data-icon="dice" class="size-5 text-brand-300"></i><span data-i18n="lobby.game">Game</span></h2>
             <span id="games-hint" class="text-xs text-slate-400"></span>
           </div>
-          <div id="game-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-labelledby="games-title"></div>
+
+          <!-- the selected game -->
+          <div id="selected-game" class="mb-3" hidden></div>
+
+          <!-- featured games -->
+          <p class="mb-2 flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase"><i data-icon="star" class="size-3.5 text-amber-300"></i><span data-i18n="catalog.featured">Featured</span></p>
+          <div id="game-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Featured games" data-i18n-attr="aria-label:catalog.featured"></div>
+
+          <!-- all games: search, filter, sort -->
+          <button id="all-toggle" class="btn btn-secondary mt-3 w-full justify-between" type="button" aria-expanded="false" aria-controls="all-panel">
+            <span class="flex items-center gap-2"><i data-icon="grid" class="size-4 text-brand-300"></i><span id="all-toggle-label">All games</span></span>
+            <i data-icon="chevron-down" class="size-4 transition-transform" id="all-chevron"></i>
+          </button>
+          <div id="all-panel" class="mt-3 space-y-3" hidden>
+            <div class="flex gap-2">
+              <label class="relative flex-1">
+                <span class="sr-only" data-i18n="catalog.search">Search games</span>
+                <i data-icon="search" class="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-500"></i>
+                <input id="catalog-search" class="input h-11 pl-10" type="search" placeholder="Search games" data-i18n-attr="placeholder:catalog.search" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="relative">
+                <span class="sr-only" data-i18n="catalog.sortBy">Sort by</span>
+                <select id="catalog-sort" class="input h-11 w-auto cursor-pointer pr-9 text-sm font-semibold">
+                  <option value="featured" data-i18n="catalog.sort.featured">Featured</option>
+                  <option value="az" data-i18n="catalog.sort.az">A to Z</option>
+                  <option value="players" data-i18n="catalog.sort.players">Most players</option>
+                  <option value="length" data-i18n="catalog.sort.length">Shortest first</option>
+                  <option value="newest" data-i18n="catalog.sort.newest">Newest</option>
+                </select>
+                <i data-icon="sort" class="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-slate-400"></i>
+              </label>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5" id="catalog-cats" role="group" aria-label="Category" data-i18n-attr="aria-label:catalog.category"></div>
+            <label class="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/4 px-3 py-2.5">
+              <span class="text-sm text-slate-300" id="catalog-fit-label">Only games that fit the players here</span>
+              <input id="catalog-fit" type="checkbox" class="switch">
+            </label>
+            <ul id="all-list" class="scroll-y max-h-96 space-y-1.5 pr-1" role="radiogroup" aria-label="All games" data-i18n-attr="aria-label:catalog.all"></ul>
+          </div>
+
           <div id="options-panel" class="mt-4 space-y-3.5 border-t border-white/8 pt-4" hidden></div>
         </section>
 
         <!-- Actions (fixed bar on small screens) -->
-        <section id="action-bar" class="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-ink-900/92 p-3 safe-b backdrop-blur-xl lg:static lg:rounded-3xl lg:border lg:p-5 lg:pb-5" aria-label="Start game">
+        <section id="action-bar" class="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-ink-900/92 p-3 safe-b backdrop-blur-xl lg:static lg:rounded-3xl lg:border lg:p-5 lg:pb-5" aria-label="Start game" data-i18n-attr="aria-label:lobby.startAria">
           <div class="mx-auto flex max-w-2xl flex-col gap-3 lg:max-w-none">
             <div class="flex items-center gap-3">
               <span id="status-icon" class="grid size-9 shrink-0 place-items-center rounded-xl bg-white/8 text-slate-300"><i data-icon="info" class="size-5"></i></span>
               <div class="min-w-0 flex-1">
-                <p id="status-text" class="truncate text-sm font-semibold text-white">Connecting...</p>
+                <p id="status-text" class="truncate text-sm font-semibold text-white" data-i18n="lobby.connecting">Connecting...</p>
                 <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"><div id="ready-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-emerald-400 transition-all duration-300"></div></div>
               </div>
             </div>
             <div class="flex gap-2">
-              <button id="ready-btn" class="btn btn-primary btn-lg flex-1" disabled><i data-icon="check" class="size-5"></i><span>Ready</span></button>
-              <button id="start-btn" class="btn btn-lg btn-secondary" hidden><i data-icon="play" class="size-5"></i>Start now</button>
+              <button id="ready-btn" class="btn btn-primary btn-lg flex-1" disabled><i data-icon="check" class="size-5"></i><span data-i18n="lobby.ready">Ready</span></button>
+              <button id="start-btn" class="btn btn-lg btn-secondary" hidden><i data-icon="play" class="size-5"></i><span data-i18n="lobby.startNow">Start now</span></button>
             </div>
           </div>
         </section>
@@ -136,21 +176,21 @@
 
   <!-- Room drawer: people + chat -->
   <div id="drawer" class="drawer-backdrop" hidden>
-    <aside class="drawer-panel" role="dialog" aria-modal="true" aria-label="Room">
+    <aside class="drawer-panel" role="dialog" aria-modal="true" aria-label="Room" data-i18n-attr="aria-label:room.room">
       <div class="flex items-center gap-2 p-3">
         <div class="flex flex-1 gap-1 rounded-xl bg-white/5 p-1" role="tablist">
-          <button class="tab" role="tab" id="tab-people-btn" aria-selected="true" aria-controls="tab-people">People</button>
-          <button class="tab relative" role="tab" id="tab-chat-btn" aria-selected="false" aria-controls="tab-chat">Chat<span id="tab-chat-dot" class="absolute top-1.5 right-2 size-2 rounded-full bg-rose-500" hidden></span></button>
+          <button class="tab" role="tab" id="tab-people-btn" aria-selected="true" aria-controls="tab-people" data-i18n="drawer.people">People</button>
+          <button class="tab relative" role="tab" id="tab-chat-btn" aria-selected="false" aria-controls="tab-chat"><span data-i18n="drawer.chat">Chat</span><span id="tab-chat-dot" class="absolute top-1.5 right-2 size-2 rounded-full bg-rose-500" hidden></span></button>
         </div>
-        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close" data-i18n-attr="aria-label:common.close"><i data-icon="x" class="size-5"></i></button>
       </div>
 
       <div id="tab-people" class="scroll-y min-h-0 flex-1 space-y-4 px-3 pb-4" role="tabpanel">
         <div id="host-controls" class="card-flat space-y-2 p-3" hidden>
-          <p class="px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase">Host controls</p>
+          <p class="px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase" data-i18n="drawer.hostControls">Host controls</p>
           <div class="grid grid-cols-2 gap-2">
-            <button id="ctl-restart" class="btn btn-secondary btn-sm"><i data-icon="refresh" class="size-4"></i>Restart</button>
-            <button id="ctl-end" class="btn btn-secondary btn-sm"><i data-icon="flag" class="size-4"></i>End game</button>
+            <button id="ctl-restart" class="btn btn-secondary btn-sm"><i data-icon="refresh" class="size-4"></i><span data-i18n="drawer.restart">Restart</span></button>
+            <button id="ctl-end" class="btn btn-secondary btn-sm"><i data-icon="flag" class="size-4"></i><span data-i18n="drawer.endGame">End game</span></button>
           </div>
         </div>
         <ul id="drawer-players" class="space-y-2"></ul>
@@ -159,8 +199,8 @@
       <div id="tab-chat" class="flex min-h-0 flex-1 flex-col" role="tabpanel" hidden>
         <div id="messages" class="scroll-y min-h-0 flex-1 space-y-2 px-3 pb-3" aria-live="polite"></div>
         <form id="chat-form" class="flex items-center gap-2 border-t border-white/8 p-3" autocomplete="off">
-          <input id="chat-input" class="input h-11 flex-1" type="text" maxlength="200" placeholder="Message the room" enterkeyhint="send" aria-label="Message">
-          <button class="btn btn-primary btn-icon" type="submit" aria-label="Send"><i data-icon="send" class="size-5"></i></button>
+          <input id="chat-input" class="input h-11 flex-1" type="text" maxlength="200" placeholder="Message the room" data-i18n-attr="placeholder:chat.placeholder;aria-label:chat.message" enterkeyhint="send" aria-label="Message">
+          <button class="btn btn-primary btn-icon" type="submit" aria-label="Send" data-i18n-attr="aria-label:chat.send"><i data-icon="send" class="size-5"></i></button>
         </form>
       </div>
     </aside>
@@ -170,18 +210,18 @@
   <div id="share-modal" class="modal-backdrop" hidden>
     <div class="modal text-center" role="dialog" aria-modal="true" aria-labelledby="share-title">
       <div class="mb-4 flex items-center justify-between">
-        <h2 id="share-title" class="modal-title">Invite to this room</h2>
-        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+        <h2 id="share-title" class="modal-title" data-i18n="share.title">Invite to this room</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close" data-i18n-attr="aria-label:common.close"><i data-icon="x" class="size-5"></i></button>
       </div>
       <div class="mx-auto aspect-square w-full max-w-64 rounded-3xl bg-white p-3 shadow-xl"><span id="share-qr" class="block size-full"></span></div>
-      <p class="mt-4 text-xs font-semibold tracking-wide text-slate-400 uppercase">Room code</p>
+      <p class="mt-4 text-xs font-semibold tracking-wide text-slate-400 uppercase" data-i18n="share.roomCode">Room code</p>
       <p id="share-code" class="font-mono text-4xl font-bold tracking-[0.3em] text-white">------</p>
-      <p class="mt-1 text-sm text-slate-400">Friends can scan this with their camera to join.</p>
+      <p class="mt-1 text-sm text-slate-400" data-i18n="share.hint">Friends can scan this with their camera to join.</p>
       <div class="mt-5 grid grid-cols-2 gap-2">
-        <button id="share-copy" class="btn btn-secondary"><i data-icon="link" class="size-4"></i>Copy link</button>
-        <button id="share-code-copy" class="btn btn-secondary"><i data-icon="copy" class="size-4"></i>Copy code</button>
+        <button id="share-copy" class="btn btn-secondary"><i data-icon="link" class="size-4"></i><span data-i18n="common.copyLink">Copy link</span></button>
+        <button id="share-code-copy" class="btn btn-secondary"><i data-icon="copy" class="size-4"></i><span data-i18n="share.copyCode">Copy code</span></button>
       </div>
-      <button id="share-native" class="btn btn-primary mt-2 w-full" hidden><i data-icon="share" class="size-4"></i>Share</button>
+      <button id="share-native" class="btn btn-primary mt-2 w-full" hidden><i data-icon="share" class="size-4"></i><span data-i18n="common.share">Share</span></button>
     </div>
   </div>
 
@@ -189,28 +229,32 @@
   <div id="settings-modal" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div class="mb-5 flex items-center justify-between">
-        <h2 id="settings-title" class="modal-title">Settings</h2>
-        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+        <h2 id="settings-title" class="modal-title" data-i18n="settings.title">Settings</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close" data-i18n-attr="aria-label:common.close"><i data-icon="x" class="size-5"></i></button>
       </div>
       <form id="rename-form" class="mb-5" novalidate>
-        <label class="field-label" for="rename-input">Nickname</label>
+        <label class="field-label" for="rename-input" data-i18n="settings.nickname">Nickname</label>
         <div class="flex gap-2">
           <input id="rename-input" class="input flex-1" maxlength="16" autocomplete="nickname" spellcheck="false">
-          <button class="btn btn-secondary" type="submit">Save</button>
+          <button class="btn btn-secondary" type="submit" data-i18n="common.save">Save</button>
         </div>
         <p id="rename-error" class="field-error" hidden></p>
       </form>
+      <div class="mb-3">
+        <p class="field-label" data-i18n="settings.language">Language</p>
+        <div id="lang-switch" class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Language" data-i18n-attr="aria-label:settings.language"></div>
+      </div>
       <div class="space-y-2">
         <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/4 p-3.5">
-          <span><span class="block text-sm font-semibold text-white">Join and leave alerts</span><span class="block text-xs text-slate-400">Show a notification when players come and go</span></span>
+          <span><span class="block text-sm font-semibold text-white" data-i18n="settings.alerts">Join and leave alerts</span><span class="block text-xs text-slate-400" data-i18n="settings.alertsDesc">Show a notification when players come and go</span></span>
           <input id="set-notify" type="checkbox" class="switch">
         </label>
         <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/4 p-3.5">
-          <span><span class="block text-sm font-semibold text-white">Reduce motion</span><span class="block text-xs text-slate-400">Turn off animations and transitions</span></span>
+          <span><span class="block text-sm font-semibold text-white" data-i18n="settings.motion">Reduce motion</span><span class="block text-xs text-slate-400" data-i18n="settings.motionDesc">Turn off animations and transitions</span></span>
           <input id="set-motion" type="checkbox" class="switch">
         </label>
         <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/4 p-3.5">
-          <span><span class="block text-sm font-semibold text-white">Sound effects</span><span class="block text-xs text-slate-400">Game and interface sounds</span></span>
+          <span><span class="block text-sm font-semibold text-white" data-i18n="settings.sound">Sound effects</span><span class="block text-xs text-slate-400" data-i18n="settings.soundDesc">Game and interface sounds</span></span>
           <input id="set-sound" type="checkbox" class="switch">
         </label>
       </div>
@@ -222,12 +266,12 @@
     <form id="name-form" class="modal" role="dialog" aria-modal="true" aria-labelledby="name-title" novalidate>
       <div class="mb-5 text-center">
         <div class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-violet-500 text-white"><i data-icon="user" class="size-7"></i></div>
-        <h2 id="name-title" class="modal-title">Choose a nickname</h2>
-        <p class="mt-1 text-sm text-slate-400">Other players in this room will see it.</p>
+        <h2 id="name-title" class="modal-title" data-i18n="name.title">Choose a nickname</h2>
+        <p class="mt-1 text-sm text-slate-400" data-i18n="name.desc">Other players in this room will see it.</p>
       </div>
-      <input id="name-input" class="input" maxlength="16" placeholder="Enter nickname" autocomplete="nickname" spellcheck="false" data-autofocus aria-label="Nickname">
+      <input id="name-input" class="input" maxlength="16" placeholder="Enter nickname" data-i18n-attr="placeholder:name.placeholder;aria-label:settings.nickname" autocomplete="nickname" spellcheck="false" data-autofocus aria-label="Nickname">
       <p id="name-error" class="field-error" hidden></p>
-      <button class="btn btn-primary btn-lg mt-4 w-full" type="submit">Join room</button>
+      <button class="btn btn-primary btn-lg mt-4 w-full" type="submit" data-i18n="name.join">Join room</button>
     </form>
   </div>
 
@@ -238,7 +282,7 @@
       <h2 id="confirm-title" class="modal-title">Are you sure?</h2>
       <p id="confirm-text" class="mt-1 text-sm text-slate-400"></p>
       <div class="mt-6 grid grid-cols-2 gap-3">
-        <button id="confirm-cancel" class="btn btn-secondary" data-autofocus>Cancel</button>
+        <button id="confirm-cancel" class="btn btn-secondary" data-autofocus data-i18n="common.cancel">Cancel</button>
         <button id="confirm-ok" class="btn btn-danger">Confirm</button>
       </div>
     </div>
@@ -248,8 +292,8 @@
   <div id="rules-modal" class="modal-backdrop" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rules-title">
       <div class="mb-4 flex items-center justify-between">
-        <h2 id="rules-title" class="modal-title">How to play</h2>
-        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+        <h2 id="rules-title" class="modal-title" data-i18n="rules.title">How to play</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close" data-i18n-attr="aria-label:common.close"><i data-icon="x" class="size-5"></i></button>
       </div>
       <div id="rules-body" class="space-y-4 text-sm text-slate-300"></div>
     </div>
@@ -266,13 +310,14 @@
       <ol id="results-rows" class="space-y-2"></ol>
       <p id="results-timer" class="mt-4 text-center text-sm text-slate-400"></p>
       <div id="results-host" class="mt-4 grid grid-cols-2 gap-2" hidden>
-        <button id="results-again" class="btn btn-primary"><i data-icon="refresh" class="size-4"></i>Play again</button>
-        <button id="results-lobby" class="btn btn-secondary"><i data-icon="home" class="size-4"></i>Lobby</button>
+        <button id="results-again" class="btn btn-primary"><i data-icon="refresh" class="size-4"></i><span data-i18n="results.again">Play again</span></button>
+        <button id="results-lobby" class="btn btn-secondary"><i data-icon="home" class="size-4"></i><span data-i18n="results.lobby">Lobby</span></button>
       </div>
-      <button id="results-hide" class="btn btn-ghost btn-sm mt-3 w-full">View the table</button>
+      <button id="results-hide" class="btn btn-ghost btn-sm mt-3 w-full" data-i18n="results.view">View the table</button>
     </div>
   </div>
 
+  <script src="/i18n.js"></script>
   <script src="/core.js"></script>
   <script src="/socket-client.js"></script>
   <script src="/game.js"></script>

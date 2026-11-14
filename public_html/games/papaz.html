@@ -1,0 +1,48 @@
+<style>
+  #pz-root { --cw: 3.4rem; }
+  @media (min-width: 640px) { #pz-root { --cw: 4.6rem; } }
+  @media (min-width: 1024px) and (min-height: 760px) { #pz-root { --cw: 5.2rem; } }
+  .pz-new { animation: slide-up 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .pz-pulse { animation: pop 0.35s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+  .pz-shake { animation: pz-shake 0.6s ease-in-out 2; }
+  .pz-glow { animation: pz-glow 1.6s ease-in-out infinite; }
+  @keyframes pz-shake { 0%, 100% { transform: rotate(0) scale(1); } 20% { transform: rotate(-7deg) scale(1.06); } 50% { transform: rotate(6deg) scale(1.08); } 80% { transform: rotate(-3deg) scale(1.04); } }
+  @keyframes pz-glow { 0%, 100% { filter: drop-shadow(0 0 14px rgba(244, 63, 94, 0.55)); } 50% { filter: drop-shadow(0 0 34px rgba(244, 63, 94, 0.95)); } }
+</style>
+<div id="pz-root" class="absolute inset-0 flex flex-col gap-2 pt-16 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+  <div class="scroll-y shrink-0 px-3">
+    <ul id="pz-players" class="mx-auto flex max-w-4xl flex-wrap justify-center gap-2"></ul>
+  </div>
+
+  <div class="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-3">
+    <p id="pz-round" class="text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
+    <p id="pz-status" class="max-w-sm text-center text-sm font-semibold text-white" aria-live="polite"></p>
+    <div id="pz-fan" class="scroll-y w-full px-2 pt-3 pb-2" style="overflow-y: hidden"><div id="pz-fan-in" class="mx-auto flex w-max items-end"></div></div>
+    <button id="pz-shuffle" class="btn btn-secondary" hidden><i data-icon="refresh" class="size-4"></i><span data-i18n="papaz.shuffle">Shuffle my cards</span></button>
+    <div class="w-56 max-w-full">
+      <div class="h-1.5 overflow-hidden rounded-full bg-white/10"><div id="pz-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500"></div></div>
+      <p id="pz-timer" class="mt-1 h-4 text-center text-xs text-slate-400"></p>
+    </div>
+    <ul id="pz-log" class="w-full max-w-md space-y-0.5 text-center text-xs text-slate-300" aria-live="polite"></ul>
+  </div>
+
+  <div class="shrink-0">
+    <div class="mb-1 flex items-center justify-between gap-2 px-4">
+      <p id="pz-hand-label" class="text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
+      <div id="pz-mypairs" class="flex items-center gap-1 text-xs text-slate-400"></div>
+    </div>
+    <div class="scroll-y px-3 pt-2 pb-1" style="overflow-y: hidden">
+      <div id="pz-hand" class="mx-auto flex w-max items-end"></div>
+    </div>
+  </div>
+
+  <div id="pz-reveal" class="fixed inset-0 z-40 grid place-items-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm" hidden>
+    <div class="card animate-pop w-full max-w-sm p-5 text-center">
+      <p class="eyebrow" data-i18n="papaz.reveal.eyebrow">The Papaz</p>
+      <div id="pz-reveal-card" class="pz-glow pz-shake mx-auto my-3 w-28"></div>
+      <h2 id="pz-reveal-title" class="text-xl font-bold text-white"></h2>
+      <ul id="pz-reveal-rows" class="mt-4 space-y-1.5 text-left"></ul>
+      <p id="pz-reveal-next" class="mt-3 text-sm text-slate-400"></p>
+    </div>
+  </div>
+</div>

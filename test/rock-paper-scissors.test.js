@@ -232,7 +232,7 @@ test('leavers: elimination ranks them last, one player left wins', withTimers(()
   assert.ok(room.finished);
   assert.equal(room.finished.rows[0].id, 'p0');
   assert.equal(room.finished.rows[0].rank, 1);
-  assert.equal(room.finished.rows.at(-1).note, 'Left the game');
+  assert.deepEqual(room.finished.rows.at(-1).note, { k: 'rock-paper-scissors.note.left' });
 }));
 
 test('leaving mid-choice lets the round continue with the rest', withTimers(() => {
@@ -267,4 +267,22 @@ test('starts after the fallback when nobody reports in', withTimers(() => {
   g.handleMessage('a', 'rps-page-loaded');
   assert.equal(room.stateFor('a').phase, 'choosing');
   g.cleanup();
+}));
+
+test('results and notes are message objects and every referenced key is translated', withTimers(async () => {
+  const { assertKeysExist, assertOptionKeys, assertMsg } = await import('./helpers/i18n-keys.mjs');
+  assertKeysExist('rock-paper-scissors', ['src/games/rock-paper-scissors.js', 'public_html/games/rock-paper-scissors.js', 'public_html/games/rock-paper-scissors.html']);
+  const { dictionary } = await import('./helpers/i18n-keys.mjs');
+  const d = dictionary('rock-paper-scissors');
+  for (const k of Object.keys(d.en)) assert.ok(k.startsWith('rock-paper-scissors.'), k);
+  assertOptionKeys('rock-paper-scissors');
+
+  const { room, game } = setup(3, { mode: 'elimination' });
+  game.onPlayerLeft('p2');
+  game.onPlayerLeft('p1');
+  assertMsg('rock-paper-scissors', room.finished.subtitle, 'rock-paper-scissors.sub.last');
+  assertMsg('rock-paper-scissors', room.finished.title, 'rock-paper-scissors.title.wins');
+  assertMsg('rock-paper-scissors', room.finished.rows.at(-1).note, 'rock-paper-scissors.note.left');
+  assertMsg('rock-paper-scissors', room.finished.rows[0].note, 'rock-paper-scissors.note.last');
+  game.cleanup();
 }));

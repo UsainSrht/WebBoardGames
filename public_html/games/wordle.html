@@ -1,0 +1,77 @@
+<style>
+  #wd-root { --tile: min(3.9rem, 14.5vw, calc((100dvh - 25rem) / 6.2)); --gap: 0.3rem; }
+  @media (min-width: 1024px) { #wd-root { --tile: min(4.2rem, calc((100dvh - 24rem) / 6.2)); } }
+  .wd-tile { position: relative; width: var(--tile); height: var(--tile); display: grid; place-items: center; border: 2px solid rgb(255 255 255 / 0.16); border-radius: 0.55rem; font-weight: 800; font-size: calc(var(--tile) * 0.52); line-height: 1; color: #fff; background: rgb(255 255 255 / 0.03); user-select: none; transform-style: preserve-3d; }
+  .wd-tile.filled { border-color: rgb(255 255 255 / 0.5); animation: wd-pop 0.12s ease-out; }
+  .wd-tile.g { background: #15803d; border-color: #15803d; }
+  .wd-tile.y { background: #b7791f; border-color: #b7791f; }
+  .wd-tile.x { background: #3a4263; border-color: #3a4263; }
+  .wd-tile.flip { animation: wd-flip 0.55s ease-in-out both; animation-delay: calc(var(--i) * 0.28s); }
+  .wd-row.shake { animation: wd-shake 0.45s ease-in-out; }
+  .wd-row.win .wd-tile { animation: wd-bounce 0.7s ease both; animation-delay: calc(var(--i) * 0.09s); }
+  @keyframes wd-pop { 0% { transform: scale(0.88); } 60% { transform: scale(1.1); } 100% { transform: scale(1); } }
+  @keyframes wd-flip { 0% { transform: rotateX(0); } 49% { transform: rotateX(90deg); background: rgb(255 255 255 / 0.03); border-color: rgb(255 255 255 / 0.5); } 50% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+  @keyframes wd-shake { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-7px); } 35% { transform: translateX(6px); } 55% { transform: translateX(-4px); } 75% { transform: translateX(3px); } }
+  @keyframes wd-bounce { 0%, 20%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } 60% { transform: translateY(2px); } 80% { transform: translateY(-5px); } }
+  .wd-key { flex: 1 1 0; min-width: 0; height: 3.25rem; border-radius: 0.55rem; font-weight: 700; font-size: 1rem; color: #fff; background: rgb(255 255 255 / 0.14); display: grid; place-items: center; transition: background 0.2s, transform 0.06s; touch-action: manipulation; }
+  .wd-key:active { transform: scale(0.94); }
+  .wd-key:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 1px; }
+  .wd-key.wide { flex: 1.6 1 0; font-size: 0.8rem; }
+  .wd-key.g { background: #15803d; }
+  .wd-key.y { background: #b7791f; }
+  .wd-key.x { background: #2b3150; color: #8c95b8; }
+  .wd-mini { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; }
+  .wd-mini i { display: block; aspect-ratio: 1; border-radius: 2px; background: rgb(255 255 255 / 0.07); }
+  .wd-mini i.g { background: #22c55e; }
+  .wd-mini i.y { background: #eab308; }
+  .wd-mini i.x { background: #4b5578; }
+  .wd-mini i.t { background: rgb(255 255 255 / 0.28); }
+  @media (prefers-reduced-motion: reduce) { .wd-tile.flip, .wd-row.win .wd-tile, .wd-row.shake, .wd-tile.filled { animation: none; } }
+  .reduce-motion .wd-tile.flip, .reduce-motion .wd-row.win .wd-tile, .reduce-motion .wd-row.shake, .reduce-motion .wd-tile.filled { animation: none; }
+</style>
+<div id="wd-root" class="absolute inset-0 flex flex-col pt-16 pb-[max(env(safe-area-inset-bottom),0.6rem)]">
+  <!-- status bar -->
+  <div class="flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 pb-1.5">
+    <span id="wd-round" class="chip"></span>
+    <span id="wd-hard" class="chip chip-brand" hidden data-i18n="wordle.hardChip">Hard mode</span>
+    <span id="wd-timer" class="chip tabular-nums" hidden></span>
+    <span id="wd-score" class="chip tabular-nums"></span>
+  </div>
+
+  <div class="flex min-h-0 flex-1 flex-col lg:flex-row lg:items-stretch lg:justify-center lg:gap-8 lg:px-8">
+    <!-- other players -->
+    <div id="wd-others-wrap" class="shrink-0 px-3 lg:order-2 lg:w-72 lg:overflow-y-auto lg:px-0 lg:pt-2">
+      <ul id="wd-others" class="scroll-y flex gap-2 pb-1 lg:flex-wrap lg:overflow-visible"></ul>
+    </div>
+
+    <!-- board + keyboard -->
+    <div class="flex min-h-0 flex-1 flex-col items-center justify-between gap-2 lg:order-1 lg:max-w-xl">
+      <div id="wd-wait" class="grid flex-1 place-items-center px-6 text-center" hidden>
+        <div>
+          <div class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-white/8 text-brand-300"><i data-icon="wordle" class="size-8 animate-pulse-soft"></i></div>
+          <p class="text-lg font-semibold text-white" data-i18n="wordle.wait.title">Getting the word ready</p>
+          <p class="mt-1 text-sm text-slate-400" data-i18n="wordle.wait.sub">Everyone races to guess the same five letters.</p>
+        </div>
+      </div>
+      <div id="wd-play" class="flex min-h-0 w-full flex-1 flex-col items-center justify-between gap-2">
+        <div class="flex flex-1 flex-col items-center justify-center gap-2">
+          <div id="wd-board" class="grid" style="gap: var(--gap)" role="grid"></div>
+          <p id="wd-msg" class="h-6 text-center text-sm font-semibold text-slate-200" aria-live="polite"></p>
+        </div>
+        <div id="wd-kb" class="flex w-full max-w-lg shrink-0 flex-col gap-1.5 px-1.5"></div>
+      </div>
+      <p id="wd-spec" class="px-6 pb-3 text-center text-sm text-slate-400" hidden data-i18n="wordle.spec">You are watching the race. The word appears when the round ends.</p>
+    </div>
+  </div>
+
+  <!-- round result -->
+  <div id="wd-reveal" class="fixed inset-0 z-30 grid place-items-center overflow-y-auto bg-ink-950/75 p-4 backdrop-blur-sm" hidden>
+    <div class="card animate-pop w-full max-w-sm p-5">
+      <p id="wd-reveal-eyebrow" class="eyebrow text-center"></p>
+      <h2 id="wd-reveal-title" class="mt-1 text-center text-lg font-bold text-white"></h2>
+      <div id="wd-reveal-word" class="my-4 flex justify-center" style="gap: 0.3rem"></div>
+      <ul id="wd-reveal-rows" class="space-y-1.5"></ul>
+      <p id="wd-reveal-next" class="mt-4 text-center text-sm text-slate-400"></p>
+    </div>
+  </div>
+</div>

@@ -42,7 +42,7 @@ export default {
 
     if (env.ASSETS) {
       const response = await env.ASSETS.fetch(request);
-      const isHome = url.pathname === '/' || url.pathname === '/index.html';
+      const isHome = ['/', '/index.html', '/tr', '/tr/', '/tr/index.html'].includes(url.pathname);
       if (isHome && request.method === 'GET' && response.headers.get('Content-Type')?.includes('text/html')) {
         return absolutizeUrls(response, url.origin);
       }
@@ -78,8 +78,9 @@ function robotsTxt(origin) {
 
 function sitemapXml(origin) {
   const body = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>${origin}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url><loc>${origin}/</loc><xhtml:link rel="alternate" hreflang="en" href="${origin}/"/><xhtml:link rel="alternate" hreflang="tr" href="${origin}/tr/"/><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>${origin}/tr/</loc><xhtml:link rel="alternate" hreflang="en" href="${origin}/"/><xhtml:link rel="alternate" hreflang="tr" href="${origin}/tr/"/><changefreq>weekly</changefreq><priority>0.9</priority></url>
 </urlset>
 `;
   return new Response(body, {

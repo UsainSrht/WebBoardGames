@@ -1,13 +1,17 @@
+await WBG.i18n.load('rock-paper-scissors');
+WBG.i18n.apply(document.getElementById('game-board'));
+
 (() => {
+  const t = WBG.t;
   const $ = (id) => document.getElementById(id);
   const myId = localStorage.getItem('userId');
   const spectator = WBG.isSpectator;
   const MOVES = ['rock', 'paper', 'scissors'];
-  const LABEL = { rock: 'Rock', paper: 'Paper', scissors: 'Scissors' };
-  const KEYS = { r: 'rock', p: 'paper', s: 'scissors', 1: 'rock', 2: 'paper', 3: 'scissors' };
+  const LABEL = { rock: t('rock-paper-scissors.move.rock'), paper: t('rock-paper-scissors.move.paper'), scissors: t('rock-paper-scissors.move.scissors') };
+  const KEYS = { r: 'rock', p: 'paper', s: 'scissors', t: 'rock', k: 'paper', m: 'scissors', 1: 'rock', 2: 'paper', 3: 'scissors' };
   const SHOOT_MS = 2600;
   const BEATS = [0, 560, 1120, 1700]; // Rock, Paper, Scissors, SHOOT
-  const WORDS = ['Rock', 'Paper', 'Scissors', 'SHOOT!'];
+  const WORDS = [t('rock-paper-scissors.move.rock'), t('rock-paper-scissors.move.paper'), t('rock-paper-scissors.move.scissors'), t('rock-paper-scissors.shoot')];
 
   WBG.addIcons({
     'rps-check': '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -31,31 +35,17 @@
   socket.off('rps-state');
   socket.off('rps-error');
 
-  const nameOf = (id) => state?.players.find(p => p.id === id)?.name || 'Player';
+  const nameOf = (id) => state?.players.find(p => p.id === id)?.name || t('rock-paper-scissors.player');
   const me = () => state?.players.find(p => p.id === myId);
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   WBG.setRules({
-    title: 'Rock Paper Scissors',
+    title: t('rock-paper-scissors.rules.title'),
     sections: [
-      { title: 'Each round', items: [
-        'Everybody picks Rock, Paper or Scissors in secret within 8 seconds. You can change your pick until time is up.',
-        'If you do not pick in time a random move is thrown for you and you are marked AFK.',
-        'Then comes the beat: Rock, Paper, Scissors, SHOOT. All moves are revealed at the same moment.',
-        'Rock beats Scissors, Scissors beats Paper, Paper beats Rock.'
-      ] },
-      { title: 'Points mode', items: [
-        'Every pair of players counts: you get +1 for every opponent you beat that round. Nobody loses points.',
-        'After the chosen number of rounds the highest score wins.',
-        'A tie for first place goes to sudden death: only the tied players throw, round after round, until one of them leads.'
-      ] },
-      { title: 'Elimination mode', items: [
-        'All players still in throw every round.',
-        'If exactly two different moves appear, everybody who threw the losing move is out.',
-        'If everybody threw the same move, or all three moves appear, it is a draw and the round is replayed.',
-        'The last player standing wins. With two players one decisive round ends the match.'
-      ] },
-      { title: 'Tips', items: ['On a keyboard press R, P or S (or 1, 2, 3) to pick.'] }
+      { title: t('rock-paper-scissors.rules.round'), items: [t('rock-paper-scissors.rules.round.1'), t('rock-paper-scissors.rules.round.2'), t('rock-paper-scissors.rules.round.3'), t('rock-paper-scissors.rules.round.4')] },
+      { title: t('rock-paper-scissors.rules.points'), items: [t('rock-paper-scissors.rules.points.1'), t('rock-paper-scissors.rules.points.2'), t('rock-paper-scissors.rules.points.3')] },
+      { title: t('rock-paper-scissors.rules.elim'), items: [t('rock-paper-scissors.rules.elim.1'), t('rock-paper-scissors.rules.elim.2'), t('rock-paper-scissors.rules.elim.3'), t('rock-paper-scissors.rules.elim.4')] },
+      { title: t('rock-paper-scissors.rules.tips'), items: [t('rock-paper-scissors.rules.tips.1')] }
     ]
   });
 
@@ -95,10 +85,10 @@
     const secs = Math.ceil(remaining() / 1000);
     let top;
     let sub;
-    if (spectator) { top = 'Players are choosing'; sub = `${locked} of ${total} locked in`; }
-    else if (!amIn) { top = me()?.left ? 'You left the game' : (state.mode === 'elimination' ? 'You are out' : 'Sit this one out'); sub = state.mode === 'elimination' ? 'Watch the others fight it out.' : 'Only the tied players throw in sudden death.'; }
-    else if (mine) { top = 'Locked in'; sub = locked < total ? `Waiting for ${total - locked} more. You can still change your mind.` : 'Everybody is ready.'; }
-    else { top = 'Choose your move'; sub = 'Tap one. No pick means a random move.'; }
+    if (spectator) { top = t('rock-paper-scissors.choosing.spectator'); sub = t('rock-paper-scissors.choosing.locked', { n: locked, total }); }
+    else if (!amIn) { top = me()?.left ? t('rock-paper-scissors.choosing.left') : (state.mode === 'elimination' ? t('rock-paper-scissors.choosing.out') : t('rock-paper-scissors.choosing.sitOut')); sub = state.mode === 'elimination' ? t('rock-paper-scissors.choosing.watch') : t('rock-paper-scissors.choosing.suddenOnly'); }
+    else if (mine) { top = t('rock-paper-scissors.choosing.locked.title'); sub = locked < total ? t('rock-paper-scissors.choosing.waitMore', { n: total - locked }) : t('rock-paper-scissors.choosing.ready'); }
+    else { top = t('rock-paper-scissors.choosing.choose'); sub = t('rock-paper-scissors.choosing.tap'); }
 
     const lockedChips = state.contenders.map((id) => {
       const p = state.players.find(x => x.id === id);
@@ -110,8 +100,8 @@
         <div class="flex items-center gap-4">
           <div class="text-brand-300">${ring(secs, remaining() / 8000)}</div>
           <div class="text-left">
-            <p class="text-lg font-bold text-white sm:text-xl">${top}</p>
-            <p class="max-w-56 text-sm text-slate-400">${sub}</p>
+            <p class="text-lg font-bold text-white sm:text-xl">${WBG.esc(top)}</p>
+            <p class="max-w-56 text-sm text-slate-400">${WBG.esc(sub)}</p>
           </div>
         </div>
         ${amIn ? `<div id="rps-moves" class="grid w-full max-w-xl grid-cols-3 gap-2.5 sm:gap-4">${MOVES.map(m => moveBtn(m, { active: mine === m })).join('')}</div>`
@@ -129,7 +119,7 @@
           <span id="rps-hand-b" class="block size-28 sm:size-40">${WBG.art.rps('rock')}</span>
         </div>
         <p id="rps-word" class="h-12 text-4xl font-black tracking-tight text-white uppercase sm:h-16 sm:text-6xl"></p>
-        <p class="text-sm text-slate-400">${amIn ? 'Your move is locked in.' : 'Moves are about to be revealed.'}</p>
+        <p class="text-sm text-slate-400">${amIn ? t('rock-paper-scissors.shoot.locked') : t('rock-paper-scissors.shoot.soon')}</p>
       </div>`;
     if (!reduceMotion) {
       for (const id of ['rps-hand-a', 'rps-hand-b']) {
@@ -141,37 +131,37 @@
     }
   }
 
-  function resultChip(t) {
-    if (state.mode === 'points' && t.result === 'draw' && t.delta > 0) {
-      return `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-bold text-emerald-200">${WBG.icon('trophy', 'size-3.5')}+${t.delta}</span>`;
+  function resultChip(th) {
+    if (state.mode === 'points' && th.result === 'draw' && th.delta > 0) {
+      return `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/12 px-2 py-0.5 text-xs font-bold text-emerald-200">${WBG.icon('trophy', 'size-3.5')}+${th.delta}</span>`;
     }
     const map = {
-      win: ['Win', 'bg-emerald-500/20 text-emerald-300', 'trophy'],
-      lose: ['Lose', 'bg-rose-500/20 text-rose-300', 'rps-x'],
-      draw: ['Draw', 'bg-white/10 text-slate-300', 'rps-eq']
-    }[t.result];
-    return `<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${map[1]}">${WBG.icon(map[2], 'size-3.5')}${map[0]}${t.delta > 0 ? ` +${t.delta}` : ''}</span>`;
+      win: [t('rock-paper-scissors.result.win'), 'bg-emerald-500/20 text-emerald-300', 'trophy'],
+      lose: [t('rock-paper-scissors.result.lose'), 'bg-rose-500/20 text-rose-300', 'rps-x'],
+      draw: [t('rock-paper-scissors.result.draw'), 'bg-white/10 text-slate-300', 'rps-eq']
+    }[th.result];
+    return `<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-bold ${map[1]}">${WBG.icon(map[2], 'size-3.5')}${map[0]}${th.delta > 0 ? ` +${th.delta}` : ''}</span>`;
   }
 
   function headline(rev) {
-    const t = rev.throws[myId];
+    const mt = rev.throws[myId];
     const elim = state.mode === 'elimination';
-    if (rev.outcome === 'draw') return { text: elim ? 'Draw: replay the round' : 'Draw', tone: 'text-slate-200' };
+    if (rev.outcome === 'draw') return { text: elim ? t('rock-paper-scissors.head.drawReplay') : t('rock-paper-scissors.head.draw'), tone: 'text-slate-200' };
     if (elim && rev.eliminated.length) {
       const names = rev.eliminated.map(nameOf);
-      if (t) {
-        return t.result === 'lose'
-          ? { text: 'You are out', tone: 'text-rose-300' }
-          : { text: 'You survive', tone: 'text-emerald-300' };
+      if (mt) {
+        return mt.result === 'lose'
+          ? { text: t('rock-paper-scissors.head.youOut'), tone: 'text-rose-300' }
+          : { text: t('rock-paper-scissors.head.youSurvive'), tone: 'text-emerald-300' };
       }
-      return { text: names.length > 2 ? `${names.length} players are out` : `${names.join(' and ')} out`, tone: 'text-rose-300' };
+      return { text: names.length > 2 ? t('rock-paper-scissors.head.manyOut', { n: names.length }) : t('rock-paper-scissors.head.namesOut', { names: names.join(', ') }), tone: 'text-rose-300' };
     }
-    if (t) {
-      if (t.result === 'win') return { text: t.delta > 1 ? `You win +${t.delta}` : 'You win', tone: 'text-emerald-300' };
-      if (t.result === 'lose') return { text: 'You lose', tone: 'text-rose-300' };
-      return t.delta > 0 ? { text: `You score +${t.delta}`, tone: 'text-emerald-300' } : { text: 'No change for you', tone: 'text-slate-200' };
+    if (mt) {
+      if (mt.result === 'win') return { text: mt.delta > 1 ? t('rock-paper-scissors.head.youWinPts', { n: mt.delta }) : t('rock-paper-scissors.head.youWin'), tone: 'text-emerald-300' };
+      if (mt.result === 'lose') return { text: t('rock-paper-scissors.head.youLose'), tone: 'text-rose-300' };
+      return mt.delta > 0 ? { text: t('rock-paper-scissors.head.youScore', { n: mt.delta }), tone: 'text-emerald-300' } : { text: t('rock-paper-scissors.head.noChange'), tone: 'text-slate-200' };
     }
-    return { text: 'Round result', tone: 'text-slate-200' };
+    return { text: t('rock-paper-scissors.head.result'), tone: 'text-slate-200' };
   }
 
   function stageReveal() {
@@ -180,16 +170,16 @@
     const big = ids.length <= 3;
     const h = headline(rev);
     const cards = ids.map((id, i) => {
-      const t = rev.throws[id];
-      if (!t) return '';
+      const th = rev.throws[id];
+      if (!th) return '';
       const p = state.players.find(x => x.id === id);
-      const win = t.result === 'win' && rev.outcome !== 'draw';
-      const lose = t.result === 'lose';
+      const win = th.result === 'win' && rev.outcome !== 'draw';
+      const lose = th.result === 'lose';
       return `<li class="rps-card flex flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-3 ${win ? 'border-emerald-400/70 bg-emerald-500/12 shadow-[0_0_24px_rgb(52_211_153/0.25)]' : lose ? 'border-rose-400/30 bg-rose-500/6 opacity-75' : 'border-white/10 bg-white/5'} ${id === myId ? 'ring-2 ring-brand-400/60' : ''}" style="animation-delay:${i * 70}ms" data-i="${i}">
-        <span class="${big ? 'size-20 sm:size-28' : 'size-14 sm:size-20'} block">${WBG.art.rps(t.move)}</span>
-        <span class="flex max-w-full items-center gap-1.5">${WBG.avatar(p?.name || '?', 'size-5 text-[10px]')}<span class="max-w-24 truncate text-sm font-semibold text-white">${WBG.esc(p?.name || '')}${id === myId ? ' (you)' : ''}</span></span>
-        ${resultChip(t)}
-        ${t.afk ? '<span class="text-[10px] font-bold tracking-wider text-amber-300 uppercase">AFK random</span>' : ''}
+        <span class="${big ? 'size-20 sm:size-28' : 'size-14 sm:size-20'} block">${WBG.art.rps(th.move)}</span>
+        <span class="flex max-w-full items-center gap-1.5">${WBG.avatar(p?.name || '?', 'size-5 text-[10px]')}<span class="max-w-24 truncate text-sm font-semibold text-white">${WBG.esc(p?.name || '')}${id === myId ? ` (${t('rock-paper-scissors.you')})` : ''}</span></span>
+        ${resultChip(th)}
+        ${th.afk ? `<span class="text-[10px] font-bold tracking-wider text-amber-300 uppercase">${t('rock-paper-scissors.afkRandom')}</span>` : ''}
       </li>`;
     }).join('');
     const last = state.phase === 'over';
@@ -197,7 +187,7 @@
       <div class="flex w-full flex-col items-center gap-4">
         <p class="reveal text-2xl font-extrabold tracking-tight sm:text-3xl ${h.tone}">${WBG.esc(h.text)}</p>
         <ul class="grid w-full max-w-2xl ${big ? 'grid-cols-3' : 'grid-cols-3 sm:grid-cols-4'} gap-2 sm:gap-3">${cards}</ul>
-        <p id="rps-foot" class="text-sm text-slate-400">${last ? 'Final result' : 'Next round starting...'}</p>
+        <p id="rps-foot" class="text-sm text-slate-400">${last ? t('rock-paper-scissors.final') : t('rock-paper-scissors.next')}</p>
       </div>`;
     if (!reduceMotion) {
       for (const el of $('rps-stage').querySelectorAll('.rps-card')) {
@@ -209,7 +199,7 @@
 
   function stageWaiting() {
     $('rps-stage').innerHTML = `<div class="reveal"><span class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-white/8 text-brand-300">${WBG.icon('spinner', 'size-7 animate-spin')}</span>
-      <p class="font-semibold text-white">Waiting for everyone to load...</p></div>`;
+      <p class="font-semibold text-white">${t('rock-paper-scissors.waiting')}</p></div>`;
   }
 
   /* ------------------------------------------------------------ chrome */
@@ -218,32 +208,32 @@
     const elim = state.mode === 'elimination';
     const alive = state.players.filter(p => p.alive && !p.left).length;
     let eyebrow;
-    if (elim) eyebrow = `Round ${Math.max(1, state.round)}`;
-    else if (state.sudden) eyebrow = `Sudden death, round ${state.round}`;
-    else eyebrow = `Round ${Math.max(1, state.round)} of ${state.rounds}`;
-    const titles = { waiting: 'Getting ready', choosing: 'Make your pick', shoot: 'Get set', reveal: 'The reveal', over: 'Game over' };
+    if (elim) eyebrow = t('rock-paper-scissors.round', { n: Math.max(1, state.round) });
+    else if (state.sudden) eyebrow = t('rock-paper-scissors.roundSudden', { n: state.round });
+    else eyebrow = t('rock-paper-scissors.roundOf', { n: Math.max(1, state.round), total: state.rounds });
+    const titles = { waiting: t('rock-paper-scissors.title.waiting'), choosing: t('rock-paper-scissors.title.choosing'), shoot: t('rock-paper-scissors.title.shoot'), reveal: t('rock-paper-scissors.title.reveal'), over: t('rock-paper-scissors.title.over') };
     $('rps-eyebrow').textContent = eyebrow;
-    $('rps-title').textContent = titles[state.phase] || 'Rock Paper Scissors';
+    $('rps-title').textContent = titles[state.phase] || t('rock-paper-scissors.rules.title');
     $('rps-mode').className = `chip shrink-0 ${elim || state.sudden ? 'chip-danger' : 'chip-brand'}`;
-    $('rps-mode').innerHTML = elim ? `${WBG.icon('users', 'size-3.5')}${alive} left` : (state.sudden ? `${WBG.icon('bolt', 'size-3.5')}Sudden death` : `${WBG.icon('trophy', 'size-3.5')}Points`);
+    $('rps-mode').innerHTML = elim ? `${WBG.icon('users', 'size-3.5')}${t('rock-paper-scissors.chip.left', { n: alive })}` : (state.sudden ? `${WBG.icon('bolt', 'size-3.5')}${t('rock-paper-scissors.chip.sudden')}` : `${WBG.icon('trophy', 'size-3.5')}${t('rock-paper-scissors.chip.points')}`);
   }
 
   function renderBoard() {
     const elim = state.mode === 'elimination';
-    $('rps-board-title').innerHTML = `${WBG.icon(elim ? 'users' : 'trophy', 'size-4 text-amber-300')}${elim ? 'Players' : 'Scoreboard'}`;
+    $('rps-board-title').innerHTML = `${WBG.icon(elim ? 'users' : 'trophy', 'size-4 text-amber-300')}${elim ? t('rock-paper-scissors.players') : t('rock-paper-scissors.scoreboard')}`;
     const rows = [...state.players].sort((a, b) => elim
       ? (Number(b.alive && !b.left) - Number(a.alive && !a.left)) || (b.score - a.score)
       : (b.score - a.score));
     $('rps-board').innerHTML = rows.map((p) => {
       const out = elim && !p.alive;
       let tag = '';
-      if (p.left) tag = '<span class="chip chip-danger">Left</span>';
-      else if (out) tag = '<span class="chip chip-danger">Out</span>';
-      else if (p.afk) tag = '<span class="chip chip-warn">AFK</span>';
+      if (p.left) tag = `<span class="chip chip-danger">${t('rock-paper-scissors.tag.left')}</span>`;
+      else if (out) tag = `<span class="chip chip-danger">${t('rock-paper-scissors.tag.out')}</span>`;
+      else if (p.afk) tag = `<span class="chip chip-warn">${t('rock-paper-scissors.tag.afk')}</span>`;
       const score = elim ? '' : `<span class="text-lg font-bold text-white tabular-nums">${p.score}</span>`;
       return `<li class="flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 ${p.id === myId ? 'bg-brand-500/15' : 'bg-white/4'} ${out || p.left ? 'opacity-55' : ''}">
         ${WBG.avatar(p.name, 'size-8 text-xs')}
-        <span class="min-w-0 flex-1 truncate text-sm font-medium text-white">${WBG.esc(p.name)}${p.id === myId ? ' <span class="text-slate-400">(you)</span>' : ''}</span>
+        <span class="min-w-0 flex-1 truncate text-sm font-medium text-white">${WBG.esc(p.name)}${p.id === myId ? ` <span class="text-slate-400">(${t('rock-paper-scissors.you')})</span>` : ''}</span>
         ${tag}${score}</li>`;
     }).join('');
   }
@@ -258,8 +248,8 @@
       const body = mineT
         ? `<span class="block size-8">${WBG.art.rps(mineT.move)}</span>`
         : `<span class="grid size-8 place-items-center text-slate-400">${WBG.icon(r.outcome === 'draw' ? 'rps-eq' : 'users', 'size-5')}</span>`;
-      return `<li class="flex w-12 shrink-0 flex-col items-center rounded-xl border px-1 py-1.5 ${tone}" title="Round ${r.round}${r.sudden ? ' (sudden death)' : ''}">
-        ${body}<span class="mt-0.5 text-[10px] font-semibold text-slate-400">${r.sudden ? 'SD' : ''}${r.round}</span></li>`;
+      return `<li class="flex w-12 shrink-0 flex-col items-center rounded-xl border px-1 py-1.5 ${tone}" title="${WBG.esc(t(r.sudden ? 'rock-paper-scissors.history.sudden' : 'rock-paper-scissors.history.round', { n: r.round }))}">
+        ${body}<span class="mt-0.5 text-[10px] font-semibold text-slate-400">${r.sudden ? t('rock-paper-scissors.history.sd') : ''}${r.round}</span></li>`;
     }).join('');
     const el = $('rps-history');
     el.scrollLeft = el.scrollWidth;
@@ -329,7 +319,7 @@
       case 'over':
         if (state.reveal) {
           if (!sameStage) { stageReveal(); onRevealed(); }
-          else if (state.phase === 'over' && $('rps-foot')) $('rps-foot').textContent = 'Final result';
+          else if (state.phase === 'over' && $('rps-foot')) $('rps-foot').textContent = t('rock-paper-scissors.final');
         } else $('rps-stage').innerHTML = '';
     }
   }

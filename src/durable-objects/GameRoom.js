@@ -17,6 +17,15 @@ import { Hamsterball } from '../games/hamsterball.js';
 import { Dice } from '../games/dice.js';
 import { Uno } from '../games/uno.js';
 import { Chess } from '../games/chess.js';
+import { Poker } from '../games/poker.js';
+import { Okey } from '../games/okey.js';
+import { Pool } from '../games/pool.js';
+import { Monopoly } from '../games/monopoly.js';
+import { Wordle } from '../games/wordle.js';
+import { Typing } from '../games/typing.js';
+import { GoFish } from '../games/gofish.js';
+import { Pisti } from '../games/pisti.js';
+import { Papaz } from '../games/papaz.js';
 import { GAME_CONFIGS, MAX_ROOM_PLAYERS, sanitizeOptions } from '../games/config.js';
 
 const GAME_CLASSES = {
@@ -25,7 +34,16 @@ const GAME_CLASSES = {
   'hamsterball': Hamsterball,
   'dice': Dice,
   'uno': Uno,
-  'chess': Chess
+  'chess': Chess,
+  'poker': Poker,
+  'okey': Okey,
+  'pool': Pool,
+  'monopoly': Monopoly,
+  'wordle': Wordle,
+  'typing': Typing,
+  'gofish': GoFish,
+  'pisti': Pisti,
+  'papaz': Papaz
 };
 
 const LOBBY_GRACE_MS = 60 * 1000;       // phones sleep / tabs switch; don't drop people quickly
@@ -119,7 +137,7 @@ export class GameRoom {
       try {
         data = JSON.parse(event.data);
       } catch {
-        this.send(ws, { type: 'error', message: 'Invalid message format' });
+        this.send(ws, { type: 'error', message: { k: 'err.badMessage' } });
         return;
       }
       if (!data || typeof data !== 'object' || typeof data.type !== 'string') return;
@@ -128,7 +146,7 @@ export class GameRoom {
         await this.handleMessage(ws, session, data);
       } catch (err) {
         console.error('Error handling message:', err);
-        this.send(ws, { type: 'error', message: 'Server error' });
+        this.send(ws, { type: 'error', message: { k: 'err.server' } });
       }
     });
 
@@ -224,14 +242,14 @@ export class GameRoom {
     if (!session.odId) return;
 
     if (!this.isValidName(name)) {
-      this.send(ws, { type: 'error', message: 'Nickname must be 3-16 letters, numbers, spaces, "_", "-" or "."' });
+      this.send(ws, { type: 'error', message: { k: 'err.nameInvalid' } });
       this.send(ws, { type: 'request-nickname', taken: true });
       return;
     }
     name = name.trim();
 
     if (this.isNameTaken(name, session.odId)) {
-      this.send(ws, { type: 'error', message: 'That name is already taken in this room' });
+      this.send(ws, { type: 'error', message: { k: 'err.nameTaken' } });
       this.send(ws, { type: 'request-nickname', taken: true });
       return;
     }
@@ -271,7 +289,7 @@ export class GameRoom {
 
   requireHost(ws, session) {
     if (!this.isHost(session.odId)) {
-      this.send(ws, { type: 'error', message: 'Only the host can do that' });
+      this.send(ws, { type: 'error', message: { k: 'err.hostOnly' } });
       return false;
     }
     return true;
@@ -288,24 +306,24 @@ export class GameRoom {
     const existing = this.players.get(session.odId);
 
     if (this.kickedPlayers.has(session.odId)) {
-      this.send(ws, { type: 'error', message: 'You have been removed from this room' });
+      this.send(ws, { type: 'error', message: { k: 'err.removed' } });
       this.send(ws, { type: 'you-got-kicked' });
       return;
     }
     if (this.started && !existing) {
-      this.send(ws, { type: 'error', message: 'This room already started a game' });
+      this.send(ws, { type: 'error', message: { k: 'err.started' } });
       this.send(ws, { type: 'join-failed', reason: 'started' });
       return;
     }
 
     if (!existing) {
       if (this.activePlayers().length >= MAX_ROOM_PLAYERS) {
-        this.send(ws, { type: 'error', message: 'This room is full' });
+        this.send(ws, { type: 'error', message: { k: 'err.full' } });
         this.send(ws, { type: 'join-failed', reason: 'full' });
         return;
       }
       if (this.isNameTaken(session.name, session.odId)) {
-        this.send(ws, { type: 'error', message: 'That name is already taken in this room' });
+        this.send(ws, { type: 'error', message: { k: 'err.nameTaken' } });
         this.send(ws, { type: 'request-nickname', taken: true });
         return;
       }
@@ -333,15 +351,15 @@ export class GameRoom {
   async handleSetRole(ws, session, { spectator }) {
     const me = this.players.get(session.odId);
     if (!me || this.started) {
-      return this.send(ws, { type: 'error', message: 'Roles can only be changed in the lobby' });
+      return this.send(ws, { type: 'error', message: { k: 'err.rolesLobby' } });
     }
 
     const wantSpectator = spectator === true;
     if (wantSpectator && !this.isHost(session.odId)) {
-      return this.send(ws, { type: 'error', message: 'Only the host can use host view' });
+      return this.send(ws, { type: 'error', message: { k: 'err.hostViewOnly' } });
     }
     if (!wantSpectator && me.spectator && this.activePlayers().length >= MAX_ROOM_PLAYERS) {
-      return this.send(ws, { type: 'error', message: 'This room is full' });
+      return this.send(ws, { type: 'error', message: { k: 'err.full' } });
     }
     if (me.spectator === wantSpectator) return;
 
@@ -367,11 +385,11 @@ export class GameRoom {
 
   async handleSelectGame(ws, session, { game }) {
     if (!this.requireHost(ws, session)) return;
-    if (this.started) return this.send(ws, { type: 'error', message: 'A game is already running' });
+    if (this.started) return this.send(ws, { type: 'error', message: { k: 'err.gameRunning' } });
 
     const config = Object.hasOwn(GAME_CONFIGS, game) ? GAME_CONFIGS[game] : null;
-    if (!config) return this.send(ws, { type: 'error', message: 'Invalid game selected' });
-    if (!config.available) return this.send(ws, { type: 'error', message: `${config.name} is not available yet` });
+    if (!config) return this.send(ws, { type: 'error', message: { k: 'err.invalidGame' } });
+    if (!config.available) return this.send(ws, { type: 'error', message: { k: 'err.unavailable', p: { game: { k: `games.${game}.name` } } } });
 
     this.selectedGame = game;
     this.readyPlayers.clear();
@@ -403,11 +421,12 @@ export class GameRoom {
 
   /** Why the current selection can't start, or null when it can. */
   startBlocker() {
-    if (!this.selectedGame) return 'Pick a game first';
-    const { min, max, name } = GAME_CONFIGS[this.selectedGame];
+    if (!this.selectedGame) return { k: 'room.blocker.noGame' };
+    const { min, max } = GAME_CONFIGS[this.selectedGame];
+    const game = { k: `games.${this.selectedGame}.name` };
     const count = this.activePlayers().length;
-    if (count < min) return `${name} needs at least ${min} player${min === 1 ? '' : 's'}`;
-    if (count > max) return `${name} supports at most ${max} players`;
+    if (count < min) return { k: 'room.blocker.min', p: { game, n: min } };
+    if (count > max) return { k: 'room.blocker.max', p: { game, n: max } };
     return null;
   }
 
@@ -430,7 +449,7 @@ export class GameRoom {
   async handleEndGame(ws, session) {
     if (!this.requireHost(ws, session)) return;
     if (!this.started) return;
-    this.broadcast({ type: 'system-message', message: 'The host ended the game.' });
+    this.broadcast({ type: 'system-message', message: { k: 'sys.hostEnded' } });
     await this.endGame();
   }
 
@@ -438,10 +457,10 @@ export class GameRoom {
     if (!this.requireHost(ws, session)) return;
     if (!this.started) return;
     if (this.startBlocker()) {
-      this.broadcast({ type: 'system-message', message: 'Not enough players to restart.' });
+      this.broadcast({ type: 'system-message', message: { k: 'sys.cannotRestart' } });
       return this.endGame();
     }
-    this.broadcast({ type: 'system-message', message: 'The host restarted the game.' });
+    this.broadcast({ type: 'system-message', message: { k: 'sys.hostRestarted' } });
     this.clearResults();
     this.gameInstance?.cleanup?.();
     this.gameInstance = null;
@@ -451,7 +470,7 @@ export class GameRoom {
   async handleTransferHost(ws, session, { id }) {
     if (!this.requireHost(ws, session)) return;
     const target = this.players.get(id);
-    if (!target || id === session.odId) return this.send(ws, { type: 'error', message: 'Pick another player' });
+    if (!target || id === session.odId) return this.send(ws, { type: 'error', message: { k: 'err.pickOther' } });
 
     const old = this.players.get(session.odId);
     this.host = id;
@@ -459,17 +478,17 @@ export class GameRoom {
     if (old?.spectator && !this.started) old.spectator = false;
 
     await this.saveState();
-    this.broadcast({ type: 'system-message', message: `${target.name} is now the host.` });
+    this.broadcast({ type: 'system-message', message: { k: 'sys.newHost', p: { name: target.name } } });
     this.pushState();
   }
 
   async handleKickPlayer(ws, session, { kickedUserId }) {
     if (!this.requireHost(ws, session)) return;
     if (kickedUserId === session.odId) {
-      return this.send(ws, { type: 'error', message: 'You cannot kick yourself' });
+      return this.send(ws, { type: 'error', message: { k: 'err.kickSelf' } });
     }
     const kicked = this.players.get(kickedUserId);
-    if (!kicked) return this.send(ws, { type: 'error', message: 'Player not in room' });
+    if (!kicked) return this.send(ws, { type: 'error', message: { k: 'err.notInRoom' } });
 
     this.kickedPlayers.add(kickedUserId);
     this.broadcast({ type: 'player-kicked', name: kicked.name });
@@ -510,7 +529,7 @@ export class GameRoom {
       const next = this.activePlayers()[0] || this.players.values().next().value;
       this.host = next.odId;
       // A hosting-only spectator who leaves must not leave the room without a seat for the new host.
-      this.broadcast({ type: 'system-message', message: `${next.name} is now the host.` });
+      this.broadcast({ type: 'system-message', message: { k: 'sys.newHost', p: { name: next.name } } });
     }
 
     await this.saveState();
@@ -589,7 +608,7 @@ export class GameRoom {
   async startGame() {
     const GameClass = GAME_CLASSES[this.selectedGame];
     if (!GameClass) {
-      this.broadcast({ type: 'error', message: 'Game not implemented yet' });
+      this.broadcast({ type: 'error', message: { k: 'err.notImplemented' } });
       return;
     }
 
@@ -609,7 +628,7 @@ export class GameRoom {
    * room to the lobby after `delayMs` (the host can restart or end earlier).
    * rows: [{ id, name, score?, rank, note? }] ordered best first.
    */
-  finishGame({ title = 'Game over', subtitle = '', rows = [], delayMs = 20000 } = {}) {
+  finishGame({ title = { k: 'room.gameOver' }, subtitle = '', rows = [], delayMs = 20000 } = {}) {
     clearTimeout(this.finishTimer);
     this.results = { type: 'game-over', game: this.selectedGame, title, subtitle, rows, returnAt: Date.now() + delayMs };
     this.broadcast(this.results);

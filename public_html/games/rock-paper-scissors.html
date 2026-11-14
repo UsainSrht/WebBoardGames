@@ -3,8 +3,8 @@
     <!-- Header -->
     <header class="flex items-end justify-between gap-3 px-1 pt-2">
       <div class="min-w-0">
-        <p id="rps-eyebrow" class="eyebrow">Rock Paper Scissors</p>
-        <h2 id="rps-title" class="mt-0.5 truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Getting ready</h2>
+        <p id="rps-eyebrow" class="eyebrow" data-i18n="rock-paper-scissors.rules.title">Rock Paper Scissors</p>
+        <h2 id="rps-title" class="mt-0.5 truncate text-xl font-bold tracking-tight text-white sm:text-2xl" data-i18n="rock-paper-scissors.title.waiting">Getting ready</h2>
       </div>
       <div id="rps-mode" class="chip shrink-0"></div>
     </header>
@@ -14,12 +14,12 @@
 
     <!-- History -->
     <div id="rps-history-wrap" class="card-flat px-3 py-2" hidden>
-      <p class="mb-1.5 text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">Rounds</p>
+      <p class="mb-1.5 text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase" data-i18n="rock-paper-scissors.rounds">Rounds</p>
       <ol id="rps-history" class="scroll-y flex gap-1.5 pb-1" style="overflow-y: hidden"></ol>
     </div>
 
     <!-- Scoreboard -->
-    <aside class="card-flat p-3" aria-label="Scoreboard">
+    <aside class="card-flat p-3" data-i18n-attr="aria-label:rock-paper-scissors.scoreboard" aria-label="Scoreboard">
       <p id="rps-board-title" class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase"></p>
       <ul id="rps-board" class="grid grid-cols-1 gap-1.5 sm:grid-cols-2"></ul>
     </aside>

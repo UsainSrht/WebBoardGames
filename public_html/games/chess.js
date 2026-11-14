@@ -1,4 +1,8 @@
+await WBG.i18n.load('chess');
+WBG.i18n.apply(document.getElementById('game-board'));
+
 (() => {
+  const t = WBG.t;
   const $ = (id) => document.getElementById(id);
   const myId = localStorage.getItem('userId');
   const START = { p: 8, n: 2, b: 2, r: 2, q: 1 };
@@ -21,14 +25,23 @@
   WBG.onTeardown(() => { clearInterval(clockTicker); clearTimeout(resignArmed); removeGhost(); document.removeEventListener('pointermove', onPointerMove); document.removeEventListener('pointerup', onPointerUp); });
 
   WBG.setRules({
-    title: 'Chess',
+    title: t('chess.rules.title'),
     sections: [
-      { title: 'Goal', items: ['Checkmate the opposing king: attack it so it has no way to escape.', 'The game is drawn by stalemate, agreement, insufficient material, the fifty-move rule or threefold repetition.'] },
-      { title: 'Moving', items: ['Tap a piece, then a highlighted square, or drag the piece. Only legal moves are offered.', 'Special moves: castling (move the king two squares toward a rook), en passant, and pawn promotion.'] },
-      { title: 'Clock', items: ['If the host enabled a time control, your clock runs while it is your turn. Running out of time loses the game, unless the opponent cannot possibly checkmate.', 'Increments add time after each of your moves.'] },
-      { title: 'Controls', items: ['Flip turns the board around. Offer a draw with Draw; your opponent can accept or decline, and making a move cancels a pending offer.', 'Tap Resign twice to give up.'] }
+      { title: t('chess.rules.goal'), items: [t('chess.rules.goal.1'), t('chess.rules.goal.2')] },
+      { title: t('chess.rules.moving'), items: [t('chess.rules.moving.1'), t('chess.rules.moving.2')] },
+      { title: t('chess.rules.clock'), items: [t('chess.rules.clock.1'), t('chess.rules.clock.2')] },
+      { title: t('chess.rules.controls'), items: [t('chess.rules.controls.1'), t('chess.rules.controls.2')] }
     ]
   });
+
+  // How a game ended (the server sends these codes in the snapshot).
+  const REASON = {
+    checkmate: 'chess.reason.checkmate', resignation: 'chess.reason.resignation', timeout: 'chess.reason.timeout',
+    agreement: 'chess.reason.agreement', timeoutInsufficient: 'chess.reason.timeoutInsufficient',
+    stalemate: 'chess.reason.stalemate', insufficient: 'chess.reason.insufficient',
+    fiftyMove: 'chess.reason.fiftyMove', threefold: 'chess.reason.threefold', left: 'chess.reason.left'
+  };
+  const PIECE = { p: 'chess.piece.p', n: 'chess.piece.n', b: 'chess.piece.b', r: 'chess.piece.r', q: 'chess.piece.q', k: 'chess.piece.k' };
 
   const sq = (i) => 'abcdefgh'[i % 8] + (8 - Math.floor(i / 8));
   const idx = (name) => (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
@@ -83,7 +96,7 @@
 
   function playerBar(el, color) {
     const id = color === 'w' ? state.white : state.black;
-    const name = state.names[id] || 'Player';
+    const name = state.names[id] || t('chess.player');
     const turn = !state.result && state.turn === color;
     const lost = captured();
     const taken = lost[color === 'w' ? 'b' : 'w'];
@@ -91,11 +104,11 @@
     el.className = `flex items-center gap-3 rounded-2xl border px-3 py-2 transition ${turn ? 'border-brand-400/60 bg-brand-500/12' : 'border-white/8 bg-white/4'}`;
     el.innerHTML = `${WBG.avatar(name)}
       <div class="min-w-0 flex-1">
-        <p class="flex items-center gap-2 text-sm font-semibold text-white"><span class="truncate">${WBG.esc(name)}</span>${id === myId ? '<span class="chip">you</span>' : ''}
-          <span class="inline-block size-3.5 shrink-0 rounded-full border border-white/30 ${color === 'w' ? 'bg-slate-100' : 'bg-slate-800'}" title="${color === 'w' ? 'White' : 'Black'}"></span></p>
+        <p class="flex items-center gap-2 text-sm font-semibold text-white"><span class="truncate">${WBG.esc(name)}</span>${id === myId ? `<span class="chip">${t('chess.you')}</span>` : ''}
+          <span class="inline-block size-3.5 shrink-0 rounded-full border border-white/30 ${color === 'w' ? 'bg-slate-100' : 'bg-slate-800'}" title="${color === 'w' ? t('chess.white') : t('chess.black')}"></span></p>
         <p class="flex h-4 items-center">${taken.map((k) => WBG.chessPiece(color === 'w' ? k : k.toUpperCase(), 'size-4 -mr-1.5')).join('')}${lead > 0 ? `<span class="ml-2.5 text-xs text-slate-400">+${lead}</span>` : ''}</p>
       </div>
-      ${state.clock ? '<span data-clock="' + color + '"></span>' : turn ? `<span class="chip chip-brand animate-pulse-soft">${state.check ? 'Check' : 'To move'}</span>` : ''}`;
+      ${state.clock ? '<span data-clock="' + color + '"></span>' : turn ? `<span class="chip chip-brand animate-pulse-soft">${state.check ? t('chess.chip.check') : t('chess.chip.toMove')}</span>` : ''}`;
   }
 
   /* -------------------------------------------------------------- render */
@@ -124,7 +137,7 @@
       cell.style.background = dark ? DARK : LIGHT;
       cell.dataset.sq = name;
       cell.setAttribute('role', 'gridcell');
-      cell.setAttribute('aria-label', `${name}${piece !== '.' ? ` ${isWhite(piece) ? 'white' : 'black'} ${piece.toLowerCase()}` : ''}`);
+      cell.setAttribute('aria-label', piece !== '.' ? t('chess.cell.piece', { sq: name, color: isWhite(piece) ? t('chess.white') : t('chess.black'), piece: t(PIECE[piece.toLowerCase()]) }) : name);
       let html = '';
       if (state.lastMove && (state.lastMove.from === name || state.lastMove.to === name)) html += '<span class="pointer-events-none absolute inset-0 bg-amber-300/45"></span>';
       if (selected === name) html += '<span class="pointer-events-none absolute inset-0 bg-emerald-400/55"></span>';
@@ -151,12 +164,13 @@
     paintClocks();
 
     // status
-    const nameOf = (id) => state.names[id] || 'Player';
+    const nameOf = (id) => state.names[id] || t('chess.player');
     let status;
-    if (state.result) status = state.result.winner ? `${nameOf(state.result.winner)} wins by ${state.result.reason}` : `Draw by ${state.result.reason}`;
-    else if (!mc) status = `${nameOf(state.turn === 'w' ? state.white : state.black)} to move${state.check ? ' - check' : ''}`;
-    else if (canMove()) status = state.check ? 'Your move - you are in check' : 'Your move';
-    else status = `Waiting for ${nameOf(state.turn === 'w' ? state.white : state.black)}`;
+    const sub = t(REASON[state.result?.reason] || 'chess.reason.checkmate');
+    if (state.result) status = `${state.result.winner ? t('chess.title.wins', { name: nameOf(state.result.winner) }) : t('chess.title.draw')} - ${sub}`;
+    else if (!mc) status = t(state.check ? 'chess.status.toMoveCheck' : 'chess.status.toMove', { name: nameOf(state.turn === 'w' ? state.white : state.black) });
+    else if (canMove()) status = t(state.check ? 'chess.status.yourMoveCheck' : 'chess.status.yourMove');
+    else status = t('chess.status.waiting', { name: nameOf(state.turn === 'w' ? state.white : state.black) });
     $('chess-status').textContent = status;
 
     // controls
@@ -165,10 +179,10 @@
     $('chess-draw').hidden = !playing;
     const offered = state.drawOffer;
     $('chess-draw').disabled = !!offered || state.moveCount < 2;
-    $('chess-draw').querySelector('span').textContent = offered === mc ? 'Offered' : 'Draw';
+    $('chess-draw').querySelector('span').textContent = offered === mc ? t('chess.btn.offered') : t('chess.btn.draw');
     const incoming = playing && offered && offered !== mc;
     $('chess-offer').hidden = !incoming;
-    if (incoming) $('chess-offer-text').textContent = `${nameOf(offered === 'w' ? state.white : state.black)} offers a draw`;
+    if (incoming) $('chess-offer-text').textContent = t('chess.offer.text', { name: nameOf(offered === 'w' ? state.white : state.black) });
 
     renderMoves();
     if (!opts.noAnim) animateLastMove();
@@ -291,7 +305,7 @@
     box.replaceChildren(...['q', 'r', 'b', 'n'].map((p) => {
       const b = document.createElement('button');
       b.className = 'btn btn-secondary size-16 p-2';
-      b.setAttribute('aria-label', `Promote to ${p}`);
+      b.setAttribute('aria-label', t('chess.promote.to', { piece: t(PIECE[p]) }));
       b.innerHTML = WBG.chessPiece(color === 'w' ? p.toUpperCase() : p);
       b.addEventListener('click', () => {
         $('chess-promo').hidden = true;
@@ -328,11 +342,11 @@
       socket.emit('chess-resign');
       return;
     }
-    btn.querySelector('span').textContent = 'Tap again';
+    btn.querySelector('span').textContent = t('chess.btn.tapAgain');
     btn.classList.add('!bg-rose-600');
     resignArmed = setTimeout(() => {
       resignArmed = 0;
-      btn.querySelector('span').textContent = 'Resign';
+      btn.querySelector('span').textContent = t('chess.btn.resign');
       btn.classList.remove('!bg-rose-600');
     }, 3000);
   });

@@ -442,9 +442,9 @@ export class Kingdomino {
   onPick(odId, p) {
     const step = this.steps[this.stepIdx];
     if (this.phase !== 'play' || this.stage !== 'pick' || !step || step.odId !== odId) {
-      return this.reject(odId, 'It is not your turn to pick');
+      return this.reject(odId, { k: 'kingdomino.err.notPick' });
     }
-    if (!this.pickTile(odId, Number(p.tile), false)) this.reject(odId, 'That tile is not available');
+    if (!this.pickTile(odId, Number(p.tile), false)) this.reject(odId, { k: 'kingdomino.err.unavailable' });
   }
 
   pickTile(odId, tile, auto) {
@@ -469,10 +469,10 @@ export class Kingdomino {
   onPlace(odId, p) {
     const step = this.steps[this.stepIdx];
     if (this.phase !== 'play' || this.stage !== 'place' || !step || step.odId !== odId || step.place === null) {
-      return this.reject(odId, 'It is not your turn to place');
+      return this.reject(odId, { k: 'kingdomino.err.notPlace' });
     }
-    if (Number(p.tile) !== step.place) return this.reject(odId, 'Wrong tile');
-    if (!this.placeTile(step, p.r, p.c, p.rot, false)) this.reject(odId, 'You cannot place the tile there');
+    if (Number(p.tile) !== step.place) return this.reject(odId, { k: 'kingdomino.err.wrongTile' });
+    if (!this.placeTile(step, p.r, p.c, p.rot, false)) this.reject(odId, { k: 'kingdomino.err.cannotPlace' });
   }
 
   placeTile(step, r, c, rot, auto) {
@@ -558,13 +558,17 @@ export class Kingdomino {
     this.notice('over');
     this.push();
     const winners = rows.filter(r => r.rank === 1);
-    const title = winners.length === 1 ? `${winners[0].name} wins` : `Tie: ${winners.map(w => w.name).join(' and ')}`;
+    const title = winners.length === 1
+      ? { k: 'kingdomino.title.wins', p: { name: winners[0].name } }
+      : { k: 'kingdomino.title.tie', p: { names: winners.map(w => w.name).join(', ') } };
     this.room.finishGame({
       title,
-      subtitle: 'Kingdomino',
+      subtitle: { k: 'kingdomino.sub' },
       rows: rows.map(r => {
         const bonus = r.sc.middle + r.sc.harmony;
-        const note = `Largest property: ${r.largest}${bonus ? `, bonus +${bonus}` : ''}`;
+        const note = bonus
+          ? { k: 'kingdomino.note.bonus', p: { n: r.largest, bonus } }
+          : { k: 'kingdomino.note.largest', p: { n: r.largest } };
         return { id: r.id, name: r.name, score: r.score, rank: r.rank, note };
       }),
       delayMs: FINISH_DELAY_MS

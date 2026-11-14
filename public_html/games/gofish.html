@@ -1,0 +1,44 @@
+<style>
+  #gf-root { --cw: 3.3rem; }
+  @media (min-width: 640px) { #gf-root { --cw: 4.4rem; } }
+  @media (min-width: 1024px) and (min-height: 760px) { #gf-root { --cw: 5rem; } }
+  .gf-new { animation: slide-up 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .gf-pulse { animation: pop 0.35s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+</style>
+<div id="gf-root" class="absolute inset-0 flex flex-col gap-2 pt-16 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+  <div class="scroll-y shrink-0 px-3">
+    <ul id="gf-players" class="mx-auto flex max-w-3xl flex-wrap justify-center gap-2"></ul>
+  </div>
+
+  <div class="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-3">
+    <div class="flex items-center gap-5">
+      <div id="gf-pond" class="relative grid place-items-center" style="width: calc(var(--cw) * 1.2)" aria-live="polite">
+        <div class="absolute inset-0 translate-x-1 translate-y-1 rotate-6 opacity-60" id="gf-pond-under"></div>
+        <div id="gf-pond-top" class="relative w-full"></div>
+        <span id="gf-pond-count" class="absolute -right-2 -bottom-2 grid min-w-7 place-items-center rounded-full bg-brand-500 px-2 py-0.5 text-xs font-extrabold text-white shadow-lg"></span>
+      </div>
+      <div class="text-left">
+        <p class="eyebrow flex items-center gap-1.5"><i data-icon="fish" class="size-4"></i><span data-i18n="gofish.pond">Pond</span></p>
+        <p id="gf-status" class="mt-1 max-w-xs text-sm font-semibold text-white" aria-live="polite"></p>
+      </div>
+    </div>
+    <div class="w-56 max-w-full">
+      <div class="h-1.5 overflow-hidden rounded-full bg-white/10"><div id="gf-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500"></div></div>
+      <p id="gf-timer" class="mt-1 h-4 text-center text-xs text-slate-400"></p>
+    </div>
+    <ul id="gf-log" class="w-full max-w-md space-y-0.5 text-center text-xs text-slate-300" aria-live="polite"></ul>
+  </div>
+
+  <div class="shrink-0">
+    <div class="mb-1 flex items-center justify-between gap-2 px-4">
+      <p id="gf-hand-label" class="text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
+      <div id="gf-mybooks" class="flex flex-wrap items-center justify-end gap-1"></div>
+    </div>
+    <div class="scroll-y px-3 pt-3 pb-1" style="overflow-y: hidden">
+      <div id="gf-hand" class="mx-auto flex w-max items-end gap-3"></div>
+    </div>
+    <div class="flex min-h-12 items-center justify-center px-3 pt-1">
+      <button id="gf-ask" class="btn btn-primary btn-lg w-full max-w-sm" disabled hidden></button>
+    </div>
+  </div>
+</div>

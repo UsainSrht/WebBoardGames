@@ -4,11 +4,11 @@
     <header class="flex items-center gap-3 px-1 pt-2">
       <div id="fk-avatar" class="shrink-0"></div>
       <div class="min-w-0 flex-1">
-        <p id="fk-eyebrow" class="eyebrow">Farkle</p>
-        <h2 id="fk-title" class="truncate text-xl font-bold tracking-tight text-white sm:text-2xl">Getting ready</h2>
+        <p id="fk-eyebrow" class="eyebrow" data-i18n="dice.eyebrow">Farkle</p>
+        <h2 id="fk-title" class="truncate text-xl font-bold tracking-tight text-white sm:text-2xl" data-i18n="dice.ready">Getting ready</h2>
       </div>
       <div class="shrink-0 text-right">
-        <p class="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">Target</p>
+        <p class="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase" data-i18n="dice.target">Target</p>
         <p id="fk-target" class="text-lg font-bold text-white tabular-nums"></p>
       </div>
     </header>
@@ -17,10 +17,10 @@
     <div id="fk-final" class="flex items-center gap-2.5 rounded-2xl border border-amber-400/40 bg-amber-500/12 px-3.5 py-2.5 text-sm font-medium text-amber-200" hidden role="status"></div>
 
     <!-- Table -->
-    <section class="card relative overflow-hidden p-3 sm:p-5" aria-label="Dice table">
+    <section class="card relative overflow-hidden p-3 sm:p-5" data-i18n-attr="aria-label:dice.table" aria-label="Dice table">
       <div class="mb-2 flex items-end justify-between gap-3 px-1">
         <div>
-          <p class="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase">Turn score</p>
+          <p class="text-[11px] font-semibold tracking-[0.14em] text-slate-400 uppercase" data-i18n="dice.turnScore">Turn score</p>
           <p class="flex items-baseline gap-2"><span id="fk-turnscore" class="text-3xl font-extrabold text-white tabular-nums sm:text-4xl">0</span><span id="fk-preview" class="text-lg font-bold tabular-nums"></span></p>
         </div>
         <div class="w-28 text-right sm:w-40">
@@ -31,7 +31,7 @@
 
       <!-- Set aside -->
       <div class="mb-2 flex min-h-[3.4rem] items-center gap-2 rounded-2xl bg-black/20 px-3 py-2">
-        <span class="w-14 shrink-0 text-[10px] leading-tight font-semibold tracking-[0.12em] text-slate-400 uppercase">Set aside</span>
+        <span class="w-14 shrink-0 text-[10px] leading-tight font-semibold tracking-[0.12em] text-slate-400 uppercase" data-i18n="dice.setAside">Set aside</span>
         <div id="fk-tray" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"></div>
       </div>
 
@@ -48,13 +48,13 @@
         <button id="fk-bank" class="btn btn-secondary min-h-14 text-base" type="button" disabled></button>
       </div>
       <div class="mt-2 flex justify-center">
-        <button id="fk-best" class="btn btn-secondary min-h-11 px-4 text-sm" type="button" hidden>Pick best dice</button>
+        <button id="fk-best" class="btn btn-secondary min-h-11 px-4 text-sm" type="button" data-i18n="dice.best" hidden>Pick best dice</button>
       </div>
     </section>
 
     <!-- Scoreboard -->
-    <aside class="card-flat p-3" aria-label="Scoreboard">
-      <p class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase"><i data-icon="trophy" class="size-4 text-amber-300"></i>Scoreboard</p>
+    <aside class="card-flat p-3" data-i18n-attr="aria-label:dice.scoreboard" aria-label="Scoreboard">
+      <p class="mb-2 flex items-center gap-2 px-1 text-xs font-semibold tracking-[0.14em] text-slate-400 uppercase"><i data-icon="trophy" class="size-4 text-amber-300"></i><span data-i18n="dice.scoreboard">Scoreboard</span></p>
       <ul id="fk-board" class="space-y-1.5"></ul>
     </aside>
   </div>

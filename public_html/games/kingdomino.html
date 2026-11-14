@@ -97,7 +97,7 @@
 </style>
 
 <div id="kd-root">
-  <section id="kd-draft" class="card-flat p-2" aria-label="Domino draft">
+  <section id="kd-draft" class="card-flat p-2" data-i18n-attr="aria-label:kingdomino.draft" aria-label="Domino draft">
     <p id="kd-prev-label" class="mb-1 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-slate-400 uppercase"></p>
     <div id="kd-prev-row" class="kd-row"></div>
     <p id="kd-cur-label" class="mt-2 mb-1 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-slate-400 uppercase"></p>
@@ -107,7 +107,7 @@
   <section id="kd-banner" class="card-flat px-3 py-2" aria-live="polite">
     <div class="flex items-center gap-2.5">
       <img id="kd-banner-pawn" class="size-8 shrink-0" alt="" hidden>
-      <p id="kd-banner-text" class="min-w-0 flex-1 truncate text-sm font-semibold text-white">Loading...</p>
+      <p id="kd-banner-text" class="min-w-0 flex-1 truncate text-sm font-semibold text-white" data-i18n="kingdomino.loading">Loading...</p>
       <span id="kd-clock" class="chip tabular-nums" hidden></span>
     </div>
     <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"><div id="kd-bar" class="h-full w-0 rounded-full bg-amber-400"></div></div>
@@ -115,18 +115,18 @@
   </section>
 
   <section id="kd-main">
-    <div id="kd-board-wrap"><div id="kd-board" class="kd-grid" role="application" aria-label="Kingdom board"></div></div>
+    <div id="kd-board-wrap"><div id="kd-board" class="kd-grid" role="application" data-i18n-attr="aria-label:kingdomino.board" aria-label="Kingdom board"></div></div>
     <div id="kd-tray" class="card-flat flex items-center gap-3 px-3 py-2" hidden>
       <div id="kd-tray-tile" class="w-24 shrink-0 sm:w-28"></div>
       <p id="kd-tray-hint" class="min-w-0 flex-1 text-xs leading-snug font-medium text-slate-300"></p>
       <div class="flex shrink-0 gap-2">
-        <button id="kd-rotate" class="btn btn-secondary btn-icon size-11" type="button" aria-label="Rotate tile" hidden><i data-icon="rotate" class="size-5"></i></button>
+        <button id="kd-rotate" class="btn btn-secondary btn-icon size-11" type="button" data-i18n-attr="aria-label:kingdomino.rotate" aria-label="Rotate tile" hidden><i data-icon="rotate" class="size-5"></i></button>
         <button id="kd-confirm" class="btn btn-primary h-11 px-4" type="button" disabled></button>
       </div>
     </div>
   </section>
 
-  <section id="kd-players" aria-label="Kingdoms">
+  <section id="kd-players" data-i18n-attr="aria-label:kingdomino.kingdoms" aria-label="Kingdoms">
     <div id="kd-players-list"></div>
   </section>
 </div>

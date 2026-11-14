@@ -1,0 +1,61 @@
+<style>
+  #pool-root { touch-action: manipulation; }
+  #pool-canvas { touch-action: none; display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+  #pool-power, #pool-fine { -webkit-appearance: none; appearance: none; width: 100%; height: 2.75rem; background: transparent; cursor: pointer; }
+  #pool-power::-webkit-slider-runnable-track, #pool-fine::-webkit-slider-runnable-track { height: 0.75rem; border-radius: 9999px; background: rgba(255,255,255,0.1); }
+  #pool-power::-moz-range-track, #pool-fine::-moz-range-track { height: 0.75rem; border-radius: 9999px; background: rgba(255,255,255,0.1); }
+  #pool-power::-webkit-slider-thumb, #pool-fine::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -0.4rem; width: 1.6rem; height: 1.6rem; border-radius: 9999px; background: #fff; border: 3px solid #8b5cf6; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+  #pool-power::-moz-range-thumb, #pool-fine::-moz-range-thumb { width: 1.4rem; height: 1.4rem; border-radius: 9999px; background: #fff; border: 3px solid #8b5cf6; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+  #pool-power { background: linear-gradient(to right, transparent, transparent); }
+  .pool-mini { display: inline-block; width: 1.15rem; height: 1.15rem; flex: none; }
+  @media (prefers-reduced-motion: reduce) { .pool-pulse { animation: none !important; } }
+</style>
+<div id="pool-root" class="absolute inset-0 flex flex-col gap-1.5 pt-16 pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+  <!-- Players -->
+  <div id="pool-players" class="grid shrink-0 grid-cols-2 gap-2 px-2 sm:mx-auto sm:w-full sm:max-w-3xl"></div>
+
+  <!-- Status + shot clock -->
+  <div class="shrink-0 px-3 sm:mx-auto sm:w-full sm:max-w-3xl">
+    <div class="flex items-center gap-3">
+      <p id="pool-status" class="min-h-5 flex-1 text-center text-sm font-semibold text-slate-100" aria-live="polite"></p>
+      <span id="pool-clock" class="chip invisible tabular-nums"><i data-icon="clock" class="size-3.5"></i><span id="pool-clock-text"></span></span>
+    </div>
+    <div id="pool-bar-wrap" class="invisible mt-1 h-1 overflow-hidden rounded-full bg-white/10"><div id="pool-bar" class="h-full w-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500"></div></div>
+  </div>
+
+  <!-- Table -->
+  <div id="pool-stage" class="relative min-h-0 flex-1">
+    <canvas id="pool-canvas" aria-label="Pool table" role="img" data-i18n-attr="aria-label:pool.canvas"></canvas>
+    <div id="pool-rerack" class="absolute inset-x-2 bottom-2 z-10 mx-auto max-w-md rounded-2xl border border-white/10 bg-ink-900/95 p-3 text-center shadow-xl backdrop-blur" hidden>
+      <p id="pool-rerack-text" class="mb-2 text-sm font-medium text-slate-100"></p>
+      <div id="pool-rerack-btns" class="flex flex-wrap justify-center gap-2">
+        <button id="pool-accept" class="btn btn-primary"><i data-icon="check" class="size-4"></i><span data-i18n="pool.accept">Accept the table</span></button>
+        <button id="pool-redo" class="btn btn-secondary"><i data-icon="refresh" class="size-4"></i><span data-i18n="pool.rerack">Re-rack</span></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div id="pool-controls" class="shrink-0 px-3 sm:mx-auto sm:w-full sm:max-w-3xl" hidden>
+    <div class="flex items-stretch gap-3">
+      <div class="flex shrink-0 flex-col items-center justify-center gap-0.5">
+        <canvas id="pool-spin" width="160" height="160" class="size-[5.25rem] touch-none rounded-full sm:size-24" role="slider" tabindex="0" aria-label="Spin" data-i18n-attr="aria-label:pool.spin"></canvas>
+        <button id="pool-spin-reset" class="text-[11px] font-semibold tracking-wide text-slate-400 uppercase hover:text-white" data-i18n="pool.spinReset">Centre</button>
+      </div>
+      <div class="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+        <div class="flex items-center gap-1">
+          <button id="pool-aim-minus" class="btn btn-secondary size-11 shrink-0 !p-0" aria-label="Rotate left" data-i18n-attr="aria-label:pool.aimLeft"><i data-icon="rotate" class="size-5 -scale-x-100"></i></button>
+          <input id="pool-fine" type="range" min="-30" max="30" step="1" value="0" aria-label="Fine aim" data-i18n-attr="aria-label:pool.fineAim" />
+          <button id="pool-aim-plus" class="btn btn-secondary size-11 shrink-0 !p-0" aria-label="Rotate right" data-i18n-attr="aria-label:pool.aimRight"><i data-icon="rotate" class="size-5"></i></button>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="w-14 shrink-0 text-xs font-semibold tracking-wide text-slate-400 uppercase" data-i18n="pool.power">Power</span>
+          <input id="pool-power" type="range" min="0" max="100" step="1" value="50" aria-label="Power" data-i18n-attr="aria-label:pool.power" />
+          <span id="pool-power-val" class="w-9 shrink-0 text-right text-sm font-bold text-white tabular-nums">50</span>
+        </div>
+      </div>
+      <button id="pool-shoot" class="btn btn-primary btn-lg shrink-0 flex-col !gap-0.5 !px-4 sm:!px-6" aria-label="Shoot" data-i18n-attr="aria-label:pool.shoot"><i data-icon="target" class="size-6"></i><span class="text-xs" data-i18n="pool.shoot">Shoot</span></button>
+    </div>
+    <p id="pool-hint" class="mt-0.5 text-center text-xs text-slate-400"></p>
+  </div>
+</div>

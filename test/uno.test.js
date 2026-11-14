@@ -252,3 +252,46 @@ test('turn timer: out of time draws a card and passes', () => {
   assert.equal(u.turnMs, 20000);
   u.cleanup();
 });
+
+test('log lines, errors and results are translatable message objects', async () => {
+  const { assertKeysExist, assertOptionKeys, assertMsg } = await import('./helpers/i18n-keys.mjs');
+  assertKeysExist('uno', ['src/games/uno.js', 'public_html/games/uno.js', 'public_html/games/uno.html']);
+  assertOptionKeys('uno');
+
+  const { u, room } = table({ stacking: 'on' });
+  u.hands.a = [card(1, 'red', 'draw2'), card(2, 'wild', 'wild4'), card(3, 'blue', '2')];
+  u.play('a', 1, null);
+  assert.deepEqual(u.log[0], { k: 'uno.log.played', p: { name: 'A', card: { k: 'uno.card.draw2', p: { color: { k: 'uno.color.red' } } } } });
+  assert.equal(u.log[1].k, 'uno.log.mustStack');
+  assert.equal(u.log[1].p.n, 2);
+  for (const m of u.log) assertMsg('uno', m);
+
+  u.hands.b = [card(10, 'blue', '9'), card(11, 'blue', '8')];
+  u.play('b', 10, null);
+  assertMsg('uno', room.sent.filter(m => m.type === 'error').at(-1).message, 'uno.err.stack');
+  assert.equal(room.sent.filter(m => m.type === 'error').at(-1).message.p.type, '+2');
+
+  // a wild card names the colour that was chosen
+  const w = table();
+  w.u.hands.a = [card(2, 'wild', 'wild4'), card(3, 'blue', '2')];
+  w.u.play('a', 2, 'blue');
+  assert.deepEqual(w.u.log[0].p.card, { k: 'uno.card.wild4', p: { color: { k: 'uno.color.blue' } } });
+  w.u.play('b', 99, null);
+  w.u.turn = 'b'; w.u.hands.b = [card(20, 'wild', 'wild')];
+  w.u.play('b', 20, 'purple');
+  assertMsg('uno', w.room.sent.filter(m => m.type === 'error').at(-1).message, 'uno.err.chooseColor');
+
+  // finishing: notes carry the cards left and the points
+  const f = table();
+  f.u.hands.a = [card(1, 'red', '7')];
+  f.u.hands.b = [card(2, 'blue', '9'), card(3, 'wild', 'wild')];
+  f.u.play('a', 1, null);
+  const fin = f.room.finished;
+  assertMsg('uno', fin.title, 'uno.title.wins');
+  assertMsg('uno', fin.subtitle, 'uno.sub.round');
+  assert.equal(fin.rows[0].note.k, 'uno.note.last');
+  const loser = fin.rows.find(r => r.id === 'b');
+  assertMsg('uno', loser.note, 'uno.note.left');
+  assert.deepEqual(loser.note.p, { n: 2, points: 59 });
+  for (const x of [u, w.u, f.u]) x.cleanup();
+});

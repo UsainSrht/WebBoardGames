@@ -13,6 +13,20 @@ import {
 const RETURN_TO_LOBBY_MS = 30000;
 const START_FALLBACK_MS = 8000;
 
+/** How a game ended -> the dictionary key of its description ("By checkmate", "Draw by agreement", ...). */
+export const REASON_KEYS = {
+  checkmate: 'chess.reason.checkmate',
+  resignation: 'chess.reason.resignation',
+  timeout: 'chess.reason.timeout',
+  agreement: 'chess.reason.agreement',
+  timeoutInsufficient: 'chess.reason.timeoutInsufficient',
+  stalemate: 'chess.reason.stalemate',
+  insufficient: 'chess.reason.insufficient',
+  fiftyMove: 'chess.reason.fiftyMove',
+  threefold: 'chess.reason.threefold',
+  left: 'chess.reason.left'
+};
+
 export function parseClock(value) {
   const m = /^(\d+)\+(\d+)$/.exec(String(value));
   if (!m) return null;
@@ -85,7 +99,7 @@ export class Chess {
     if (this.remaining[this.running] > 0) return this.armFlag();
     const loser = this.running;
     const winnerColor = loser === 'w' ? 'b' : 'w';
-    if (this.cannotMate(winnerColor)) this.finish(null, 'timeout vs insufficient material');
+    if (this.cannotMate(winnerColor)) this.finish(null, 'timeoutInsufficient');
     else this.finish(winnerColor === 'w' ? this.white : this.black, 'timeout');
   }
 
@@ -142,7 +156,7 @@ export class Chess {
     if (!move) {
       const ws = this.room.getWsByUserId(odId);
       if (ws) {
-        this.room.send(ws, { type: 'error', message: 'Illegal move' });
+        this.room.send(ws, { type: 'error', message: { k: 'chess.err.illegal' } });
         this.room.send(ws, this.snapshot());
       }
       return;
@@ -178,11 +192,11 @@ export class Chess {
       if (inCheck(this.state)) this.finish(mover === 'w' ? this.white : this.black, 'checkmate');
       else this.finish(null, 'stalemate');
     } else if (insufficientMaterial(this.state.b)) {
-      this.finish(null, 'insufficient material');
+      this.finish(null, 'insufficient');
     } else if (this.state.half >= 100) {
-      this.finish(null, 'fifty-move rule');
+      this.finish(null, 'fiftyMove');
     } else if (count >= 3) {
-      this.finish(null, 'threefold repetition');
+      this.finish(null, 'threefold');
     } else {
       this.armFlag();
       this.room.broadcast(this.snapshot());
@@ -236,10 +250,9 @@ export class Chess {
     const rows = winner
       ? [row(winner, 1, '1'), row(winner === this.white ? this.black : this.white, 2, '0')]
       : [row(this.white, 1, '1/2'), row(this.black, 1, '1/2')];
-    const label = { checkmate: 'Checkmate', resignation: 'Resignation', timeout: 'Time out', agreement: 'Draw by agreement' }[reason];
     this.room.finishGame({
-      title: winner ? `${name(winner)} wins` : 'Draw',
-      subtitle: label ? (winner ? `By ${label.toLowerCase()}` : label) : `By ${reason}`,
+      title: winner ? { k: 'chess.title.wins', p: { name: name(winner) } } : { k: 'chess.title.draw' },
+      subtitle: { k: REASON_KEYS[reason] || 'chess.reason.checkmate' },
       rows,
       delayMs: RETURN_TO_LOBBY_MS
     });
@@ -247,7 +260,7 @@ export class Chess {
 
   onPlayerLeft(odId) {
     if (this.result || (odId !== this.white && odId !== this.black)) return;
-    this.finish(odId === this.white ? this.black : this.white, 'opponent left');
+    this.finish(odId === this.white ? this.black : this.white, 'left');
   }
 
   cleanup() {

@@ -241,7 +241,10 @@ function fullGames() {
     assert.equal(rows.length, n);
     assert.equal(room.finished.delayMs, FINISH_DELAY_MS);
     for (let i = 1; i < rows.length; i++) assert.ok(rows[i - 1].score >= rows[i].score);
-    assert.match(rows[0].note, /Largest property: \d+/);
+    assert.match(rows[0].note.k, /^kingdomino\.note\.(largest|bonus)$/);
+    assert.ok(Number.isInteger(rows[0].note.p.n));
+    assert.ok(['kingdomino.title.wins', 'kingdomino.title.tie'].includes(room.finished.title.k));
+    assert.equal(room.finished.subtitle.k, 'kingdomino.sub');
     const st = room.lastState();
     assert.equal(st.phase, 'over');
     // Every player ends with 12 tiles on board or discarded.
@@ -398,5 +401,28 @@ test('snapshot: doms carry the picture, live score excludes bonuses until the en
   const st = room.lastState();
   const withDoms = st.players.find(p => p.doms.length);
   if (withDoms) assert.ok(withDoms.doms.every(d => typeof d.a === 'string' && Number.isInteger(d.rot)));
+  game.cleanup();
+});
+
+test('rejections are message objects and every referenced key is translated', async () => {
+  const { assertKeysExist, assertOptionKeys, assertMsg } = await import('./helpers/i18n-keys.mjs');
+  assertKeysExist('kingdomino', ['src/games/kingdomino.js', 'public_html/games/kingdomino.js', 'public_html/games/kingdomino.html']);
+  assertOptionKeys('kingdomino');
+
+  const { game, room } = setup(3);
+  const st = room.lastState();
+  const other = ['a', 'b', 'c'].find(i => i !== st.actor);
+  game.handleMessage(other, 'kingdomino-pick', { tile: st.cur[0].tile });
+  assertMsg('kingdomino', room.rejects(other)[0].m.message, 'kingdomino.err.notPick');
+  game.handleMessage(st.actor, 'kingdomino-pick', { tile: 999 });
+  assertMsg('kingdomino', room.rejects(st.actor)[0].m.message, 'kingdomino.err.unavailable');
+  game.handleMessage(st.actor, 'kingdomino-place', { tile: 1, r: 0, c: 1, rot: 0 });
+  assertMsg('kingdomino', room.rejects(st.actor).at(-1).m.message, 'kingdomino.err.notPlace');
+  for (let i = 0; i < 3; i++) playStep(game, room);
+  const st2 = room.lastState();
+  game.handleMessage(st2.actor, 'kingdomino-place', { tile: st2.tile + 1, r: 0, c: 1, rot: 0 });
+  assertMsg('kingdomino', room.rejects(st2.actor).at(-1).m.message, 'kingdomino.err.wrongTile');
+  game.handleMessage(st2.actor, 'kingdomino-place', { tile: st2.tile, r: 4, c: 4, rot: 0 });
+  assertMsg('kingdomino', room.rejects(st2.actor).at(-1).m.message, 'kingdomino.err.cannotPlace');
   game.cleanup();
 });

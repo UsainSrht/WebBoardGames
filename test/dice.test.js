@@ -283,7 +283,7 @@ test('reaching the target gives everybody else exactly one more turn; ties share
   assert.equal(state(room).phase, 'over');
   assert.ok(room.finished);
   assert.deepEqual(room.finished.rows.map(r => r.rank), [1, 1]);
-  assert.match(room.finished.title, /Tie/);
+  assert.equal(room.finished.title.k, 'dice.title.tie');
 }));
 
 test('in the last round a trailing player can overtake and everybody plays once', withTimers(() => {
@@ -374,7 +374,7 @@ test('leavers are skipped; the last player standing wins', withTimers(() => {
   assert.equal(state(room).phase, 'over');
   assert.equal(room.finished.rows[0].id, 'p0');
   assert.equal(room.finished.rows[0].rank, 1);
-  assert.equal(room.finished.rows.at(-1).note, 'Left the game');
+  assert.deepEqual(room.finished.rows.at(-1).note, { k: 'dice.note.left' });
 }));
 
 test('leaving on your own turn passes the turn', withTimers(() => {
@@ -437,3 +437,27 @@ test('game starts after the fallback even if nobody loaded, and sooner when all 
   assert.equal(room2.last().phase, 'roll');
   g2.cleanup();
 }));
+
+test('errors, results and notes are message objects and every referenced key is translated', async (t) => {
+  const { assertKeysExist, assertOptionKeys, assertMsg } = await import('./helpers/i18n-keys.mjs');
+  assertKeysExist('dice', ['src/games/dice.js', 'public_html/games/dice.js', 'public_html/games/dice.html']);
+  assertOptionKeys('dice');
+  mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  t.after(() => mock.timers.reset());
+
+  const { room, game } = setup([1, 2, 3, 4, 6, 6], { options: { opening: 500, target: 10000 } });
+  game.handleMessage('p1', 'dice-roll');
+  assertMsg('dice', room.sent.at(-1).m.message, 'dice.err.notYourTurn');
+  game.handleMessage('p0', 'dice-roll');
+  game.handleMessage('p0', 'dice-roll', { keep: [1] });
+  assertMsg('dice', room.sent.at(-1).m.message, 'dice.err.keep');
+  game.handleMessage('p0', 'dice-bank', { keep: [0] });
+  assertMsg('dice', room.sent.at(-1).m.message, 'dice.err.opening');
+  assert.equal(room.sent.at(-1).m.message.p.n, 500);
+
+  game.onPlayerLeft('p1');
+  assertMsg('dice', room.finished.subtitle, 'dice.sub.last');
+  assertMsg('dice', room.finished.title, 'dice.title.wins');
+  assertMsg('dice', room.finished.rows.at(-1).note, 'dice.note.left');
+  game.cleanup();
+});

@@ -472,15 +472,15 @@ export class Hamsterball {
       const rank = prev && this.cmp(prev, p) === 0 ? rows[i - 1].rank : i + 1;
       rows.push({
         id, name: p.name, score: p.wins, rank,
-        note: `${p.wins} round win${p.wins === 1 ? '' : 's'}`
+        note: { k: 'hamsterball.note.wins', p: { n: p.wins } }
       });
     });
     const tiedTop = rows.length > 1 && rows[1].rank === 1;
     this.broadcastState();
     this.finished = true;
     this.room.finishGame({
-      title: !rows.length ? 'Match over' : tiedTop ? 'Draw' : `${rows[0].name} wins`,
-      subtitle: `${this.rounds} round${this.rounds === 1 ? '' : 's'}, ${this.livesPerRound} li${this.livesPerRound === 1 ? 'fe' : 'ves'} each`,
+      title: !rows.length ? { k: 'hamsterball.title.over' } : tiedTop ? { k: 'hamsterball.title.draw' } : { k: 'hamsterball.title.wins', p: { name: rows[0].name } },
+      subtitle: { k: 'hamsterball.sub', p: { rounds: this.rounds, lives: this.livesPerRound } },
       rows,
       delayMs: CFG.RESULTS_DELAY_MS
     });

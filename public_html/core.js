@@ -7,6 +7,7 @@
  */
 (() => {
   const WBG = (window.WBG = window.WBG || {});
+  const T = (key, params) => (WBG.t ? WBG.t(key, params) : (params && params.fallback) || key);
 
   /* ------------------------------------------------------------------ icons */
   // 24x24 grid, stroke icons drawn with currentColor. Add a "fill" class to fill them.
@@ -181,6 +182,7 @@
   const recent = new Map();
 
   WBG.toast = (message, options = {}) => {
+    message = WBG.tr ? WBG.tr(message) : String(message);
     const { type = 'info', icon, duration = 3600 } = options;
     const now = Date.now();
     if (recent.get(message) > now - 800) return;
@@ -265,7 +267,7 @@
   });
 
   /* --------------------------------------------------- clipboard and share */
-  WBG.copy = async (text, successMessage = 'Copied to clipboard') => {
+  WBG.copy = async (text, successMessage = T('toast.copied', { fallback: 'Copied to clipboard' })) => {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -319,7 +321,7 @@
       }
     }
     const size = n + quiet * 2;
-    return `<svg class="${cls}" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="${size}" height="${size}" fill="${light}"/><path d="${d}" fill="${dark}"/></svg>`;
+    return `<svg class="${cls}" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="${T('art.qr', { fallback: 'QR code' })}"><rect width="${size}" height="${size}" fill="${light}"/><path d="${d}" fill="${dark}"/></svg>`;
   };
 
   /* -------------------------------------------------------------- more icons */
@@ -470,6 +472,84 @@
       }[move] || '';
       return `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true">${body}</svg>`;
     }
+  };
+
+  /* ------------------------------------------------- icons for the catalogue + new games */
+  WBG.addIcons({
+    chip: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/>',
+    tiles: '<rect x="3.5" y="5" width="8" height="11" rx="1.8"/><rect x="12.5" y="8" width="8" height="11" rx="1.8"/><path d="M6 9.5h3M15 12.5h3"/>',
+    pool: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="10.9" r=".9" fill="currentColor"/><circle cx="12" cy="13.1" r=".9" fill="currentColor"/>',
+    house: '<path d="M4 11l8-6.5L20 11v8.5H4zM10 19.5v-5.5h4v5.5"/>',
+    wordle: '<rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.5"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.5"/><rect x="13" y="13" width="7.5" height="7.5" rx="1.5" fill="currentColor" fill-opacity=".28"/>',
+    fish: '<path d="M3.5 12c3-4.5 8-6 12-3.5l5-2.5v12l-5-2.5c-4 2.5-9 1-12-3.5z"/><circle cx="8.5" cy="11" r=".8" fill="currentColor"/>',
+    pair: '<rect x="4" y="6" width="9" height="13" rx="2"/><rect x="11" y="5" width="9" height="13" rx="2"/><path d="M15.5 9v4"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+    sort: '<path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/>',
+    globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/>',
+    filter: '<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>',
+    grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/>',
+    backspace: '<path d="M9 5h10a1.5 1.5 0 0 1 1.5 1.5v11A1.5 1.5 0 0 1 19 19H9l-5.5-7z"/><path d="M12.5 9.5l5 5M17.5 9.5l-5 5"/>',
+    dollar: '<circle cx="12" cy="12" r="8.5"/><path d="M12 6.5v11M14.8 9.4c-.4-.9-1.400-1.400-2.800-1.400-1.600 0-2.700.8-2.700 2s1 1.700 2.700 1.900c1.800.2 2.800.8 2.800 2s-1.200 2-2.800 2c-1.400 0-2.500-.6-2.900-1.600"/>',
+    key: '<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5L20 3M16 7l3 3M13.5 9.5l2 2"/>'
+  });
+
+  /* ------------------------------------------------------- playing cards (SVG) */
+  // A standard 52-card deck drawn as vector art (no emoji, no bitmaps): WBG.art.card('Q', 'h', 'w-16').
+  const RED = '#d62839';
+  const BLACK = '#1b1f3a';
+  const SUIT_COLOR = { h: RED, d: RED, s: BLACK, c: BLACK };
+  const SUIT_NAME = { h: 'hearts', d: 'diamonds', s: 'spades', c: 'clubs' };
+  const SUIT_SHAPE = {
+    h: '<path d="M0 4.4C-6.200 0.300-5.600-5.200-2.600-5.200C-1.200-5.200-0.300-4.400 0-3.300C0.300-4.400 1.200-5.200 2.600-5.200C5.600-5.200 6.200 0.300 0 4.400Z"/>',
+    d: '<path d="M0-5.600L4 0L0 5.600L-4 0Z"/>',
+    s: '<path d="M0-5.400C6.400-0.800 5.800 4.200 2.700 4.200C1.400 4.200 0.400 3.500 0 2.400C0.200 4.300 1 5.200 1.900 5.600H-1.900C-1 5.200-0.200 4.300 0 2.400C-0.400 3.500-1.400 4.200-2.700 4.200C-5.800 4.200-6.400-0.800 0-5.400Z"/>',
+    c: '<circle cx="0" cy="-2.700" r="2.700"/><circle cx="-3" cy="1.300" r="2.700"/><circle cx="3" cy="1.300" r="2.700"/><path d="M0 0.800L-1.500 5.600H1.500Z"/>'
+  };
+  const CARD_PIPS = {
+    A: [[32, 45, 2.6]],
+    2: [[32, 25], [32, 65, 0, 1]],
+    3: [[32, 25], [32, 45], [32, 65, 0, 1]],
+    4: [[22, 25], [42, 25], [22, 65, 0, 1], [42, 65, 0, 1]],
+    5: [[22, 25], [42, 25], [32, 45], [22, 65, 0, 1], [42, 65, 0, 1]],
+    6: [[22, 25], [42, 25], [22, 45], [42, 45], [22, 65, 0, 1], [42, 65, 0, 1]],
+    7: [[22, 25], [42, 25], [32, 35], [22, 45], [42, 45], [22, 65, 0, 1], [42, 65, 0, 1]],
+    8: [[22, 25], [42, 25], [32, 35], [22, 45], [42, 45], [32, 55, 0, 1], [22, 65, 0, 1], [42, 65, 0, 1]],
+    9: [[22, 24], [42, 24], [22, 38], [42, 38], [32, 45], [22, 52, 0, 1], [42, 52, 0, 1], [22, 66, 0, 1], [42, 66, 0, 1]],
+    10: [[22, 24], [42, 24], [32, 31], [22, 38], [42, 38], [22, 52, 0, 1], [42, 52, 0, 1], [32, 59, 0, 1], [22, 66, 0, 1], [42, 66, 0, 1]]
+  };
+
+  const suitAt = (suit, x, y, scale, flip) =>
+    `<g transform="translate(${x} ${y}) scale(${scale})${flip ? ' rotate(180)' : ''}" fill="${SUIT_COLOR[suit]}">${SUIT_SHAPE[suit]}</g>`;
+
+  /** One playing card as an SVG string. rank: A 2-10 J Q K, suit: s h d c. */
+  WBG.art.card = (rank, suit, cls = 'w-16') => {
+    const color = SUIT_COLOR[suit];
+    const label = String(rank);
+    const corner = `<text x="6.500" y="16" font-family="Inter, system-ui, sans-serif" font-size="${label === '10' ? 12.500 : 14}" font-weight="800" fill="${color}" letter-spacing="-0.5">${label}</text>${suitAt(suit, 11, 24.500, 0.62)}`;
+    let center;
+    if (CARD_PIPS[rank]) {
+      center = CARD_PIPS[rank].map(([x, y, s = 1, flip = 0]) => suitAt(suit, x, y, s || 1.25, flip)).join('');
+      if (rank === 'A') center = suitAt(suit, 32, 45, 2.600);
+    } else {
+      center = `<rect x="15" y="21" width="34" height="48" rx="4" fill="${color}" fill-opacity=".08" stroke="${color}" stroke-opacity=".5" stroke-width="1.200"/>
+        <text x="32" y="55" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="30" font-weight="800" fill="${color}">${label}</text>
+        ${suitAt(suit, 22, 29, 0.6)}${suitAt(suit, 42, 61, 0.6, 1)}`;
+    }
+    return `<svg class="${cls}" viewBox="0 0 64 90" role="img" aria-label="${T('cards.of', { rank: label, suit: T('cards.suit.' + suit, { fallback: SUIT_NAME[suit] }), fallback: label + ' of ' + SUIT_NAME[suit] })}"><rect x=".75" y=".75" width="62.500" height="88.500" rx="6" fill="#fbfbff" stroke="#c4c9e2" stroke-width="1.500"/>${corner}<g transform="rotate(180 32 45)">${corner}</g>${center}</svg>`;
+  };
+
+  /** The back of a card. */
+  WBG.art.cardBack = (cls = 'w-16') =>
+    `<svg class="${cls}" viewBox="0 0 64 90" role="img" aria-label="${T('cards.back', { fallback: 'Card back' })}"><defs><pattern id="wbg-cb" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#2c3a8c"/><path d="M0 4h8M4 0v8" stroke="#4655c4" stroke-width="1"/></pattern></defs><rect x=".75" y=".75" width="62.500" height="88.500" rx="6" fill="#fbfbff" stroke="#c4c9e2" stroke-width="1.500"/><rect x="5" y="5" width="54" height="80" rx="3.500" fill="url(#wbg-cb)" stroke="#7d8af0" stroke-width="1.200"/><circle cx="32" cy="45" r="9" fill="#2c3a8c" stroke="#a5b4fc" stroke-width="1.200"/><path d="M32 38.500l5 6.500-5 6.500-5-6.500z" fill="#a5b4fc"/></svg>`;
+
+  /** A suit symbol (for trump / status indicators). */
+  WBG.art.suit = (suit, cls = 'size-5') =>
+    `<svg class="${cls}" viewBox="-7 -7 14 14" aria-hidden="true"><g fill="${SUIT_COLOR[suit]}">${SUIT_SHAPE[suit]}</g></svg>`;
+
+  WBG.cards = {
+    RANKS: ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'],
+    SUITS: ['s', 'h', 'd', 'c'],
+    isRed: (suit) => suit === 'h' || suit === 'd'
   };
 
   /* ------------------------------------------------- game helpers (in-game) */

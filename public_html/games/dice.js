@@ -1,9 +1,13 @@
+await WBG.i18n.load('dice');
+WBG.i18n.apply(document.getElementById('game-board'));
+
 (() => {
+  const t = WBG.t;
   const $ = (id) => document.getElementById(id);
   const myId = localStorage.getItem('userId');
   const spectator = WBG.isSpectator;
   const TURN_MS = 45000;
-  const fmt = (n) => Number(n).toLocaleString('en-US');
+  const fmt = (n) => Number(n).toLocaleString(WBG.locale);
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   WBG.addIcons({
@@ -73,32 +77,16 @@
   }
 
   WBG.setRules({
-    title: 'Farkle',
+    title: t('dice.rules.title'),
     sections: [
-      { title: 'Your turn', items: [
-        'Roll six dice. Set aside at least one scoring die or combination, then either BANK your turn score or ROLL the remaining dice.',
-        'A roll with no scoring dice is a FARKLE: you lose the turn score and the turn passes.',
-        'If all six dice have been set aside (hot dice) you get six fresh dice and can keep going.',
-        'Tap dice to select them. The preview shows what the selection is worth; every selected die must score.'
-      ] },
-      { title: 'Scoring', items: [
-        'Single 1 = 100, single 5 = 50',
-        'Three of a kind = the face x 100 (three 1s = 1000)',
-        'Four, five, six of a kind: double each time (4 = 2x the three-of-a-kind, 5 = 4x, 6 = 8x)',
-        'Straight 1-6 = 1500, three pairs = 1500, four of a kind plus a pair = 1500',
-        'Two triplets = 2500'
-      ] },
-      { title: 'Winning', items: [
-        'Three Farkles in a row cost you 1000 points (never below zero). Banking resets the count.',
-        'Some games need a minimum turn score before your first bank (see the target chip).',
-        'When someone banks enough to reach the target, everybody else gets exactly one more turn. The highest total wins; ties share the win.',
-        'You have 45 seconds per decision. On timeout your best scoring dice are set aside and banked, or the turn is a Farkle if nothing was rolled.'
-      ] }
+      { title: t('dice.rules.turn'), items: [t('dice.rules.turn.1'), t('dice.rules.turn.2'), t('dice.rules.turn.3'), t('dice.rules.turn.4')] },
+      { title: t('dice.rules.scoring'), items: [t('dice.rules.scoring.1'), t('dice.rules.scoring.2'), t('dice.rules.scoring.3'), t('dice.rules.scoring.4'), t('dice.rules.scoring.5')] },
+      { title: t('dice.rules.winning'), items: [t('dice.rules.winning.1'), t('dice.rules.winning.2'), t('dice.rules.winning.3'), t('dice.rules.winning.4')] }
     ]
   });
 
   /* ------------------------------------------------------------- helpers */
-  const nameOf = (id) => state.players.find(p => p.id === id)?.name || 'Player';
+  const nameOf = (id) => state.players.find(p => p.id === id)?.name || t('dice.player');
   const isMyTurn = () => !spectator && state && state.turn === myId;
   const remaining = () => Math.max(0, (state?.deadline || 0) - (Date.now() + offset));
   const freeIdx = () => state.dice.map((d, i) => i).filter(i => !state.dice[i].held);
@@ -115,22 +103,22 @@
     const s = state;
     $('fk-target').textContent = fmt(s.target);
     const turnP = s.players.find(p => p.id === s.turn);
-    let eyebrow = 'Farkle';
+    let eyebrow = t('dice.eyebrow');
     let title;
-    if (s.phase === 'over') { title = 'Game over'; eyebrow = 'Final scores'; }
-    else if (s.phase === 'waiting' || !turnP) title = 'Getting ready';
-    else if (s.turn === myId) { title = s.phase === 'roll' ? 'Your turn: roll the dice' : (s.phase === 'busy' ? 'Your turn' : 'Your turn: choose dice'); eyebrow = 'You are up'; }
-    else { title = `${turnP.name}'s turn`; eyebrow = spectator ? 'Host view' : 'Waiting'; }
+    if (s.phase === 'over') { title = t('dice.over'); eyebrow = t('dice.finalScores'); }
+    else if (s.phase === 'waiting' || !turnP) title = t('dice.ready');
+    else if (s.turn === myId) { title = s.phase === 'roll' ? t('dice.title.roll') : (s.phase === 'busy' ? t('dice.title.mine') : t('dice.title.choose')); eyebrow = t('dice.youAreUp'); }
+    else { title = t('dice.title.turnOf', { name: turnP.name }); eyebrow = spectator ? t('dice.hostView') : t('dice.waiting'); }
     $('fk-title').textContent = title;
     $('fk-eyebrow').textContent = eyebrow;
     $('fk-avatar').innerHTML = turnP && s.phase !== 'over' ? WBG.avatar(turnP.name, `size-11 ring-2 ${s.turn === myId ? 'ring-brand-400' : 'ring-white/20'}`) : `<span class="grid size-11 place-items-center rounded-full bg-white/8 text-amber-300">${WBG.icon('dice', 'size-6')}</span>`;
 
     const fin = $('fk-final');
     if (s.finalRound && s.phase !== 'over') {
-      const who = s.finalTrigger ? nameOf(s.finalTrigger) : 'Someone';
+      const who = s.finalTrigger ? nameOf(s.finalTrigger) : t('dice.someone');
       const left = s.players.filter(p => !p.left && !p.finalDone).length;
       fin.hidden = false;
-      fin.innerHTML = `${WBG.icon('flag', 'size-5 shrink-0')}<span><strong>Last round.</strong> ${WBG.esc(who)} reached ${fmt(s.target)}. Everyone else gets one more turn${left ? ` (${left} to go)` : ''}.</span>`;
+      fin.innerHTML = `${WBG.icon('flag', 'size-5 shrink-0')}<span><strong>${WBG.esc(t('dice.final.title'))}</strong> ${WBG.esc(t(left ? 'dice.final.textLeft' : 'dice.final.text', { name: who, target: fmt(s.target), n: left }))}</span>`;
     } else fin.hidden = true;
   }
 
@@ -140,14 +128,14 @@
       const turn = p.id === s.turn && s.phase !== 'over';
       const pct = Math.min(100, (p.banked / s.target) * 100);
       const pips = [0, 1, 2].map(i => `<span class="size-2 rounded-full ${i < p.strikes ? 'bg-rose-400' : 'bg-white/15'}"></span>`).join('');
-      const need = s.opening > 0 && !p.opened && !p.left ? `<span class="chip chip-warn" title="Needs ${s.opening} in one turn to get on the board">Needs ${s.opening}</span>` : '';
-      const fin = s.finalRound && p.finalDone && !p.left ? `<span class="text-emerald-300" title="Final turn played">${WBG.icon('fk-check', 'size-4')}</span>` : '';
+      const need = s.opening > 0 && !p.opened && !p.left ? `<span class="chip chip-warn" title="${WBG.esc(t('dice.needsTitle', { n: fmt(s.opening) }))}">${WBG.esc(t('dice.needs', { n: fmt(s.opening) }))}</span>` : '';
+      const fin = s.finalRound && p.finalDone && !p.left ? `<span class="text-emerald-300" title="${WBG.esc(t('dice.finalPlayed'))}">${WBG.icon('fk-check', 'size-4')}</span>` : '';
       return `<li class="rounded-xl border px-3 py-2 transition ${turn ? 'border-brand-400/60 bg-brand-500/12' : 'border-transparent bg-white/4'} ${p.left ? 'opacity-50' : ''}">
         <div class="flex items-center gap-2.5">
           ${WBG.avatar(p.name, 'size-8 text-xs')}
-          <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white">${WBG.esc(p.name)}${p.id === myId ? ' <span class="font-normal text-slate-400">(you)</span>' : ''}${p.left ? ' <span class="font-normal text-rose-300">left</span>' : ''}</span>
+          <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white">${WBG.esc(p.name)}${p.id === myId ? ` <span class="font-normal text-slate-400">(${t('dice.you')})</span>` : ''}${p.left ? ` <span class="font-normal text-rose-300">${t('dice.left')}</span>` : ''}</span>
           ${need}${fin}
-          <span class="flex items-center gap-1" title="Farkles in a row: ${p.strikes} of 3">${pips}</span>
+          <span class="flex items-center gap-1" title="${WBG.esc(t('dice.strikes', { n: p.strikes }))}">${pips}</span>
           <span class="w-16 text-right text-lg font-bold text-white tabular-nums">${fmt(p.banked)}</span>
         </div>
         <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/10"><div class="h-full rounded-full bg-gradient-to-r from-brand-500 to-violet-500 transition-[width] duration-500" style="width:${pct}%"></div></div>
@@ -170,7 +158,7 @@
       const on = sel.has(i);
       const dim = busy || (!picking && s.phase === 'pick' && !mine) ? 'opacity-90' : '';
       const farkled = busy && s.event?.kind?.includes('farkle');
-      return `<button type="button" data-i="${i}" ${picking ? '' : 'tabindex="-1"'} aria-pressed="${on}" aria-label="Die showing ${d.v}${on ? ', selected' : ''}"
+      return `<button type="button" data-i="${i}" ${picking ? '' : 'tabindex="-1"'} aria-pressed="${on}" aria-label="${WBG.esc(t(on ? 'dice.dieSelected' : 'dice.die', { v: d.v }))}"
         class="fk-die relative ${dieSize} rounded-[22%] shadow-[0_6px_14px_rgb(0_0_0/0.45)] transition duration-150 ${picking ? 'cursor-pointer active:scale-95' : 'cursor-default'} ${on ? '-translate-y-2 ring-4 ring-amber-300 shadow-[0_0_26px_rgb(252_211_77/0.55)]' : ''} ${farkled ? 'saturate-50 brightness-75' : ''} ${dim}">
         <span class="fk-face block size-full">${dieHtml(d.v)}</span>
         ${on ? `<span class="absolute -top-2 -right-2 grid size-6 place-items-center rounded-full bg-amber-300 text-ink-900">${WBG.icon('fk-check', 'size-4')}</span>` : ''}
@@ -179,13 +167,13 @@
 
     $('fk-tray').innerHTML = s.dice.some(d => d.held)
       ? s.dice.map(d => (d.held ? `<span class="block size-9 rounded-[22%] shadow-md sm:size-10">${dieHtml(d.v)}</span>` : '')).join('')
-      : '<span class="text-xs text-slate-500">Nothing yet</span>';
+      : `<span class="text-xs text-slate-500">${t('dice.nothing')}</span>`;
 
     // Scores
     $('fk-turnscore').textContent = fmt(s.turnScore);
     const pv = $('fk-preview');
     if (picking && sel.size) {
-      pv.textContent = sc.valid ? `+${fmt(sc.score)}` : 'No score';
+      pv.textContent = sc.valid ? `+${fmt(sc.score)}` : t('dice.noScore');
       pv.className = `text-lg font-bold tabular-nums ${sc.valid ? 'text-amber-300' : 'text-rose-300'}`;
     } else pv.textContent = '';
 
@@ -194,14 +182,14 @@
     const me = s.players.find(p => p.id === myId);
     const total = s.turnScore + (sc.valid ? sc.score : 0);
     let msg = '';
-    if (spectator) msg = s.phase === 'pick' || s.phase === 'roll' ? `${nameOf(s.turn)} is playing.` : '';
-    else if (!mine && s.phase !== 'over') msg = s.turn ? `Waiting for ${nameOf(s.turn)}...` : '';
-    else if (mine && s.phase === 'roll') msg = 'Roll all six dice to start your turn.';
+    if (spectator) msg = s.phase === 'pick' || s.phase === 'roll' ? t('dice.hint.playing', { name: nameOf(s.turn) }) : '';
+    else if (!mine && s.phase !== 'over') msg = s.turn ? t('dice.hint.waiting', { name: nameOf(s.turn) }) : '';
+    else if (mine && s.phase === 'roll') msg = t('dice.hint.rollAll');
     else if (picking) {
-      if (!sel.size) msg = 'Tap the scoring dice you want to set aside.';
-      else if (!sc.valid) msg = 'Every selected die has to score. Try 1s, 5s or three of a kind.';
-      else if (!(me?.opened) && s.opening > 0 && total < s.opening) msg = `You need ${fmt(s.opening)} in one turn to get on the board (now ${fmt(total)}).`;
-      else msg = free.length === sel.size ? 'Hot dice! Roll six fresh dice or bank.' : `Roll the other ${free.length - sel.size} or bank ${fmt(total)}.`;
+      if (!sel.size) msg = t('dice.hint.tap');
+      else if (!sc.valid) msg = t('dice.hint.invalid');
+      else if (!(me?.opened) && s.opening > 0 && total < s.opening) msg = t('dice.hint.opening', { n: fmt(s.opening), now: fmt(total) });
+      else msg = free.length === sel.size ? t('dice.hint.hot') : t('dice.hint.rollOrBank', { n: free.length - sel.size, bank: fmt(total) });
     }
     if (busy) msg = '';
     hint.textContent = msg;
@@ -216,12 +204,12 @@
     if (showActions) {
       let canRoll = false;
       let canBank = false;
-      let rollLabel = 'Roll';
-      if (mine && s.phase === 'roll') { canRoll = !rolling; rollLabel = 'Roll 6 dice'; }
+      let rollLabel = t('dice.btn.roll');
+      if (mine && s.phase === 'roll') { canRoll = !rolling; rollLabel = t('dice.btn.roll6'); }
       if (picking) {
         canRoll = sc.valid;
         const remain = free.length - sel.size;
-        rollLabel = !sel.size ? 'Roll' : (remain === 0 ? 'Roll 6 fresh dice' : `Roll ${remain} ${remain === 1 ? 'die' : 'dice'}`);
+        rollLabel = !sel.size ? t('dice.btn.roll') : (remain === 0 ? t('dice.btn.rollFresh') : t('dice.btn.rollN', { n: remain }));
         const openOk = me?.opened || !(s.opening > 0) || total >= s.opening;
         canBank = sc.valid && openOk;
       }
@@ -229,7 +217,7 @@
       bank.disabled = !canBank;
       roll.innerHTML = `${WBG.icon('dice', 'size-5')}<span>${rollLabel}</span>`;
       const bankTotal = picking && sc.valid ? total : s.turnScore;
-      bank.innerHTML = `${WBG.icon('fk-bank', 'size-5')}<span>Bank${bankTotal > 0 && (picking && sc.valid) ? ' ' + fmt(bankTotal) : ''}</span>`;
+      bank.innerHTML = `${WBG.icon('fk-bank', 'size-5')}<span>${t('dice.btn.bank')}${bankTotal > 0 && (picking && sc.valid) ? ' ' + fmt(bankTotal) : ''}</span>`;
       roll.classList.toggle('animate-pulse-soft', canRoll && mine && (s.phase === 'roll' || (picking && sc.valid)));
     }
   }
@@ -244,7 +232,7 @@
     }
     const left = remaining();
     const secs = Math.ceil(left / 1000);
-    t.textContent = `${secs}s`;
+    t.textContent = WBG.t('dice.secs', { s: secs });
     t.className = `mb-1 h-4 text-xs font-semibold tabular-nums ${secs <= 10 ? 'text-rose-300' : 'text-slate-400'}`;
     bar.style.width = `${Math.min(100, (left / TURN_MS) * 100)}%`;
     bar.className = `h-full rounded-full ${secs <= 10 ? 'bg-rose-400' : 'bg-gradient-to-r from-brand-500 to-violet-500'}`;
@@ -317,26 +305,25 @@
   function handleEvent(ev, quiet) {
     if (!ev) return;
     const mine = ev.by === myId;
-    const who = mine ? 'You' : nameOf(ev.by);
     if (ev.kind === 'farkle' || ev.kind === 'triple-farkle') {
       if (quiet) return;
-      const lost = ev.points > 0 ? `${who} lose${mine ? '' : 's'} ${fmt(ev.points)}` : (ev.timeout ? 'Out of time' : 'No scoring dice');
-      banner('farkle', ev.kind === 'triple-farkle' ? 'Farkle x3' : 'Farkle!', ev.kind === 'triple-farkle' ? `${lost}. Penalty -${fmt(ev.penalty || 0)}` : lost);
+      const lost = ev.points > 0 ? (mine ? t('dice.lost.you', { n: fmt(ev.points) }) : t('dice.lost.other', { name: nameOf(ev.by), n: fmt(ev.points) })) : (ev.timeout ? t('dice.outOfTime') : t('dice.noScoring'));
+      banner('farkle', ev.kind === 'triple-farkle' ? t('dice.farkle3') : t('dice.farkle'), ev.kind === 'triple-farkle' ? t('dice.penalty', { lost, n: fmt(ev.penalty || 0) }) : lost);
       WBG.sound.play('farkle');
       if (mine) WBG.haptic([80, 40, 80]);
     } else if (ev.kind === 'hot-dice') {
       if (quiet) return;
-      banner('hot', 'Hot dice!', `${who} ${mine ? 'get' : 'gets'} six fresh dice`);
+      banner('hot', t('dice.hot'), mine ? t('dice.hot.you') : t('dice.hot.other', { name: nameOf(ev.by) }));
       WBG.sound.play('boost');
       later(() => WBG.sound.play('coin'), 120);
     } else if (ev.kind === 'bank') {
       if (quiet) return;
-      banner('bank', `Banked ${fmt(ev.points)}`, mine ? 'Nice one' : nameOf(ev.by));
+      banner('bank', t('dice.banked', { n: fmt(ev.points) }), mine ? t('dice.niceOne') : nameOf(ev.by));
       WBG.sound.play('coin');
       if (mine) WBG.haptic(30);
       if (ev.reached) later(() => WBG.sound.play('notify'), 500);
     } else if (ev.kind === 'left') {
-      if (!quiet) WBG.toast(`${nameOf(ev.by)} left the game`, { icon: 'logout' });
+      if (!quiet) WBG.toast(t('dice.toast.left', { name: nameOf(ev.by) }), { icon: 'logout' });
     }
   }
 
@@ -382,7 +369,7 @@
   socket.on('dice-error', ({ message }) => {
     WBG.sound.play('error');
     WBG.haptic(60);
-    WBG.toast(message || 'That is not allowed', { type: 'error' });
+    WBG.toast(message ? WBG.tr(message) : t('dice.err.default'), { type: 'error' });
     shake($('fk-dice'));
   });
 

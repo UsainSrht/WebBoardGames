@@ -189,7 +189,7 @@ async function room(code, names, hostSpectates = false) {
   assert.equal(none.exists, false);
   const games = await (await fetch(`${HTTP}/api/games`)).json();
   assert.equal(games.chess.icon, 'chess');
-  assert.ok(!/[^\x00-\x7F]/.test(JSON.stringify(games)), 'no emoji in game catalogue');
+  assert.ok(!/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/u.test(JSON.stringify(games)), 'no emoji in game catalogue');
   console.log('API OK');
 }
 console.log('ALL OK');
