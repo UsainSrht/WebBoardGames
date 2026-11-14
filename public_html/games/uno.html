@@ -1,33 +1,52 @@
-<div id="uno-root" class="absolute inset-0 flex flex-col justify-between gap-2 pt-16 pb-[max(env(safe-area-inset-bottom),0.75rem)] [--cw:4.2rem] [--ch:6.2rem] sm:[--cw:5.2rem] sm:[--ch:7.6rem] lg:[--cw:5.8rem] lg:[--ch:8.5rem]">
-  <!-- Opponents -->
+<style>
+  #uno-root { --cw: 4.4rem; --ch: 6.5rem; }
+  @media (min-width: 640px) { #uno-root { --cw: 5.4rem; --ch: 8rem; } }
+  @media (min-width: 1024px) and (min-height: 760px) { #uno-root { --cw: 6rem; --ch: 9rem; } }
+  .uno-fly { position: fixed; z-index: 60; pointer-events: none; margin: 0; }
+  .uno-new { animation: slide-up 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .uno-bump { animation: pop 0.3s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+  .uno-glow { transition: box-shadow 0.35s ease, background 0.35s ease; }
+</style>
+<div id="uno-root" class="absolute inset-0 flex flex-col justify-between gap-1.5 pt-16 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+  <!-- Players -->
   <div class="scroll-y shrink-0 px-3">
     <ul id="uno-players" class="mx-auto flex w-max gap-2"></ul>
   </div>
 
   <!-- Table -->
-  <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-3">
-    <div class="flex items-center gap-5 sm:gap-8">
-      <button id="uno-deck" class="relative grid place-items-center rounded-xl border-[3px] border-white bg-ink-900 text-center shadow-xl transition hover:-translate-y-1 active:scale-95 disabled:opacity-60 disabled:hover:translate-y-0" style="width: calc(var(--cw) * 1.2); height: calc(var(--ch) * 1.2)" aria-label="Draw a card">
+  <div class="relative flex min-h-0 flex-1 flex-col items-center justify-center gap-2.5 px-3">
+    <p id="uno-round" class="text-xs font-semibold tracking-wide text-slate-400 uppercase" hidden></p>
+    <div class="flex items-center gap-6 sm:gap-10">
+      <button id="uno-deck" class="relative grid place-items-center rounded-xl border-[3px] border-white bg-ink-900 text-center shadow-xl transition hover:-translate-y-1 active:scale-95 disabled:opacity-60 disabled:hover:translate-y-0" style="width: calc(var(--cw) * 1.15); height: calc(var(--ch) * 1.15)" aria-label="Draw a card">
         <span class="-rotate-12 text-xl font-black tracking-tight text-rose-500 italic">UNO</span>
         <span id="uno-deck-count" class="absolute bottom-1.5 text-[10px] font-semibold text-slate-400"></span>
+        <span id="uno-deck-badge" class="uno-bump absolute -top-2.5 -right-2.5 grid min-w-8 place-items-center rounded-full bg-rose-500 px-2 py-1 text-sm font-extrabold text-white shadow-lg" hidden></span>
       </button>
-      <div class="relative">
-        <div id="uno-top"></div>
-        <span id="uno-color-ring" class="absolute -right-3 -bottom-3 grid size-9 place-items-center rounded-full border-[3px] border-white shadow-lg" title="Current colour"></span>
+      <div class="relative" style="width: calc(var(--cw) * 1.15); height: calc(var(--ch) * 1.15)">
+        <div id="uno-glow" class="uno-glow absolute -inset-3 rounded-[1.6rem]"></div>
+        <div id="uno-pile" class="absolute inset-0"></div>
+        <span id="uno-dir" class="absolute -right-4 -bottom-4 grid size-10 place-items-center rounded-full border-[3px] border-white bg-ink-900 text-white shadow-lg" title="Direction of play"></span>
       </div>
     </div>
-    <p id="uno-log" class="max-w-md text-center text-sm font-medium text-slate-200" aria-live="polite"></p>
+
+    <p id="uno-log" class="min-h-10 max-w-md text-center text-sm font-medium text-slate-200" aria-live="polite"></p>
+
     <div class="w-56 max-w-full">
-      <div class="h-1.5 overflow-hidden rounded-full bg-white/10"><div id="uno-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500" style="transition: width 0.15s linear"></div></div>
+      <div class="h-1.5 overflow-hidden rounded-full bg-white/10"><div id="uno-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-brand-500 to-violet-500"></div></div>
       <p id="uno-timer" class="mt-1 h-4 text-center text-xs text-slate-400"></p>
     </div>
-    <button id="uno-pass" class="btn btn-secondary" hidden><i data-icon="arrow-right" class="size-4"></i>Keep card and pass</button>
+
+    <div class="flex min-h-12 items-center gap-2">
+      <button id="uno-pass" class="btn btn-secondary" hidden><i data-icon="arrow-right" class="size-4"></i>Keep card and pass</button>
+      <button id="uno-callbtn" class="btn btn-lg animate-pulse-soft bg-rose-600 text-white shadow-lg shadow-rose-600/40 hover:bg-rose-500" hidden>UNO!</button>
+      <button id="uno-catchbtn" class="btn btn-lg bg-amber-500 text-ink-900 hover:bg-amber-400" hidden><i data-icon="bolt" class="size-5"></i><span>Catch</span></button>
+    </div>
   </div>
 
   <!-- Hand -->
   <div class="shrink-0">
     <p id="uno-hand-label" class="mb-1 px-4 text-xs font-semibold tracking-wide text-slate-400 uppercase"></p>
-    <div class="scroll-y px-3 pt-3 pb-1" style="overflow-y: hidden">
+    <div class="scroll-y px-3 pt-4 pb-1" style="overflow-y: hidden">
       <div id="uno-hand" class="mx-auto flex w-max items-end gap-2"></div>
     </div>
   </div>
@@ -40,10 +59,13 @@
     </div>
   </div>
 
-  <!-- Winner -->
-  <div id="uno-winner" class="card animate-pop absolute top-1/2 left-1/2 z-30 w-72 -translate-x-1/2 -translate-y-1/2 p-6 text-center" hidden>
-    <span class="mx-auto mb-2 grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"><i data-icon="trophy" class="size-6"></i></span>
-    <p id="uno-winner-text" class="text-xl font-bold text-white"></p>
-    <p class="mt-1 text-sm text-slate-400">Returning to the lobby shortly.</p>
+  <!-- Round summary -->
+  <div id="uno-summary" class="fixed inset-0 z-30 grid place-items-center overflow-y-auto bg-ink-950/70 p-4 backdrop-blur-sm" hidden>
+    <div class="card animate-pop w-full max-w-sm p-5">
+      <p class="eyebrow text-center">Round over</p>
+      <h2 id="uno-summary-title" class="mt-1 mb-4 text-center text-xl font-bold text-white"></h2>
+      <ul id="uno-summary-rows" class="space-y-1.5"></ul>
+      <p id="uno-summary-next" class="mt-4 text-center text-sm text-slate-400"></p>
+    </div>
   </div>
 </div>

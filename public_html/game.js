@@ -150,7 +150,48 @@
 
     renderPlayers();
     renderGames();
+    renderOptions();
     renderActions();
+  }
+
+  /** Host-editable settings of the selected game (read-only for everyone else). */
+  function renderOptions() {
+    const panel = $('options-panel');
+    const rs = S.room;
+    const g = S.games && (S.optimisticGame || rs.game) ? S.games[S.optimisticGame || rs.game] : null;
+    if (!g || !g.options?.length) { panel.hidden = true; return; }
+    const values = S.optimisticGame && S.optimisticGame !== rs.game ? {} : (rs.options || {});
+    const host = isHost();
+    panel.hidden = false;
+    panel.replaceChildren(...g.options.map((opt) => {
+      const current = values[opt.key] ?? opt.default;
+      const wrap = document.createElement('div');
+      wrap.innerHTML = `<p class="mb-1.5 flex items-baseline justify-between gap-3"><span class="text-xs font-semibold tracking-wide text-slate-300 uppercase">${esc(opt.label)}</span>${opt.hint ? `<span class="text-[11px] text-slate-500">${esc(opt.hint)}</span>` : ''}</p>`;
+      const row = document.createElement('div');
+      row.className = 'flex flex-wrap gap-1.5';
+      row.setAttribute('role', 'radiogroup');
+      row.setAttribute('aria-label', opt.label);
+      for (const choice of opt.choices) {
+        const on = choice.value === current;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(on));
+        b.disabled = !host && !on;
+        b.className = `rounded-lg border px-3 py-1.5 text-sm font-semibold transition ${on ? 'border-brand-400 bg-brand-500/20 text-white' : 'border-white/10 bg-white/4 text-slate-300 hover:bg-white/10'} ${host ? '' : 'cursor-default'}`;
+        b.textContent = choice.label;
+        b.addEventListener('click', () => {
+          if (!host || on) return;
+          WBG.sound.play('click');
+          (S.room.options ||= {})[opt.key] = choice.value; // optimistic
+          renderOptions();
+          socket.emit('set-options', { game: rs.game, options: { [opt.key]: choice.value } });
+        });
+        row.appendChild(b);
+      }
+      wrap.appendChild(row);
+      return wrap;
+    }));
   }
 
   function badges(p) {
@@ -264,6 +305,7 @@
     if (!m || m.spectator) return;
     S.optimisticReady = !(S.optimisticReady !== null ? S.optimisticReady : m.ready);
     WBG.haptic();
+    WBG.sound.play(S.optimisticReady ? 'pop' : 'click');
     renderActions();
     socket.emit('toggle-ready');
   });
@@ -276,6 +318,7 @@
     if (!isHost()) return WBG.toast('Only the host can pick the game', { icon: 'crown' });
     S.optimisticGame = btn.dataset.game;
     WBG.haptic();
+    WBG.sound.play('click');
     renderGames();
     socket.emit('select-game', { game: btn.dataset.game });
   });
@@ -444,6 +487,7 @@
     wrap.innerHTML = `<span class="mb-0.5 px-1 text-[11px] text-slate-500">${own ? '' : `${esc(name)} &middot; `}${time}</span>
       <span class="max-w-[85%] rounded-2xl px-3.5 py-2 text-sm break-words ${own ? 'rounded-br-md bg-brand-500 text-white' : 'rounded-bl-md bg-white/10 text-slate-100'}">${esc(message)}</span>`;
     addMessage(wrap, { counts: !own });
+    if (!own && !(drawerOpen() && S.tab === 'chat')) WBG.sound.play('notify');
   });
 
   socket.on('system-message', ({ message }) => systemLine(message));
@@ -495,10 +539,12 @@
     $('rename-error').hidden = true;
     $('set-notify').checked = WBG.prefs.notify;
     $('set-motion').checked = WBG.prefs.reduceMotion;
+    $('set-sound').checked = WBG.prefs.sound;
     WBG.openModal('settings-modal');
   });
   $('set-notify').addEventListener('change', (e) => { WBG.prefs.notify = e.target.checked; });
   $('set-motion').addEventListener('change', (e) => { WBG.prefs.reduceMotion = e.target.checked; });
+  $('set-sound').addEventListener('change', (e) => { WBG.prefs.sound = e.target.checked; paintSound(); WBG.sound.play('click'); });
   $('rename-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const name = $('rename-input').value.trim();
@@ -515,6 +561,80 @@
     WBG.closeModal('settings-modal');
     WBG.toast('Nickname updated', { type: 'success' });
   });
+
+  /* ------------------------------------------------------------ sound + help */
+  const soundBtn = $('sound-btn');
+  function paintSound() {
+    const on = WBG.prefs.sound;
+    soundBtn.innerHTML = icon(on ? 'volume' : 'volume-off', 'size-5');
+    soundBtn.setAttribute('aria-label', on ? 'Mute sound' : 'Unmute sound');
+    soundBtn.setAttribute('aria-pressed', String(!on));
+  }
+  soundBtn.addEventListener('click', () => {
+    WBG.prefs.sound = !WBG.prefs.sound;
+    paintSound();
+    WBG.sound.play('click');
+  });
+  paintSound();
+
+  const helpBtn = $('help-btn');
+  function updateHelp() {
+    helpBtn.hidden = !WBG.rules;
+    if (!WBG.rules) return;
+    const key = `wbg.rulesSeen.${S.room?.game || ''}`;
+    if (S.room?.game && !WBG.store.get(key)) {
+      WBG.store.set(key, '1');
+      helpBtn.classList.add('animate-pulse-soft', 'ring-2', 'ring-brand-400');
+      setTimeout(() => helpBtn.classList.remove('animate-pulse-soft', 'ring-2', 'ring-brand-400'), 9000);
+    }
+  }
+  window.addEventListener('wbg-rules', updateHelp);
+  helpBtn.addEventListener('click', () => {
+    const r = WBG.rules;
+    if (!r) return;
+    $('rules-title').textContent = r.title || 'How to play';
+    $('rules-body').innerHTML = (r.sections || []).map((s) => `<section>
+      ${s.title ? `<h3 class="mb-1.5 font-semibold text-white">${esc(s.title)}</h3>` : ''}
+      <ul class="list-disc space-y-1 pl-5 marker:text-brand-400">${(s.items || []).map((i) => `<li>${esc(i)}</li>`).join('')}</ul>
+    </section>`).join('');
+    WBG.openModal('rules-modal');
+  });
+
+  /* ---------------------------------------------------------------- results */
+  let resultsTimer = 0;
+  function hideResults() {
+    clearInterval(resultsTimer);
+    $('results').hidden = true;
+  }
+  function showResults(r) {
+    const mine = r.rows.find((x) => x.id === S.myId);
+    $('results-title').textContent = r.title || 'Game over';
+    $('results-sub').textContent = r.subtitle || '';
+    $('results-rows').replaceChildren(...r.rows.map((row) => {
+      const li = document.createElement('li');
+      const you = row.id === S.myId;
+      li.className = `flex items-center gap-3 rounded-2xl border px-3 py-2.5 ${row.rank === 1 ? 'border-amber-400/50 bg-amber-500/10' : you ? 'border-brand-400/50 bg-brand-500/10' : 'border-white/8 bg-white/4'}`;
+      li.innerHTML = `<span class="grid size-8 shrink-0 place-items-center rounded-full ${row.rank === 1 ? 'bg-amber-500/20 text-amber-300' : 'bg-white/8 text-slate-300'} text-sm font-bold">${row.rank === 1 ? icon('trophy', 'size-4') : row.rank}</span>
+        ${WBG.avatar(row.name, 'size-8 text-xs')}
+        <span class="min-w-0 flex-1"><span class="block truncate text-sm font-semibold text-white">${esc(row.name)}${you ? ' <span class="chip ml-1">you</span>' : ''}</span>${row.note ? `<span class="block text-xs leading-snug text-slate-400">${esc(row.note)}</span>` : ''}</span>
+        ${row.score !== undefined && row.score !== null ? `<span class="text-lg font-bold text-brand-300 tabular-nums">${esc(row.score)}</span>` : ''}`;
+      return li;
+    }));
+    $('results-host').hidden = !isHost();
+    $('results').hidden = false;
+    clearInterval(resultsTimer);
+    const tick = () => {
+      const s = Math.max(0, Math.ceil((r.returnAt - Date.now()) / 1000));
+      $('results-timer').textContent = s > 0 ? `Back to the lobby in ${s}s` : 'Returning to the lobby...';
+    };
+    tick();
+    resultsTimer = setInterval(tick, 500);
+    if (mine) WBG.sound.play(mine.rank === 1 ? 'win' : 'lose');
+  }
+  socket.on('game-over', showResults);
+  $('results-hide').addEventListener('click', hideResults);
+  $('results-again').addEventListener('click', () => { hideResults(); socket.emit('restart-game'); });
+  $('results-lobby').addEventListener('click', () => { hideResults(); socket.emit('end-game'); });
 
   /* ------------------------------------------------------------------ games */
   fetch('/api/games').then((r) => r.json()).then((g) => { S.games = g; if (S.room) renderGames(); }).catch(() => {
@@ -573,6 +693,9 @@
 
   function teardownGame() {
     for (const fn of S.teardown.splice(0)) { try { fn(); } catch { /* ignore */ } }
+    WBG.rules = null;
+    helpBtn.hidden = true;
+    hideResults();
     $('game-script')?.remove();
     $('game-board').replaceChildren();
     for (const key of [...socket.eventHandlers.keys()]) {
@@ -641,7 +764,7 @@
     window.scrollTo(0, 0);
   }
 
-  socket.on('game-started', ({ game }) => loadGame(game));
+  socket.on('game-started', ({ game }) => { WBG.sound.play('go'); WBG.clearToasts(); loadGame(game); });
   socket.on('back-to-lobby', () => {
     if (!S.inGame) return;
     leaveGameUi();

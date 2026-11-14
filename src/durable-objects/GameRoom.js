@@ -17,7 +17,7 @@ import { Hamsterball } from '../games/hamsterball.js';
 import { Dice } from '../games/dice.js';
 import { Uno } from '../games/uno.js';
 import { Chess } from '../games/chess.js';
-import { GAME_CONFIGS, MAX_ROOM_PLAYERS } from '../games/config.js';
+import { GAME_CONFIGS, MAX_ROOM_PLAYERS, sanitizeOptions } from '../games/config.js';
 
 const GAME_CLASSES = {
   'rock-paper-scissors': RockPaperScissors,
@@ -58,6 +58,9 @@ export class GameRoom {
     this.started = false;
     this.selectedGame = null;
     this.gameInstance = null;
+    this.gameOptions = {};              // game id -> chosen options (host editable in the lobby)
+    this.finishTimer = null;            // pending return to the lobby after a game ended
+    this.results = null;                // last 'game-over' payload while its overlay is showing
     this.created = Date.now();
 
     this.state.blockConcurrencyWhile(async () => {
@@ -68,6 +71,7 @@ export class GameRoom {
         this.kickedPlayers = new Set(stored.kickedPlayers || []);
         this.host = stored.host ?? null;
         this.selectedGame = stored.selectedGame ?? null;
+        this.gameOptions = stored.gameOptions || {};
         this.created = stored.created || Date.now();
         // A game lives in memory and cannot survive a restart: come back in the lobby.
         this.started = false;
@@ -158,6 +162,7 @@ export class GameRoom {
     switch (type) {
       case 'chat-message': return this.handleChatMessage(session, payload);
       case 'select-game': return this.handleSelectGame(ws, session, payload);
+      case 'set-options': return this.handleSetOptions(ws, session, payload);
       case 'toggle-ready': return this.handleToggleReady(session);
       case 'set-role': return this.handleSetRole(ws, session, payload);
       case 'start-game': return this.handleStartGame(ws, session);
@@ -321,6 +326,7 @@ export class GameRoom {
     if (this.started) {
       // Page reload in the middle of a game: load the game UI again.
       this.send(ws, { type: 'game-started', game: this.selectedGame });
+      if (this.results) this.send(ws, this.results);
     }
   }
 
@@ -369,6 +375,18 @@ export class GameRoom {
 
     this.selectedGame = game;
     this.readyPlayers.clear();
+    await this.saveState();
+    this.pushState();
+  }
+
+  optionsFor(game) {
+    return sanitizeOptions(game, this.gameOptions[game]);
+  }
+
+  async handleSetOptions(ws, session, { game, options }) {
+    if (!this.requireHost(ws, session)) return;
+    if (this.started || !Object.hasOwn(GAME_CONFIGS, game)) return;
+    this.gameOptions[game] = sanitizeOptions(game, { ...this.optionsFor(game), ...(options || {}) });
     await this.saveState();
     this.pushState();
   }
@@ -424,6 +442,7 @@ export class GameRoom {
       return this.endGame();
     }
     this.broadcast({ type: 'system-message', message: 'The host restarted the game.' });
+    this.clearResults();
     this.gameInstance?.cleanup?.();
     this.gameInstance = null;
     await this.startGame();
@@ -508,6 +527,7 @@ export class GameRoom {
   }
 
   async resetRoom() {
+    this.clearResults();
     this.gameInstance?.cleanup?.();
     this.gameInstance = null;
     for (const t of this.disconnectTimers.values()) clearTimeout(t);
@@ -520,6 +540,7 @@ export class GameRoom {
     this.host = null;
     this.started = false;
     this.selectedGame = null;
+    this.gameOptions = {};
     await this.state.storage.deleteAlarm();
     await this.state.storage.deleteAll();
   }
@@ -579,10 +600,30 @@ export class GameRoom {
 
     this.broadcast({ type: 'game-started', game: this.selectedGame });
     const players = Object.fromEntries(this.activePlayers().map(p => [p.odId, { odId: p.odId, name: p.name }]));
-    this.gameInstance = new GameClass(this, players);
+    this.clearResults();
+    this.gameInstance = new GameClass(this, players, this.optionsFor(this.selectedGame));
+  }
+
+  /**
+   * Called by a game when it is over. Shows the standings to everybody and returns the
+   * room to the lobby after `delayMs` (the host can restart or end earlier).
+   * rows: [{ id, name, score?, rank, note? }] ordered best first.
+   */
+  finishGame({ title = 'Game over', subtitle = '', rows = [], delayMs = 20000 } = {}) {
+    clearTimeout(this.finishTimer);
+    this.results = { type: 'game-over', game: this.selectedGame, title, subtitle, rows, returnAt: Date.now() + delayMs };
+    this.broadcast(this.results);
+    this.finishTimer = setTimeout(() => { this.finishTimer = null; this.endGame(); }, delayMs);
+  }
+
+  clearResults() {
+    clearTimeout(this.finishTimer);
+    this.finishTimer = null;
+    this.results = null;
   }
 
   async endGame() {
+    this.clearResults();
     this.gameInstance?.cleanup?.();
     this.gameInstance = null;
     this.started = false;
@@ -629,6 +670,7 @@ export class GameRoom {
       gameName: config?.name ?? null,
       gameMin: config?.min ?? null,
       gameMax: config?.max ?? null,
+      options: this.selectedGame ? this.optionsFor(this.selectedGame) : null,
       blocker: this.startBlocker(),
       players: Array.from(this.players.values(), p => ({
         id: p.odId,
@@ -659,6 +701,7 @@ export class GameRoom {
       kickedPlayers: Array.from(this.kickedPlayers),
       host: this.host,
       selectedGame: this.selectedGame,
+      gameOptions: this.gameOptions,
       created: this.created
     });
     await this.state.storage.setAlarm(Date.now() + IDLE_ROOM_TTL_MS);

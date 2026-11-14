@@ -1,719 +1,663 @@
-import TilePlacementSystem from './kingdomino/tile_system.js';
-import TitleEffect from './kingdomino/title_effect.js';
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = WBG.esc;
+  const myId = WBG.store.get('userId');
+  const spectator = !!WBG.isSpectator;
+  const READY = 'kingdomino-ready';
+  const IMG = '/images/kingdomino/';
+  const tileSrc = (a) => `${IMG}s/${a}.jpg`;
+  const pawnSrc = (c) => `${IMG}pawn-${c}.png`;
+  const ROT = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+  const TERRAIN = { farm: '#e0b13a', forest: '#3f7d3a', water: '#2f7fc4', plains: '#8cc152', swamp: '#d9a066', mine: '#6b625a' };
+  const COLOR = { red: '#ef4444', blue: '#3b82f6', green: '#22c55e', yellow: '#eab308' };
+  const CROWN_SVG = '<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18.5h16M4.5 17L3 7.5l5 4 4-6.5 4 6.5 5-4L19.5 17z"/></svg>';
 
-class KingdominoScene extends Phaser.Scene {
-    constructor() {
-        super({ key: 'KingdominoScene' });
-        this.players = [];
-        this.currentPlayerIndex = 0;
-        this.currentTurnStartTime = 0;
-        this.currentTurnEndTime = 0;
-        this.playerListContainer = null;
-        this.turnProgressBar = null;
-        this.isTileSelecting = true;
-        this.drawnTiles = [];
-        this.turnCount = 0;
-    }
+  let S = null;            // latest snapshot
+  let legal = null;        // { tile, set: Set, list } for my placing step
+  let rot = 0;
+  let anchor = null;       // { r, c } of the left half
+  let picked = null;       // tile number selected in the pick row
+  let viewId = null;       // whose kingdom is on the big board
+  let pinned = false;      // the viewer chose a board manually
+  let sending = false;
+  let recvAt = 0;
+  let lastNotice = 0;
+  let lastSecond = -1;
+  let trayAngle = 0;
+  let geom = null;
+  let dragging = false;
+  let dragMoved = false;
+  const painted = new Map();
 
-    preload() {
-        socket.emit("kingdomino-preload-start");
-        
-        const gameBoard = document.getElementById('game-board');
-    
-        const loadingLabel = document.createElement("div");
-        loadingLabel.id = "loading-label";
-        loadingLabel.className = "absolute inset-0 z-20 grid place-items-center bg-ink-950/80 text-brand-300";
-        loadingLabel.innerHTML = WBG.icon('spinner', 'size-10 animate-spin');
-        gameBoard.appendChild(loadingLabel);
+  const reduceMotion = () => document.documentElement.classList.contains('reduce-motion')
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        this.load.image('castle', './images/kingdomino/castle.png');
-        this.load.image('background', './images/kingdomino/background.png');
-        this.load.image('pawn-red', './images/kingdomino/pawn-red.png');
-        this.load.image('pawn-blue', './images/kingdomino/pawn-blue.png');
-        this.load.image('pawn-green', './images/kingdomino/pawn-green.png');
-        this.load.image('pawn-yellow', './images/kingdomino/pawn-yellow.png');
-    
-        this.load.image('1', './images/kingdomino/1.png');
-        this.load.image('3', './images/kingdomino/3.png');
-        this.load.image('8', './images/kingdomino/8.png');
-        this.load.image('10', './images/kingdomino/10.png');
-        this.load.image('12', './images/kingdomino/12.png');
-        this.load.image('13', './images/kingdomino/13.png');
-        this.load.image('14', './images/kingdomino/14.png');
-        this.load.image('15', './images/kingdomino/15.png');
-        this.load.image('16', './images/kingdomino/16.png');
-        this.load.image('17', './images/kingdomino/17.png');
-        this.load.image('18', './images/kingdomino/18.png');
-        this.load.image('19', './images/kingdomino/19.png');
-        this.load.image('20', './images/kingdomino/20.png');
-        this.load.image('21', './images/kingdomino/21.png');
-        this.load.image('22', './images/kingdomino/22.png');
-        this.load.image('23', './images/kingdomino/23.png');
-        this.load.image('24', './images/kingdomino/24.png');
-        this.load.image('28', './images/kingdomino/28.png');
-        this.load.image('29', './images/kingdomino/29.png');
-        this.load.image('30', './images/kingdomino/30.png');
-        this.load.image('31', './images/kingdomino/30.png');
-        this.load.image('32', './images/kingdomino/32.png');
-        this.load.image('36', './images/kingdomino/36.png');
-        this.load.image('37', './images/kingdomino/37.png');
-        this.load.image('38', './images/kingdomino/38.png');
-        this.load.image('39', './images/kingdomino/39.png');
-        this.load.image('40', './images/kingdomino/40.png');
-        this.load.image('41', './images/kingdomino/41.png');
-        this.load.image('42', './images/kingdomino/42.png');
-        this.load.image('43', './images/kingdomino/43.png');
-        this.load.image('44', './images/kingdomino/44.png');
-        this.load.image('45', './images/kingdomino/45.png');
-        this.load.image('46', './images/kingdomino/46.png');
-        this.load.image('48', './images/kingdomino/48.png');
-    
-        socket.emit("kingdomino-preload-finish");
-    }
+  for (const ev of ['kingdomino-state', 'kingdomino-legal', 'kingdomino-reject']) socket.off(ev);
 
-    showTitleEffect(text, iconKey, targetX, targetY, options) {
-        return this.titleEffect.show(text, iconKey, targetX, targetY, options);
-    }
+  WBG.setRules({
+    title: 'Kingdomino',
+    sections: [
+      { title: 'Goal', items: [
+        'Build the highest scoring 5x5 (or 7x7) kingdom. The game ends when every domino has been placed.',
+        'Each connected area of the same land type scores its number of squares times the crowns in it. Areas without crowns score nothing.'
+      ] },
+      { title: 'A round', items: [
+        'A new row of dominoes is revealed, lowest number first. Players act in the order of the previous row: whoever owns the lowest tile goes first.',
+        'On your turn first place the domino you took last round into your kingdom, then move your king onto one of the new dominoes. Picking last means acting first next round.',
+        'The very first row has nothing to place: kings are set on it in random order. The last round is place-only.',
+        'With 3 players 3 dominoes are drawn, otherwise 4. With 2 players everyone has two kings and acts twice per round.'
+      ] },
+      { title: 'Placing a domino', items: [
+        'Both halves must lie on empty squares, and your kingdom must always fit inside the size x size area.',
+        'At least one half must touch your castle or a square of the same land type. The castle matches every land type.',
+        'Tap a square to preview the domino (green fits, red does not), rotate it, then press Place or tap the square again. On desktop you can hover and click, or drag the tile.',
+        'A domino that fits nowhere is discarded automatically.'
+      ] },
+      { title: 'Bonuses', items: [
+        'Middle Kingdom +10: your castle is in the exact centre of your kingdom.',
+        'Harmony +5: a complete kingdom with no discarded domino.',
+        'Ties are broken by the largest property, then by total crowns.'
+      ] },
+      { title: 'Time', items: [
+        'You have 20 seconds to pick and 30 seconds to place. When time runs out the game plays for you. Players who leave are played automatically.'
+      ] }
+    ]
+  });
 
-    createPlayerList() {
-        // Create container for player list in bottom left
-        this.playerListContainer = this.add.container(20, this.scale.height - 20);
-        
-        // Background for player list
-        const playerCount = Object.keys(this.players).length;
-        const listBackground = this.add.rectangle(0, 0, 250, playerCount * 60 + 20, 0x000000, 0.7)
-            .setOrigin(0, 1)
-            .setStrokeStyle(2, 0xffffff);
-        
-        this.playerListContainer.add(listBackground);
-        
-        // Create player entries
-        Object.values(this.players).forEach(player => {
-            this.createPlayerEntry(player);
-        });
-        
-        this.updatePlayerListHighlight();
-    }
-    
-    createPlayerEntry(player) {
-        const index = player.turnIndex;
-        const yOffset = -((index - 1) * 60 + 40);
-        
-        // Player container
-        const playerContainer = this.add.container(10, yOffset);
-        
-        // Player color indicator
-        const colorIndicator = this.add.circle(15, 0, 12, player.color);
-        
-        // Player name
-        const nameText = this.add.text(35, -5, player.name, { 
-            fontSize: '14px', 
-            color: '#ffffff',
-            fontFamily: 'Arial'
-        });
-        
-        // Turn indicator background (invisible by default)
-        const turnIndicator = this.add.rectangle(0, 0, 230, 50, 0xffff00, 0.2)
-            .setOrigin(0, 0.5)
-            .setVisible(false);
-        
-        // Time progress bar background
-        const progressBg = this.add.rectangle(35, 15, 180, 8, 0x333333)
-            .setOrigin(0, 0.5);
-        
-        // Time progress bar fill
-        const progressFill = this.add.rectangle(35, 15, 180, 8, 0x00ff00)
-            .setOrigin(0, 0.5);
-        
-        // Store references for updates
-        player.ui = {
-            container: playerContainer,
-            turnIndicator: turnIndicator,
-            progressBg: progressBg,
-            progressFill: progressFill,
-            nameText: nameText,
-            colorIndicator: colorIndicator
-        };
-        
-        playerContainer.add([turnIndicator, colorIndicator, nameText, progressBg, progressFill]);
-        this.playerListContainer.add(playerContainer);
-    }
-    
-    updatePlayerListHighlight() {
-        Object.values(this.players).forEach(player => {
-            const isCurrentPlayer = player.turnIndex === this.currentPlayerIndex;
-            player.ui.turnIndicator.setVisible(isCurrentPlayer);
-            
-            if (isCurrentPlayer) {
-                player.ui.nameText.setColor('#000000');
-                player.ui.progressFill.setVisible(true);
-            } else {
-                player.ui.nameText.setColor('#ffffff');
-                player.ui.progressFill.setVisible(false);
-            }
-        });
-    }
+  // ---------------------------------------------------------------- helpers
+  function setHtml(el, markup) {
+    if (painted.get(el) === markup) return false;
+    painted.set(el, markup);
+    el.innerHTML = markup;
+    return true;
+  }
+  const player = (id) => S?.players.find((p) => p.id === id);
+  const colorOf = (id) => player(id)?.color || 'red';
+  const firstName = (name) => String(name || '').slice(0, 12);
+  const iAmPlaying = () => !spectator && !!player(myId);
+  const myPlace = () => !!S && S.phase === 'play' && S.actor === myId && S.stage === 'place' && !spectator;
+  const myPick = () => !!S && S.phase === 'play' && S.actor === myId && S.stage === 'pick' && !spectator;
+  const turnKey = (s) => (s && s.phase === 'play' && s.actor === myId ? `${s.round}.${s.stepIdx}.${s.stage}` : null);
+  const tileInfo = (s, n) => [...(s.cur || []), ...(s.prev || [])].find((x) => x.tile === n);
 
-    isMyTurn() {
-        return !!this.myData && this.myData.turnIndex === this.currentPlayerIndex;
-    }
-    
-    updateTurnProgress() {
-        if (Object.keys(this.players).length === 0) return;
-        
-        const remaining = Math.max(0, this.currentTurnEndTime - Date.now());
-        const progress = Math.max(0, (remaining / (this.currentTurnEndTime - this.currentTurnStartTime)));
-        
-        const currentPlayer = Object.values(this.players).filter(player => player.turnIndex === this.currentPlayerIndex)[0];
-        if (currentPlayer && currentPlayer.ui) {
-            const progressWidth = 180 * progress;
+  function describe(slot) {
+    const half = (h) => `${h[0]}${h[1] ? ` with ${h[1]} crown${h[1] > 1 ? 's' : ''}` : ''}`;
+    return `Tile ${slot.tile}: ${half(slot.l)} and ${half(slot.r)}`;
+  }
 
-            currentPlayer.ui.progressFill.displayWidth = progressWidth;
-            
-            // Change color based on remaining time
-            if (progress > 0.5) {
-                currentPlayer.ui.progressFill.setFillStyle(0x00ff00); // Green
-            } else if (progress > 0.25) {
-                currentPlayer.ui.progressFill.setFillStyle(0xffff00); // Yellow
-            } else {
-                currentPlayer.ui.progressFill.setFillStyle(0xff0000); // Red
-            }
+  function animate(el, frames, opts) {
+    if (!el || reduceMotion() || !el.animate) return;
+    try { el.animate(frames, opts); } catch { /* ignore */ }
+  }
+
+  // ---------------------------------------------------------------- state
+  function onState(s) {
+    const old = S;
+    if (old && s.seq < old.seq) return;
+    S = s;
+    recvAt = performance.now();
+    sending = false;
+
+    const fx = old ? diff(old, s) : null;
+
+    // who is on the big board
+    const key = turnKey(s);
+    const wasKey = turnKey(old);
+    if (key && key !== wasKey) {
+      picked = null;
+      anchor = null;
+      legal = null;
+      viewId = myId;
+      pinned = false;
+      if (old) { WBG.sound.play('turn'); WBG.haptic(30); }
+    }
+    if (!key) {
+      legal = null;
+      anchor = null;
+      if (!myPick()) picked = null;
+    }
+    if (picked !== null && !(s.cur || []).some((x) => x.tile === picked && !x.owner)) picked = null;
+    if (!player(viewId)) { viewId = null; pinned = false; }
+    if (!viewId) viewId = iAmPlaying() ? myId : (s.actor || s.players[0]?.id);
+    if (!pinned && (spectator || !iAmPlaying()) && s.actor) viewId = s.actor;
+
+    render();
+    if (fx) playFx(fx);
+    lastNotice = Math.max(lastNotice, ...s.notices.map((n) => n.id), 0);
+  }
+
+  function diff(old, s) {
+    const fx = { reveal: [], pawns: [], doms: [], notices: [], scoreUp: false, over: false };
+    if (s.cur && (!old.cur || old.cur[0]?.tile !== s.cur[0]?.tile)) fx.reveal = s.cur.map((x) => x.tile);
+    const owned = new Map();
+    for (const x of [...(old.cur || []), ...(old.prev || [])]) if (x.owner) owned.set(x.tile, x.owner);
+    for (const x of [...(s.cur || []), ...(s.prev || [])]) if (x.owner && !owned.has(x.tile)) fx.pawns.push(x);
+    for (const p of s.players) {
+      const was = old.players.find((q) => q.id === p.id);
+      const seen = new Set((was?.doms || []).map((d) => d.n));
+      for (const d of p.doms) if (!seen.has(d.n)) fx.doms.push({ id: p.id, n: d.n });
+      if (p.id === myId && was && p.score > was.score) fx.scoreUp = true;
+    }
+    fx.notices = s.notices.filter((n) => n.id > lastNotice);
+    fx.over = old.phase !== 'over' && s.phase === 'over';
+    return fx;
+  }
+
+  function playFx(fx) {
+    fx.reveal.forEach((tile, i) => {
+      WBG.sound.later('flip', i * 110);
+      const el = $('kd-cur-row').querySelector(`[data-tile="${tile}"]`);
+      animate(el, [
+        { transform: 'perspective(500px) rotateY(90deg)', opacity: 0 },
+        { transform: 'perspective(500px) rotateY(0deg)', opacity: 1 }
+      ], { duration: 380, delay: i * 110, easing: 'cubic-bezier(.2,.8,.3,1)', fill: 'backwards' });
+    });
+    for (const x of fx.pawns) {
+      WBG.sound.play(x.owner === myId ? 'click' : 'pop');
+      const row = S.cur?.some((c) => c.tile === x.tile) ? $('kd-cur-row') : $('kd-prev-row');
+      animate(row.querySelector(`[data-tile="${x.tile}"] .kd-pawn`), [
+        { transform: 'translateY(-26px) scale(1.7)', opacity: 0 },
+        { transform: 'translateY(2px) scale(0.95)', opacity: 1, offset: 0.7 },
+        { transform: 'none', opacity: 1 }
+      ], { duration: 420, easing: 'ease-out' });
+    }
+    for (const d of fx.doms) {
+      WBG.sound.play('place');
+      if (d.id === viewId) {
+        const el = $('kd-board').querySelector(`.kd-dom[data-n="${d.n}"]`);
+        if (el) {
+          const base = el.style.transform;
+          animate(el, [
+            { transform: `${base} scale(1.4)`, opacity: 0 },
+            { transform: `${base} scale(0.96)`, opacity: 1, offset: 0.7 },
+            { transform: `${base} scale(1)`, opacity: 1 }
+          ], { duration: 340, easing: 'ease-out' });
         }
+      }
+    }
+    for (const n of fx.notices) {
+      if (n.kind === 'discard') {
+        WBG.sound.play('bump');
+        const name = player(n.odId)?.name || 'A player';
+        WBG.toast(n.odId === myId ? `Tile ${n.tile} fits nowhere and was discarded` : `${name} discarded tile ${n.tile}: no legal spot`, { type: 'info', icon: 'info' });
+        animate($('kd-prev-row').querySelector(`[data-tile="${n.tile}"]`), [
+          { transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' },
+          { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }
+        ], { duration: 360 });
+      } else if (n.kind === 'place' && n.auto && n.odId === myId) {
+        WBG.toast('Time ran out: your tile was placed for you', { type: 'info' });
+      } else if (n.kind === 'pick' && n.auto && n.odId === myId) {
+        WBG.toast('Time ran out: a tile was picked for you', { type: 'info' });
+      } else if (n.kind === 'left') {
+        WBG.toast(`${player(n.odId)?.name || 'A player'} left: their turns are played automatically`, { type: 'info' });
+      }
+    }
+    if (fx.scoreUp) WBG.sound.later('coin', 260);
+    if (fx.over) WBG.sound.play('notify');
+  }
+
+  // ---------------------------------------------------------------- render
+  function render() {
+    if (!S) return;
+    renderDraft();
+    renderBanner();
+    renderPlayers();
+    renderBoard();
+    renderTray();
+    tick();
+  }
+
+  function slotHtml(slot, o) {
+    const pawn = slot.owner
+      ? `<img class="kd-pawn" src="${pawnSrc(colorOf(slot.owner))}" alt="${esc(player(slot.owner)?.name || '')}'s king" title="${esc(player(slot.owner)?.name || '')}">`
+      : '';
+    let mark = '';
+    if (slot.placed === 'placed') mark = `<span class="kd-mark">${WBG.icon('check', 'size-6')}</span>`;
+    else if (slot.placed === 'discarded') mark = `<span class="kd-mark">${WBG.icon('x', 'size-7')}</span>`;
+    return `<button type="button" class="kd-slot" data-tile="${slot.tile}" data-pick="${o.pick ? 1 : 0}" data-sel="${o.sel ? 1 : 0}"
+      data-active="${o.active ? 1 : 0}" data-done="${slot.placed || ''}" aria-label="${esc(describe(slot))}" ${o.pick ? '' : 'tabindex="-1"'}>
+      <img class="kd-tile" src="${tileSrc(slot.a)}" alt="" draggable="false" decoding="async">
+      <span class="kd-no">${slot.tile}</span>${pawn}${mark}</button>`;
+  }
+
+  function renderDraft() {
+    const prevLabel = $('kd-prev-label');
+    const curLabel = $('kd-cur-label');
+    const prevRow = $('kd-prev-row');
+    const curRow = $('kd-cur-row');
+    const n = S.draftSize;
+    prevLabel.hidden = prevRow.hidden = !S.prev;
+    curRow.hidden = !S.cur;
+    if (S.cur) curLabel.hidden = false;
+    curLabel.classList.toggle('mt-2', !!S.prev);
+
+    if (S.prev) {
+      setHtml(prevLabel, `${WBG.icon('hourglass', 'size-3.5')}<span>${S.cur ? 'Place in this order' : S.phase === 'over' ? 'Last row' : 'Final round: place only'}</span>`);
+      prevRow.style.setProperty('--n', n);
+      setHtml(prevRow, S.prev.map((s) => slotHtml(s, {
+        active: S.phase === 'play' && S.stage === 'place' && S.tile === s.tile
+      })).join(''));
+    }
+    if (S.cur) {
+      const mine = myPick();
+      const left = S.tilesLeft;
+      const text = S.phase === 'over' ? '' : S.prev ? 'New row: pick one' : 'First row: choose your starting tiles';
+      setHtml(curLabel, `${WBG.icon('target', 'size-3.5')}<span>${text}</span><span class="ml-auto font-medium tracking-normal text-slate-500 normal-case">${left} in the deck</span>`);
+      curRow.style.setProperty('--n', n);
+      setHtml(curRow, S.cur.map((s) => slotHtml(s, {
+        pick: mine && !s.owner && !sending, sel: picked === s.tile
+      })).join(''));
+    } else {
+      curLabel.hidden = true;
+    }
+  }
+
+  function renderBanner() {
+    const pawn = $('kd-banner-pawn');
+    const text = $('kd-banner-text');
+    const bar = $('kd-bar');
+    let msg;
+    let color = null;
+    if (S.phase === 'wait') msg = 'Waiting for everyone to load...';
+    else if (S.phase === 'over') {
+      const top = S.final?.filter((r) => r.rank === 1) || [];
+      msg = top.length === 1 ? `${top[0].name} wins` : top.length ? `Tie: ${top.map((t) => t.name).join(' and ')}` : 'Game over';
+    } else {
+      const a = player(S.actor);
+      color = a?.color;
+      const mine = S.actor === myId && !spectator;
+      if (S.stage === 'place') msg = mine ? `Your turn: place tile ${S.tile}` : `${a?.name} is placing tile ${S.tile}`;
+      else msg = mine ? 'Your turn: pick a tile' : `${a?.name} is picking a tile`;
+      if (a?.left) msg += ' (left)';
+    }
+    text.textContent = msg;
+    pawn.hidden = !color;
+    if (color) pawn.src = pawnSrc(color);
+    bar.style.background = color ? COLOR[color] : '#6366f1';
+
+    const steps = S.phase === 'play' ? S.steps : [];
+    $('kd-order').hidden = !steps.length;
+    const orderHtml = steps.map((st, i) => {
+      const p = player(st.id);
+      const label = st.id === myId && !spectator ? 'You' : firstName(p?.name);
+      return `<span class="kd-oc" data-done="${i < S.stepIdx ? 1 : 0}" data-active="${i === S.stepIdx ? 1 : 0}">
+        <img src="${pawnSrc(p?.color || 'red')}" alt=""><span>${esc(label)}</span>${st.place ? `<span class="n">#${st.place}</span>` : ''}</span>`;
+    }).join('');
+    if (setHtml($('kd-order'), orderHtml)) {
+      const act = $('kd-order').querySelector('[data-active="1"]');
+      if (act) $('kd-order').scrollLeft = act.offsetLeft - $('kd-order').clientWidth / 2 + act.clientWidth / 2;
+    }
+  }
+
+  function miniHtml(p) {
+    const cells = new Map(p.cells.map((c) => [`${c.r},${c.c}`, c]));
+    let minR = 0, maxR = 0, minC = 0, maxC = 0;
+    for (const c of p.cells) {
+      minR = Math.min(minR, c.r); maxR = Math.max(maxR, c.r);
+      minC = Math.min(minC, c.c); maxC = Math.max(maxC, c.c);
+    }
+    minR -= 1; maxR += 1; minC -= 1; maxC += 1;
+    const lim = S.size - 1;
+    minR = Math.max(minR, -lim); maxR = Math.min(maxR, lim); minC = Math.max(minC, -lim); maxC = Math.min(maxC, lim);
+    let out = '';
+    for (let r = minR; r <= maxR; r++) {
+      for (let c = minC; c <= maxC; c++) {
+        if (!r && !c) { out += '<b style="background:#e2e8f0"></b>'; continue; }
+        const cell = cells.get(`${r},${c}`);
+        out += cell
+          ? `<b class="${cell.k ? (cell.k > 1 ? 'k k2' : 'k') : ''}" style="background:${TERRAIN[cell.t]}"></b>`
+          : '<b style="background:rgb(255 255 255 / .05)"></b>';
+      }
+    }
+    return `<div class="kd-mini" style="grid-template-columns:repeat(${maxC - minC + 1},9px)" aria-hidden="true">${out}</div>`;
+  }
+
+  function renderPlayers() {
+    const list = $('kd-players-list');
+    const html = S.players.map((p) => {
+      const you = p.id === myId && !spectator;
+      const active = S.phase === 'play' && p.id === S.actor;
+      let extra = '';
+      if (S.phase === 'over') {
+        const bits = [];
+        if (p.middle) bits.push('Middle +10');
+        if (p.harmony) bits.push('Harmony +5');
+        if (bits.length) extra = `<p class="mt-0.5 text-[11px] font-semibold text-amber-300">${bits.join('  ')}</p>`;
+      }
+      return `<button type="button" class="kd-pcard card-flat flex items-center gap-2.5 p-2" data-id="${esc(p.id)}" aria-pressed="${p.id === viewId}" aria-label="Show ${esc(p.name)}'s kingdom">
+        ${miniHtml(p)}
+        <span class="min-w-0 flex-1">
+          <span class="flex items-center gap-1.5 text-[13px] font-semibold text-white">
+            <img src="${pawnSrc(p.color)}" class="size-5 shrink-0" alt="">
+            <span class="truncate">${esc(p.name)}</span>${you ? '<span class="chip shrink-0 !px-1.5 !py-0">you</span>' : ''}
+            ${active ? '<span class="dot shrink-0 animate-pulse-soft bg-amber-400"></span>' : ''}
+          </span>
+          <span class="block text-lg leading-tight font-extrabold text-white tabular-nums">${p.score}<span class="ml-1 text-[11px] font-medium text-slate-400">pts</span></span>
+          <span class="flex items-center gap-2 text-[11px] text-slate-400"><span class="inline-flex items-center gap-0.5 text-amber-300">${CROWN_SVG}${p.crowns}</span><span>best ${p.largest}</span>${p.left ? '<span class="text-rose-300">left</span>' : ''}</span>
+          ${extra}
+        </span>
+      </button>`;
+    }).join('');
+    setHtml(list, html);
+  }
+
+  // Board geometry: the view contains every square (plus legal spots) with one square of margin.
+  function viewFor(p) {
+    const lim = S.size - 1;
+    let minR = 0, maxR = 0, minC = 0, maxC = 0;
+    for (const c of p.cells) {
+      minR = Math.min(minR, c.r); maxR = Math.max(maxR, c.r);
+      minC = Math.min(minC, c.c); maxC = Math.max(maxC, c.c);
+    }
+    const ext = { minR, maxR, minC, maxC };
+    let v = { ...ext };
+    if (p.id === myId && legal) {
+      for (const [r, c, k] of legal.list) {
+        const r2 = r + ROT[k][0], c2 = c + ROT[k][1];
+        v.minR = Math.min(v.minR, r, r2); v.maxR = Math.max(v.maxR, r, r2);
+        v.minC = Math.min(v.minC, c, c2); v.maxC = Math.max(v.maxC, c, c2);
+      }
+    }
+    v = { minR: Math.max(v.minR - 1, -lim), maxR: Math.min(v.maxR + 1, lim), minC: Math.max(v.minC - 1, -lim), maxC: Math.min(v.maxC + 1, lim) };
+    return { ext, v };
+  }
+
+  function renderBoard() {
+    const board = $('kd-board');
+    const wrap = $('kd-board-wrap');
+    const p = player(viewId);
+    if (!p) return;
+    const { ext, v } = viewFor(p);
+    const cols = v.maxC - v.minC + 1;
+    const rows = v.maxR - v.minR + 1;
+    const W = Math.max(0, wrap.clientWidth - 4);
+    const H = Math.max(0, wrap.clientHeight - 4);
+    const cs = Math.max(18, Math.floor(Math.min(W / cols, H / rows, 84)));
+    geom = { cs, minR: v.minR, minC: v.minC, cols, rows };
+    board.style.width = `${cs * cols}px`;
+    board.style.height = `${cs * rows}px`;
+
+    const size = S.size;
+    const allow = { minR: ext.maxR - size + 1, maxR: ext.minR + size - 1, minC: ext.maxC - size + 1, maxC: ext.minC + size - 1 };
+    const px = (r, c) => `left:${(c - v.minC) * cs}px;top:${(r - v.minR) * cs}px`;
+    let h = `<div class="kd-cells" style="grid-template-columns:repeat(${cols},${cs}px);grid-auto-rows:${cs}px">`;
+    for (let r = v.minR; r <= v.maxR; r++) {
+      for (let c = v.minC; c <= v.maxC; c++) {
+        const off = r < allow.minR || r > allow.maxR || c < allow.minC || c > allow.maxC;
+        h += `<i class="kd-cell${off ? ' kd-off' : ''}"></i>`;
+      }
+    }
+    h += '</div>';
+
+    h += `<div class="kd-castle" style="${px(0, 0)};width:${cs}px;height:${cs}px;box-shadow:0 0 0 2px ${COLOR[p.color]}, 0 3px 6px rgb(0 0 0 / .4)"><img src="${IMG}castle.png" alt="Castle" draggable="false"></div>`;
+
+    for (const d of p.doms) {
+      const meta = { a: d.a };
+      h += domHtml(meta, d.r, d.c, d.rot, px, cs, `data-n="${d.n}"`, 'kd-dom');
     }
 
-    drawPlayerGrid(scene, centerX, centerY, playerName, gridSize, tileSize, color, placedGroup, userId) {
-        const container = scene.add.container(); // Acts like a group
-        const graphics = scene.add.graphics({ lineStyle: { width: 1, color: 0xffffff, alpha: 0.3 } });
-        container.add(graphics);
-    
-        const gridWidth = gridSize * tileSize;
-        const gridHeight = gridSize * tileSize;
-        const startX = centerX - gridWidth / 2;
-        const startY = centerY - gridHeight / 2;
-    
-        // Grid lines
-        for (let row = 0; row <= gridSize; row++) {
-            graphics.lineBetween(startX, startY + row * tileSize, startX + gridWidth, startY + row * tileSize);
+    const mine = p.id === myId && legal && myPlace();
+    if (mine) {
+      const meta = tileOf(S.tile);
+      const rotLegal = new Set();
+      for (const [r, c, k] of legal.list) if (k === rot) rotLegal.add(`${r},${c}`);
+      for (const key of rotLegal) {
+        const [r, c] = key.split(',').map(Number);
+        if (anchor && anchor.r === r && anchor.c === c) continue;
+        h += `<span class="kd-mk" style="${px(r, c)};width:${cs}px;height:${cs}px"><i></i></span>`;
+      }
+      if (anchor && meta) {
+        const ok = legal.set.has(`${anchor.r},${anchor.c},${rot}`);
+        h += domHtml(meta, anchor.r, anchor.c, rot, px, cs, '', 'kd-dom kd-prev');
+        const r2 = anchor.r + ROT[rot][0], c2 = anchor.c + ROT[rot][1];
+        for (const [r, c] of [[anchor.r, anchor.c], [r2, c2]]) {
+          h += `<span class="kd-ov ${ok ? 'ok' : 'bad'}" style="${px(r, c)};width:${cs}px;height:${cs}px"></span>`;
         }
-        for (let col = 0; col <= gridSize; col++) {
-            graphics.lineBetween(startX + col * tileSize, startY, startX + col * tileSize, startY + gridHeight);
-        }
-    
-        // Player name
-        const nameText = scene.add.text(centerX, startY - 20, playerName, { fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-        container.add(nameText);
-    
-        // Castle
-        const castleX = startX + 2 * tileSize + tileSize / 2;
-        const castleY = startY + 2 * tileSize + tileSize / 2;
-    
-        const castleTile = scene.add.rectangle(castleX, castleY, tileSize, tileSize, color)
-            .setStrokeStyle(2, 0xffffff)
-            .setOrigin(0.5);
-        const castleImage = scene.add.image(castleX, castleY, 'castle')
-            .setOrigin(0.5)
-            .setDisplaySize(tileSize, tileSize);
-    
-        container.add([castleTile, castleImage]);
-    
-        if (placedGroup) {
-            placedGroup.add(castleTile);
-        }
-    
-        return {
-            container,
-            graphics,
-            nameText,
-            castleTile,
-            castleImage,
-            gridSize,
-            tileSize,
-            centerX,
-            centerY,
-            playerName,
-            color,
-            placedGroup,
-            userId
-        };
+      }
     }
-    
-    createTestTiles(scene, tiles) {
-        let keys = Object.keys(tiles);
-        for (let i = 0; i < keys.length; i++) {
-            let tileNumber = keys[i];
-            let tile = scene.add.container(50 + (i%12)*205, 50 + Math.floor(i/12)*105); 
-            let rectangle = scene.add.rectangle(0,0, 200, 100, 0x00ff00) // 1x2 vertical
-                .setStrokeStyle(2, 0x000000)
-                .setInteractive();
-            let text = scene.add.text(0, 0, tileNumber, { fontSize: '18px', color: '#000000' }).setOrigin(0.5);
-            let image = scene.add.image(0, 0, tiles[tileNumber].asset)
-                .setOrigin(0.5);
-            image.setScale(200 / image.width, 100 / image.height);
-            tile.setData('data', tiles[tileNumber]);
-            tile.add([rectangle, image, text]);
-        }
+    setHtml(board, h);
+    board.style.cursor = mine ? 'pointer' : 'default';
+  }
+
+  const tileCache = new Map();
+  const tileOf = (n) => tileCache.get(n) || null;
+  function remember(s) {
+    for (const x of [...(s.cur || []), ...(s.prev || [])]) tileCache.set(x.tile, x);
+  }
+
+  function domHtml(meta, r, c, rotation, px, cs, attrs, cls) {
+    return `<img class="${cls}" ${attrs} src="${tileSrc(meta.a)}" alt="" draggable="false" style="${px(r, c)};width:${cs * 2}px;height:${cs}px;transform-origin:25% 50%;transform:rotate(${rotation * 90}deg)">`;
+  }
+
+  function renderTray() {
+    const tray = $('kd-tray');
+    const tile = $('kd-tray-tile');
+    const hint = $('kd-tray-hint');
+    const rotateBtn = $('kd-rotate');
+    const confirm = $('kd-confirm');
+    tray.hidden = spectator || !iAmPlaying();
+    if (tray.hidden) return;
+
+    const place = myPlace();
+    const pick = myPick();
+    tile.hidden = !place;
+    rotateBtn.hidden = !place;
+    confirm.hidden = !(place || pick);
+
+    if (place) {
+      const meta = tileOf(S.tile);
+      if (tile.dataset.tile !== String(S.tile) && meta) {
+        tile.dataset.tile = String(S.tile);
+        trayAngle = rot * 90;
+        tile.style.cssText = 'width:4.4rem;height:4.4rem;display:grid;place-items:center';
+        tile.innerHTML = `<img src="${tileSrc(meta.a)}" alt="Tile ${meta.tile}" draggable="false" style="width:4.4rem;height:2.2rem;border-radius:.35rem;box-shadow:0 0 0 1px rgb(0 0 0 / .5),0 4px 10px rgb(0 0 0 / .45);transition:transform .22s cubic-bezier(.2,.9,.3,1.2);transform:rotate(${trayAngle}deg)">`;
+      }
+      const img = tile.firstElementChild;
+      if (img) img.style.transform = `rotate(${trayAngle}deg)`;
+      const ok = anchor && legal && legal.set.has(`${anchor.r},${anchor.c},${rot}`);
+      confirm.innerHTML = `${WBG.icon('check', 'size-5')}<span>Place</span>`;
+      confirm.disabled = !ok || sending || !legal;
+      if (!legal) hint.textContent = 'Loading placements...';
+      else if (!anchor) hint.textContent = 'Tap a square to preview. Dots show where it fits. Rotate to turn the tile.';
+      else if (ok) hint.textContent = 'Fits. Tap Place, or tap the square again.';
+      else {
+        const other = [0, 1, 2, 3].some((k) => legal.set.has(`${anchor.r},${anchor.c},${k}`));
+        hint.textContent = other ? 'Does not fit like this. Try rotating.' : 'It cannot go there. Try another square.';
+      }
+    } else if (pick) {
+      tile.dataset.tile = '';
+      confirm.innerHTML = `${WBG.icon('check', 'size-5')}<span>Take tile</span>`;
+      confirm.disabled = picked === null || sending;
+      hint.textContent = picked === null ? 'Choose a domino from the new row. Tap it again to confirm.' : `Tile ${picked} selected. Tap it again or press Take tile.`;
+    } else {
+      tile.dataset.tile = '';
+      if (S.phase === 'over') hint.textContent = 'Final kingdoms. Tap a player to look at their board.';
+      else if (S.phase === 'wait') hint.textContent = 'The game starts once everyone has loaded.';
+      else {
+        const a = player(S.actor);
+        const mineLater = S.steps.some((st, i) => i > S.stepIdx && st.id === myId);
+        hint.textContent = `${a?.name || 'Someone'} is ${S.stage === 'place' ? 'placing' : 'picking'}.${mineLater ? ' You are up soon.' : ''}`;
+      }
     }
+  }
 
-    createTileStack(scene, count) {
-        for (let i = 0; i < count; i++) {
-            let flippedTile = scene.add.container(450, 250 + i*1.5); 
-            let rectangle = scene.add.rectangle(0,0, 200, 100, 0x00ff00) // 1x2 vertical
-                .setStrokeStyle(2, 0x000000)
-                .setInteractive();
-            let image = scene.add.image(0, 0, 'background')
-                .setOrigin(0.5);
-            image.setScale(200 / image.width, 100 / image.height);
-            flippedTile.add([rectangle, image]);
-            scene.tileStack.add(flippedTile);
-        }
-        this.tilesLeftText = scene.add.text(450, 330, `Tiles left: ${count}`, { fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
+  // ---------------------------------------------------------------- clock
+  function tick() {
+    if (!S) return;
+    const bar = $('kd-bar');
+    const clock = $('kd-clock');
+    if (S.phase !== 'play' || !S.deadline || !S.duration) {
+      bar.style.width = '0';
+      clock.hidden = true;
+      return;
     }
+    const remaining = Math.max(0, S.deadline - S.now - (performance.now() - recvAt));
+    const frac = Math.min(1, remaining / S.duration);
+    bar.style.width = `${(frac * 100).toFixed(1)}%`;
+    const secs = Math.ceil(remaining / 1000);
+    const mine = S.actor === myId && !spectator;
+    clock.hidden = false;
+    clock.textContent = `${secs}s`;
+    clock.classList.toggle('chip-danger', secs <= 5 && mine);
+    if (mine && secs <= 5 && secs > 0 && secs !== lastSecond) WBG.sound.play('tick');
+    lastSecond = secs;
+  }
 
-    drawTiles(scene, drawnTiles) {
-        this.drawnTiles.length = 0; // Reset drawn tiles array
-        drawnTiles.forEach((tileData, index) => {
-            // Starting position (tile stack position - adjust these coordinates to match your stack)
-            const startX = 450; // Adjust to your tile stack X position
-            const startY = 250; // Adjust to your tile stack Y position
-            
-            // Final position
-            const finalX = 700 + index * 205;
-            const finalY = 250;
-            
-            // Remove the tile from the stack
-            const children = scene.tileStack.getChildren();
-            if (children.length > 0) {
-                const lastTile = children[children.length - 1];
-                scene.tileStack.remove(lastTile, true, true); // Remove from scene and destroy
-            } 
-            this.tilesLeftText.text = `Tiles left: ${children.length}`;
+  // ---------------------------------------------------------------- input
+  function cellAt(clientX, clientY) {
+    if (!geom) return null;
+    const rect = $('kd-board').getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (x < 0 || y < 0 || x >= rect.width || y >= rect.height) return null;
+    return { r: Math.floor(y / geom.cs) + geom.minR, c: Math.floor(x / geom.cs) + geom.minC };
+  }
 
-            // Create tile container at starting position
-            const tile = scene.add.container(startX, startY);
-            
-            // Create tile elements
-            const rectangle = scene.add.rectangle(0, 0, 200, 100, 0x00ff00)
-                .setStrokeStyle(2, 0x000000)
-                .setInteractive();
-            
-            const text = scene.add.text(0, 0, tileData.number, { fontSize: '24px', color: '#ffffff' })
-                .setOrigin(0.5)
-                .setAlpha(1);
-            
-            // Back of tile (shown initially)
-            const backImage = scene.add.image(0, 0, 'background')
-                .setOrigin(0.5);
-            backImage.setScale(200 / backImage.width, 100 / backImage.height);
-            
-            // Front of tile (hidden initially)
-            const frontImage = scene.add.image(0, 0, tileData.asset)
-                .setOrigin(0.5)
-                .setAlpha(0);
-            frontImage.setScale(200 / frontImage.width, 100 / frontImage.height);
-            
-            // Set tile data
-            tile.setData('data', tileData);
-            console.log(index, ' tileData:', tileData);
-            tile.setData('drawn-index', index);
-            tile.add([rectangle, backImage, frontImage, text]);
-            
-            this.drawnTiles.push(tile);
+  function canInteract() { return myPlace() && !!legal && viewId === myId && !sending; }
 
-            // Animation sequence
-            const animationDelay = index * 300; // Stagger each tile by 200ms
-            
-            // 1. Move tile from stack to position
-            scene.tweens.add({
-                targets: tile,
-                x: finalX,
-                y: finalY,
-                duration: 700,
-                ease: 'Power2.easeOut',
-                delay: animationDelay,
-                onComplete: () => {
-                    // 2. Wait a bit, then flip the tile
-                    scene.time.delayedCall(1000, () => {
-                        this.flipTile(scene, tile, backImage, frontImage, text, tileData);
-                    });
-                }
-            });
-        });
+  function setAnchor(cell, quiet) {
+    if (!cell) return;
+    if (anchor && anchor.r === cell.r && anchor.c === cell.c) return;
+    anchor = cell;
+    if (!quiet) {
+      const ok = legal.set.has(`${cell.r},${cell.c},${rot}`);
+      WBG.sound.play(ok ? 'click' : 'tick');
+      WBG.haptic(8);
     }
+    renderBoard();
+    renderTray();
+  }
 
-    flipTile(scene, tile, backImage, frontImage, text, tileData) {
-        // Flip animation - scale X to 0, switch images, scale back to 1
-        scene.tweens.add({
-            targets: [tile],
-            scaleX: 0,
-            duration: 200,
-            ease: 'Power2.easeIn',
-            onComplete: () => {
-                // Switch from back to front at the middle of flip
-                backImage.setAlpha(0);
-                frontImage.setAlpha(1);
-                text.setAlpha(0);
-                
-                // Scale back up
-                scene.tweens.add({
-                    targets: [tile],
-                    scaleX: 1,
-                    duration: 200,
-                    ease: 'Power2.easeOut'
-                });
-            }
-        });
+  function commitPlace() {
+    if (!canInteract() || !anchor) return;
+    if (!legal.set.has(`${anchor.r},${anchor.c},${rot}`)) {
+      WBG.sound.play('error');
+      WBG.haptic([20, 40, 20]);
+      return;
     }
+    sending = true;
+    WBG.haptic(18);
+    socket.emit('kingdomino-place', { tile: S.tile, r: anchor.r, c: anchor.c, rot });
+    renderTray();
+  }
 
-    placeOtherPlayersTile(userId, tile, row, col, rotation) {
-        const player = this.players[userId];
-        if (!player) return;
-        
-        let targetGrid = null;
-        if (this.mainGrid && this.mainGrid.userId === userId) {
-            targetGrid = this.mainGrid;
-        } else if (this.secondGrid && this.secondGrid.userId === userId) {
-            targetGrid = this.secondGrid;
-        } else if (this.thirdGrid && this.thirdGrid.userId === userId) {
-            targetGrid = this.thirdGrid;
-        } else if (this.fourthGrid && this.fourthGrid.userId === userId) {
-            targetGrid = this.fourthGrid;
-        }
-        if (!targetGrid) return;
-        
-        // Calculate position on the target grid
-        const gridStartX = targetGrid.centerX - (targetGrid.gridSize * targetGrid.tileSize) / 2;
-        const gridStartY = targetGrid.centerY - (targetGrid.gridSize * targetGrid.tileSize) / 2;
-        
-        const offset = this.tilePlacementSystem.getCenterOffset(rotation || 0);
-        const centerX = gridStartX + (col + offset.x) * targetGrid.tileSize;
-        const centerY = gridStartY + (row + offset.y) * targetGrid.tileSize;
+  function commitPick() {
+    if (!myPick() || picked === null || sending) return;
+    sending = true;
+    WBG.haptic(18);
+    socket.emit('kingdomino-pick', { tile: picked });
+    render();
+  }
 
-        tile.setPosition(centerX, centerY);
+  function doRotate() {
+    if (!canInteract()) return;
+    rot = (rot + 1) % 4;
+    trayAngle += 90;
+    WBG.sound.play('flip');
+    WBG.haptic(8);
+    renderBoard();
+    renderTray();
+  }
 
-        const degToRad = Math.PI / 180;
-        tile.setRotation((rotation || 0) * degToRad);
+  $('kd-board').addEventListener('click', (e) => {
+    if (!canInteract()) return;
+    const cell = cellAt(e.clientX, e.clientY);
+    if (!cell) return;
+    if (anchor && anchor.r === cell.r && anchor.c === cell.c) return commitPlace();
+    setAnchor(cell);
+  });
+  $('kd-board').addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || !canInteract()) return;
+    const cell = cellAt(e.clientX, e.clientY);
+    if (cell) setAnchor(cell, true);
+  });
 
-        const isRotated = rotation === 90 || rotation === 270;
-        // Get the original tile dimensions (assuming they were created with a standard size)
-        const originalTileWidth = isRotated ? this.mainGrid.tileSize : this.mainGrid.tileSize * 2;
-        const originalTileHeight = isRotated ? this.mainGrid.tileSize * 2 : this.mainGrid.tileSize;
-        
-        // Calculate new dimensions for target grid
-        const newTileWidth = isRotated ? targetGrid.tileSize : targetGrid.tileSize * 2;
-        const newTileHeight = isRotated ? targetGrid.tileSize * 2 : targetGrid.tileSize;
-        
-        // Calculate scale factors
-        const scaleX = newTileWidth / originalTileWidth;
-        const scaleY = newTileHeight / originalTileHeight;
-        
-        // Apply scaling
-        tile.setScale(scaleX, scaleY);
+  $('kd-rotate').addEventListener('click', doRotate);
+  $('kd-confirm').addEventListener('click', () => (myPlace() ? commitPlace() : commitPick()));
 
-        targetGrid.placedGroup.add(tile);
+  $('kd-cur-row').addEventListener('click', (e) => {
+    const btn = e.target.closest('.kd-slot[data-pick="1"]');
+    if (!btn || !myPick() || sending) return;
+    const tile = Number(btn.dataset.tile);
+    if (picked === tile) return commitPick();
+    picked = tile;
+    WBG.sound.play('click');
+    WBG.haptic(8);
+    renderDraft();
+    renderTray();
+  });
 
-        this.tilePlacementSystem.lockTileInPlace(tile);
-    }
+  $('kd-players-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('.kd-pcard');
+    if (!btn || !S) return;
+    viewId = btn.dataset.id;
+    pinned = true;
+    WBG.sound.play('click');
+    renderPlayers();
+    renderBoard();
+  });
 
-    getColorName(color) {
-        switch (color) {
-            case 0xff0000: return 'red';
-            case 0x00ff00: return 'green';
-            case 0x0000ff: return 'blue';
-            case 0xffff00: return 'yellow';
-            default: return 'unknown';
-        }
-    }
-    
-    update() {
-        // Update turn progress bar
-        this.updateTurnProgress();
-    }
-    
-    create() {
-        socket.emit("kingdomino-create-start");
+  // drag the tray tile onto the board
+  const trayTile = $('kd-tray-tile');
+  trayTile.addEventListener('pointerdown', (e) => {
+    if (!canInteract()) return;
+    dragging = true;
+    dragMoved = false;
+    try { trayTile.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    e.preventDefault();
+  });
+  trayTile.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const cell = cellAt(e.clientX, e.clientY);
+    if (cell) { dragMoved = true; setAnchor(cell, true); }
+  });
+  const endDrag = () => { dragging = false; };
+  trayTile.addEventListener('pointerup', endDrag);
+  trayTile.addEventListener('pointercancel', endDrag);
+  trayTile.addEventListener('click', () => { if (!dragMoved) doRotate(); dragMoved = false; });
 
-        // Every text in the scene uses the site font unless it asks for another one.
-        const addText = this.add.text.bind(this.add);
-        this.add.text = (x, y, text, style = {}) => addText(x, y, text, { fontFamily: 'Inter, system-ui, sans-serif', ...style });
-    
-        const gameBoard = document.getElementById('game-board');
-    
-        const loadingLabel = document.getElementById("loading-label");
-    
-        this.backgroundRect = this.add.rectangle(
-            0,
-            0,
-            this.scale.width,
-            this.scale.height
-        )
-        .setOrigin(0)
-        .setStrokeStyle(1, 0xffffff, 0.08);
-    
-        this.add.text(150, 5, 'Kingdomino', { fontSize: '32px', color: '#a5b4fc', fontFamily: 'Inter, system-ui, sans-serif', fontStyle: 'bold' });
-    
-        this.placedTiles = this.add.group();
-        this.placedTiles2ndGrid = this.add.group();
-        this.placedTiles3rdGrid = this.add.group();
-        this.placedTiles4thGrid = this.add.group();
+  const onKey = (e) => {
+    if (e.target && /input|textarea/i.test(e.target.tagName)) return;
+    if (e.key === 'r' || e.key === 'R') doRotate();
+    else if (e.key === 'Enter' && myPlace()) commitPlace();
+  };
+  document.addEventListener('keydown', onKey);
 
-        this.tileStack = this.add.group();
-        this.placedPawns = this.add.group();
+  // ---------------------------------------------------------------- sockets
+  socket.on('kingdomino-state', (s) => { remember(s); onState(s); });
 
-        this.previewHighlight = this.add.rectangle(0, 0, 200, 100, 0x00ff00, 0.3).setVisible(false).setDepth(0);
-        this.previewTile = this.add.container(0,0).setVisible(false);
+  socket.on('kingdomino-legal', (m) => {
+    if (!S || S.tile !== m.tile || !myPlace()) return;
+    const set = new Set(m.list.map(([r, c, k]) => `${r},${c},${k}`));
+    legal = { tile: m.tile, list: m.list, set };
+    // start with a rotation that has at least one legal spot
+    if (!m.list.some(([, , k]) => k === rot)) rot = m.list[0] ? m.list[0][2] : 0;
+    trayAngle = rot * 90;
+    render();
+  });
 
-        // Socket event listeners
-        for (const ev of ["kingdomino-game-start", "kingdomino-draw-tiles", "kingdomino-players-update", "kingdomino-turn-info", "kingdomino-tile-selected", "kingdomino-tile-placed", "kingdomino-tile-selection-end", "kingdomino-tile-selection-start", "kingdomino-game-end"]) socket.off(ev);
+  socket.on('kingdomino-reject', (m) => {
+    sending = false;
+    WBG.sound.play('error');
+    WBG.haptic([20, 40, 20]);
+    WBG.toast(m.message || 'That move is not allowed', { type: 'error' });
+    render();
+  });
 
-        socket.on("kingdomino-game-start", ({ players: gameDataPlayers, currentPlayerIndex: gameDataCurrentPlayerIndex, turnStartTime: gameDataTurnStartTime, tileCount: gameDataTileCount }) => {
-            document.getElementById("loading-label")?.remove();
-            
-            // Initialize players from server data
-            this.players = gameDataPlayers;
+  const onConnect = () => WBG.gameReady(READY);
+  socket.on('connect', onConnect);
 
-            this.myUserId = localStorage.getItem('userId');
-            this.isSpectator = WBG.isSpectator;
-            this.myData = this.isSpectator ? null : this.players[this.myUserId]; // host view has no seat
-            // Host view: the first player's kingdom takes the big slot.
-            this.mainId = this.isSpectator ? Object.keys(this.players)[0] : this.myUserId;
-            const mainPlayer = this.players[this.mainId];
-            this.myColorName = this.getColorName(mainPlayer.color);
+  const ro = new ResizeObserver(() => { if (S) { renderBoard(); } });
+  ro.observe($('kd-board-wrap'));
+  const clockTimer = setInterval(tick, 100);
 
-            // Player grid
-            this.mainGrid = this.drawPlayerGrid(this, this.scale.width/2, this.scale.height-300, mainPlayer.name, 5, 100, mainPlayer.color, this.placedTiles, this.mainId);
-        
-            // Other players (no interactivity needed)
-            const playerKeys = Object.keys(this.players);
-            playerKeys.splice(playerKeys.indexOf(this.mainId), 1); // Remove current player from the list
-            const playerSize = playerKeys.length;
-            if (playerSize > 0) {
-                const userId = playerKeys[0];
-                const player = this.players[userId];
-                this.secondGrid = this.drawPlayerGrid(this, this.scale.width/2, 110, player.name, 5, 30, player.color, this.placedTiles2ndGrid, userId);
-            }
-            if (playerSize > 1) {
-                const userId = playerKeys[1];
-                const player = this.players[userId];
-                this.thirdGrid = this.drawPlayerGrid(this, 180, this.scale.height/2, player.name, 5, 30, player.color, this.placedTiles3rdGrid, userId);
-            }
-            if (playerSize > 2) {
-                const userId = playerKeys[2];
-                const player = this.players[userId];
-                this.fourthGrid = this.drawPlayerGrid(this, this.scale.width-180, this.scale.height/2, player.name, 5, 30, player.color, this.placedTiles4thGrid, userId);
-            }
+  WBG.onTeardown(() => {
+    clearInterval(clockTimer);
+    ro.disconnect();
+    document.removeEventListener('keydown', onKey);
+    socket.off('connect', onConnect);
+  });
 
-            this.titleEffect = new TitleEffect(this);
-            const iconKey = 'pawn-' + this.myColorName;
-            const targetX = 0;
-            const targetY = this.scale.height;
-            if (!this.isSpectator) this.showTitleEffect('You are ' + this.myColorName, iconKey, targetX, targetY, {
-                fontSize: '42px',
-                animationDuration: 400,
-                displayDuration: 1000,
-                fadeOutDuration: 400
-            });
-            
-            this.currentPlayerIndex = gameDataCurrentPlayerIndex;
-            this.turnStartTime = gameDataTurnStartTime;
-            
-            this.tilePlacementSystem = new TilePlacementSystem(this, this.mainGrid);
-            this.createTileStack(this, gameDataTileCount);
-            this.createPlayerList();
-        });
-
-        socket.on("kingdomino-draw-tiles", ({ drawnTiles }) => {
-            this.drawTiles(this, drawnTiles);
-        });
-        
-        socket.on("kingdomino-players-update", ({ players: playersData }) => {
-            this.players = playersData;
-            if (!this.isSpectator) this.myData = this.players[this.myUserId]; // Update myData reference
-            if (this.playerListContainer) {
-                this.playerListContainer.destroy();
-                this.createPlayerList();
-            }
-        });
-        
-        socket.on('kingdomino-turn-info', ({ turnIndex, turnStartTime, turnEndTime }) => {
-            this.currentPlayerIndex = turnIndex;
-            this.currentTurnStartTime = turnStartTime;
-            this.currentTurnEndTime = turnEndTime;
-            this.updatePlayerListHighlight();
-
-            if (this.isMyTurn()) {
-                if (this.turnCount !== 0) {
-                    this.showTitleEffect('Your turn', 'pawn-' + this.myColorName, this.scale.width / 2, this.scale.height / 2, {
-                        fontSize: '32px',
-                        animationDuration: 400,
-                        displayDuration: 1000,
-                        fadeOutDuration: 400
-                    });
-                }
-
-                if (this.isTileSelecting) {
-                    this.drawnTiles.forEach(tile => {
-                        //add delays
-                        this.tilePlacementSystem.makeTileSelectable(tile, !tile.getData('isSelected'));
-                    });
-                } else {
-                    // Find my selected tile and make it draggable
-                    const myTile = this.drawnTiles.find(tile => tile.getData('data').number === this.myData.selectedTile);
-                    if (myTile) {
-                        this.tilePlacementSystem.makeTileDraggable(myTile, true);
-                        // Add visual pulse effect to show which tile to place
-                        const rectangle = myTile.list[0];
-                        rectangle.setStrokeStyle(4, 0xffff00);
-                        this.tweens.add({
-                            targets: myTile,
-                            scaleX: 1.05,
-                            scaleY: 1.05,
-                            duration: 300,
-                            yoyo: true,
-                            repeat: 2,
-                            ease: 'Sine.easeInOut'
-                        });
-                    }
-                }
-            } else {
-                if (this.isTileSelecting) {
-                    this.drawnTiles.forEach(tile => {
-                        this.tilePlacementSystem.makeTileSelectable(tile, false);
-                    });
-                } else {
-                    /*this.drawnTiles.forEach(tile => {
-                        this.tilePlacementSystem.makeTileDraggable(tile, false);
-                    });*/
-                }
-            }
-
-            this.turnCount++;
-        });
-        
-        socket.on("kingdomino-tile-selected", ({ odId, tileNumber, drawnIndex }) => {
-            
-            this.players[odId].selectedTile = tileNumber;
-            
-            // Update myData if this is the current player
-            if (odId === this.myUserId) {
-                this.myData = this.players[this.myUserId];
-            }
-
-            const tile = this.drawnTiles.find(t => t.getData('data').number === tileNumber);
-            if (!tile) return;
-            tile.setData('isSelected', true);
-            tile.setData('selectedBy', odId);
-
-            const pawn = this.add.image(700 + drawnIndex * 205, 300, 'pawn-' + this.getColorName(this.players[odId].color));
-            pawn.setDisplaySize(50,50);
-            pawn.setData('tileNumber', tileNumber);
-            this.placedPawns.add(pawn);
-
-            console.log(`Tile ${tileNumber} selected by ${this.players[odId].name}`);
-        });
-
-        socket.on("kingdomino-tile-placed", ({ odId, tileNumber, row, col, rotation }) => {
-            
-            // Find the tile
-            const tileIndex = this.drawnTiles.findIndex(tile => tile.getData('data').number === tileNumber);
-            if (tileIndex === -1) return;
-            
-            const tile = this.drawnTiles[tileIndex];
-            
-            // Check if tile was discarded (row/col = -1)
-            if (row === -1 && col === -1) {
-                // Tile was discarded due to timeout
-                tile.destroy();
-                WBG.toast(`${this.players[odId].name} timed out - tile discarded`);
-            } else {
-                if (odId !== this.myUserId) {
-                    this.placeOtherPlayersTile(odId, tile, row, col, rotation);
-                } else if (!tile.getData('placed')) {
-                    this.tilePlacementSystem.placeTileOnGrid(tile, row, col);
-                }
-            }
-            
-            // Remove from drawnTiles array
-            this.drawnTiles.splice(tileIndex, 1);
-
-            this.placedPawns.getChildren().forEach(pawn => {
-                if (pawn.getData('tileNumber') === tileNumber) {
-                    this.placedPawns.remove(pawn, true, true);
-                }
-            });
-        });
-
-        socket.on("kingdomino-tile-selection-end", () => {
-            this.isTileSelecting = false;
-            /*this.showTitleEffect('Tile selection ended', null, this.scale.width / 2, this.scale.height / 2, {
-                fontSize: '32px',
-                animationDuration: 400,
-                displayDuration: 1000,
-                fadeOutDuration: 400
-            });*/
-            WBG.toast('Tile selection ended.');
-        });
-
-        socket.on("kingdomino-tile-selection-start", () => {
-            this.isTileSelecting = true;
-            /*this.showTitleEffect('Tile selection started', null, this.scale.width / 2, this.scale.height / 2, {
-                fontSize: '32px',
-                animationDuration: 400,
-                displayDuration: 1000,
-                fadeOutDuration: 400
-            });*/
-            WBG.toast('Tile selection started.');
-        });
-
-        socket.on("kingdomino-game-end", ({ players }) => {
-            this.showTitleEffect('Game ended!', null, this.scale.width / 2, this.scale.height / 2, {
-                fontSize: '32px',
-                animationDuration: 400,
-                displayDuration: 1000,
-                fadeOutDuration: 400
-            });
-            WBG.toast('Game ended.');
-        });
-
-        WBG.gameReady("kingdomino-create-finish");
-    }
-    
-    resize(width, height) {
-        this.backgroundRect.setSize(width, height);
-        
-        // Reposition player list
-        if (this.playerListContainer) {
-            this.playerListContainer.setPosition(20, height - 20);
-        }
-
-        
-    }
-}
-
-const config = {
-    type: Phaser.AUTO,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: 1920,
-        height: 1080,
-        parent: 'game-board',
-    },
-    transparent: true,
-    scene: KingdominoScene
-};
-
-const game = new Phaser.Game(config);
-
-const refreshScale = () => game.scale.refresh();
-window.addEventListener('resize', refreshScale);
-screen.orientation?.addEventListener('change', refreshScale);
-const onVisible = () => { if (!document.hidden) setTimeout(refreshScale, 100); };
-document.addEventListener('visibilitychange', onVisible);
-setTimeout(refreshScale, 100);
-
-WBG.onTeardown(() => {
-    window.removeEventListener('resize', refreshScale);
-    screen.orientation?.removeEventListener('change', refreshScale);
-    document.removeEventListener('visibilitychange', onVisible);
-    game.destroy(true);
-});
+  render();
+  WBG.gameReady(READY);
+})();

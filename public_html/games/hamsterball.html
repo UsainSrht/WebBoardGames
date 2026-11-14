@@ -1,43 +1,71 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<div id="hb-root" class="absolute inset-0 touch-none select-none" style="background: radial-gradient(circle at 50% 40%, #1a2347 0%, #0b1020 70%)">
-  <canvas id="canvas" class="block size-full"></canvas>
+<style>
+  @keyframes hb-count { 0% { opacity: 0; transform: scale(1.9); } 22% { opacity: 1; transform: scale(1); } 80% { opacity: 1; transform: scale(0.96); } 100% { opacity: 0; transform: scale(0.8); } }
+  @keyframes hb-banner { 0% { opacity: 0; transform: translateY(16px) scale(0.94); } 100% { opacity: 1; transform: none; } }
+  .hb-count-anim { animation: hb-count 0.95s ease-out both; }
+  .hb-banner-anim { animation: hb-banner 0.35s cubic-bezier(0.2, 1.2, 0.4, 1) both; }
+  @media (prefers-reduced-motion: reduce) { .hb-count-anim, .hb-banner-anim { animation-duration: 0.01s; } }
+</style>
+<div id="hb-root" class="absolute inset-0 touch-none overflow-hidden select-none" style="background: radial-gradient(circle at 50% 42%, #1c2650 0%, #0b1020 72%)">
+  <canvas id="canvas" class="block size-full" aria-label="Hamsterball plate"></canvas>
 
-  <!-- Scoreboard -->
-  <aside class="card-flat pointer-events-none absolute top-16 left-3 w-52 p-2.5 sm:w-60" aria-label="Players">
+  <!-- Round / status chips -->
+  <div class="pointer-events-none absolute inset-x-0 top-16 flex flex-col items-center gap-1.5 px-3">
+    <div id="hb-round" class="chip chip-brand" hidden></div>
+    <div id="hb-danger" class="chip bg-rose-500/20 text-rose-200" hidden><i data-icon="bolt" class="size-3.5"></i>Plate is shrinking</div>
+  </div>
+
+  <!-- Players: strip on phones, column on wider screens -->
+  <ul id="hb-strip" class="pointer-events-none absolute inset-x-2 top-[6.6rem] flex flex-wrap justify-center gap-1 sm:hidden" aria-label="Players"></ul>
+  <aside class="card-flat pointer-events-none absolute top-16 left-3 hidden w-60 p-2.5 sm:block" aria-label="Players">
     <p class="mb-1.5 flex items-center gap-2 px-1 text-xs font-semibold tracking-wide text-slate-400 uppercase"><i data-icon="users" class="size-4 text-brand-300"></i>Players</p>
-    <ul id="playerInfo" class="max-h-40 space-y-1 overflow-hidden sm:max-h-64"></ul>
+    <ul id="hb-list" class="max-h-[60vh] space-y-1 overflow-hidden"></ul>
   </aside>
 
+  <!-- Countdown -->
+  <div id="hb-count" class="pointer-events-none absolute inset-x-0 top-[34%] text-center text-8xl font-black tracking-tight text-white drop-shadow-[0_6px_24px_rgba(99,102,241,0.65)] sm:text-9xl" aria-live="assertive"></div>
+
+  <!-- Round result -->
+  <div id="hb-banner" class="card pointer-events-none absolute top-[26%] left-1/2 w-80 max-w-[90vw] -translate-x-1/2 p-5 text-center" hidden>
+    <span id="hb-banner-icon" class="mx-auto mb-2 grid size-12 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"></span>
+    <h2 id="hb-banner-title" class="text-xl font-bold text-white"></h2>
+    <p id="hb-banner-sub" class="mt-1 text-sm text-slate-400"></p>
+  </div>
+
   <!-- Loading -->
-  <div id="loadingIndicator" class="absolute inset-0 grid place-items-center">
+  <div id="hb-loading" class="absolute inset-0 grid place-items-center">
     <div class="text-center">
       <span class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-white/8 text-brand-300"><i data-icon="spinner" class="size-7 animate-spin"></i></span>
-      <p id="connectionStatus" class="font-semibold text-white">Waiting for everyone to load...</p>
+      <p id="hb-loading-text" class="font-semibold text-white">Waiting for everyone to load...</p>
     </div>
   </div>
 
-  <!-- Eliminated / spectating -->
-  <div id="gameStatus" class="card animate-pop absolute top-1/3 left-1/2 w-72 max-w-[90vw] -translate-x-1/2 p-5 text-center" hidden>
-    <span class="mx-auto mb-2 grid size-12 place-items-center rounded-2xl bg-rose-500/15 text-rose-300"><i data-icon="heart" class="size-6"></i></span>
-    <h2 id="statusTitle" class="text-xl font-bold text-white">Knocked out</h2>
-    <p id="statusMessage" class="mt-1 text-sm text-slate-400">You fell off the plate. Watching the rest of the match.</p>
+  <!-- Bottom: stamina / out / spectating -->
+  <div class="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-3 pb-[env(safe-area-inset-bottom)]">
+    <div id="hb-stamina" class="w-[clamp(6rem,30vw,13rem)]" hidden>
+      <div class="mb-1 flex items-center justify-center gap-1.5 text-[11px] font-semibold tracking-wide text-slate-300 uppercase"><i data-icon="bolt" class="size-3.5 text-amber-300"></i>Boost</div>
+      <div class="h-2.5 overflow-hidden rounded-full bg-white/12 ring-1 ring-white/10"><div id="hb-stamina-fill" class="h-full w-full origin-left rounded-full bg-gradient-to-r from-amber-400 to-orange-400"></div></div>
+    </div>
+    <div id="hb-out" class="chip chip-brand" hidden><i data-icon="eye" class="size-3.5"></i>You are out. Watching the rest of the round</div>
+    <div id="hb-spectator" class="chip chip-brand" hidden><i data-icon="eye" class="size-3.5"></i>Host view: watching the match</div>
   </div>
 
-  <div id="spectatorNote" class="chip chip-brand pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2" hidden><i data-icon="eye" class="size-3.5"></i>Host view: watching the match</div>
-
-  <!-- Keyboard hint (hidden on touch devices) -->
-  <aside id="controls" class="card-flat pointer-events-none absolute right-4 bottom-4 hidden p-3 text-xs text-slate-300 [@media(pointer:fine)]:block" aria-label="Controls">
+  <!-- Keyboard hint (desktop) -->
+  <aside id="hb-keys" class="card-flat pointer-events-none absolute right-4 bottom-4 hidden p-3 text-xs text-slate-300" aria-label="Controls">
     <p class="mb-1.5 flex items-center gap-2 font-semibold text-white"><i data-icon="keyboard" class="size-4 text-brand-300"></i>Controls</p>
     <p><span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> or arrows to move</p>
     <p class="mt-1"><span class="kbd">Space</span> to boost</p>
-    <p class="mt-2 text-slate-400">Knock rivals off the tilting plate.</p>
   </aside>
 
   <!-- Touch controls -->
-  <div id="touchControls" class="absolute inset-x-0 bottom-0 hidden items-end justify-between p-5 pb-8 [@media(pointer:coarse)]:flex">
-    <div id="joystick" class="relative size-32 rounded-full border-2 border-white/20 bg-white/8 backdrop-blur-sm" role="application" aria-label="Move joystick">
-      <div id="joystickKnob" class="absolute top-1/2 left-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/40 shadow-lg"></div>
+  <div id="hb-touch" class="pointer-events-none absolute inset-0" hidden>
+    <div id="hb-zone" class="absolute bottom-0 left-0 h-[48%] w-[64%]"></div>
+    <div id="hb-stick" class="pointer-events-none absolute size-[7.5rem] rounded-full border-2 border-white/25 bg-white/10 opacity-60 backdrop-blur-sm transition-opacity" style="left: 1.25rem; bottom: 2.25rem">
+      <div id="hb-knob" class="absolute top-1/2 left-1/2 size-14 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/45 shadow-lg"></div>
     </div>
-    <button id="boostBtn" class="btn btn-secondary size-20 flex-col gap-1 rounded-full px-0 text-xs" aria-label="Boost"><i data-icon="bolt" class="size-6"></i>Boost</button>
+    <button id="hb-boost" type="button" class="absolute right-5 bottom-9 grid size-24 touch-none place-items-center rounded-full border-2 border-white/25 bg-white/10 text-white backdrop-blur-sm active:bg-amber-400/25" aria-label="Boost">
+      <svg class="absolute inset-0 size-full -rotate-90" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="5"/><circle id="hb-boost-ring" cx="50" cy="50" r="46" fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round" stroke-dasharray="289" stroke-dashoffset="0"/></svg>
+      <span class="flex flex-col items-center gap-0.5 text-[11px] font-bold tracking-wide uppercase"><i data-icon="bolt" class="size-7 text-amber-300"></i>Boost</span>
+    </button>
   </div>
 </div>

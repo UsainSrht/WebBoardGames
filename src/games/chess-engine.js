@@ -226,3 +226,37 @@ export function perft(state, depth) {
   for (const m of legalMoves(state)) n += perft(applyMove(state, m), depth - 1);
   return n;
 }
+
+/**
+ * Standard algebraic notation for `move` played from `state`.
+ * `legal` is legalMoves(state) (needed for disambiguation); the check / mate suffix is
+ * derived from the position after the move.
+ */
+export function toSan(state, move, legal = legalMoves(state)) {
+  const piece = state.b[move.from];
+  const type = piece.toUpperCase();
+  const capture = !!state.b[move.to] || move.enPassant;
+  let san;
+
+  if (move.castle) {
+    san = move.castle === 'k' ? 'O-O' : 'O-O-O';
+  } else if (type === 'P') {
+    san = (capture ? squareName(move.from)[0] + 'x' : '') + squareName(move.to);
+    if (move.promo) san += '=' + move.promo.toUpperCase();
+  } else {
+    const rivals = legal.filter(m => m.to === move.to && m.from !== move.from && state.b[m.from] === piece);
+    let hint = '';
+    if (rivals.length) {
+      const sameFile = rivals.some(m => m.from % 8 === move.from % 8);
+      const sameRank = rivals.some(m => Math.floor(m.from / 8) === Math.floor(move.from / 8));
+      if (!sameFile) hint = squareName(move.from)[0];
+      else if (!sameRank) hint = squareName(move.from)[1];
+      else hint = squareName(move.from);
+    }
+    san = type + hint + (capture ? 'x' : '') + squareName(move.to);
+  }
+
+  const next = applyMove(state, move);
+  if (inCheck(next)) san += legalMoves(next).length === 0 ? '#' : '+';
+  return san;
+}

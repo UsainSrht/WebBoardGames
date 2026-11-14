@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 // End-to-end protocol test. Start the app first (npm run dev) and run: npm run test:e2e
 const PORT = process.env.PORT || 8787;
+const RUN = Math.random().toString(36).slice(2, 6).toUpperCase(); // fresh rooms on every run
 const HTTP = `http://127.0.0.1:${PORT}`;
 let n = 0;
 
@@ -46,13 +47,13 @@ async function room(code, names, hostSpectates = false) {
 
 // ---------------------------------------------------------- roles + host powers
 {
-  const [a, b, c] = await room('ROLE01', ['Host', 'Bob', 'Cat'], true);
+  const [a, b, c] = await room('ROLE' + RUN, ['Host', 'Bob', 'Cat'], true);
   const s = await a.stateWith((st) => st.players.length === 3);
   assert.equal(s.host, a.id);
   assert.equal(s.players.find(p => p.id === a.id).spectator, true, 'host joined as spectator');
   assert.equal(s.players.find(p => p.id === b.id).spectator, false);
   // a non-host cannot join as spectator even if asking
-  const d = client('ROLE01', 'Dan');
+  const d = client('ROLE' + RUN, 'Dan');
   await d.wait('connect-user');
   d.send('join-room', { spectate: true });
   const sd = await d.stateWith((st) => st.players.some(p => p.id === d.id));
@@ -96,7 +97,7 @@ async function room(code, names, hostSpectates = false) {
   await b.wait('game-started', () => true);
   a.send('spectate-ready');
   const ds = await a.wait('dice-state');
-  assert.equal(Object.keys(ds.players).length, 2, 'host not in dice players');
+  assert.equal(ds.players.length, 2, 'host not in dice players');
 
   // restart
   const before = b.msgs.filter(m => m.type === 'game-started').length;
@@ -117,7 +118,7 @@ async function room(code, names, hostSpectates = false) {
   assert.deepEqual(us.hand, []);
   assert.equal(us.players.length, 2);
   b.send('uno-page-loaded'); c.send('uno-page-loaded');
-  const ub = await b.wait('uno-state', (m) => m.deadline > 0);
+  const ub = await b.wait('uno-state', (m) => m.timeLeft > 0);
   assert.equal(ub.hand.length, 7);
   a.send('end-game');
   await a.wait('back-to-lobby');
@@ -129,7 +130,7 @@ async function room(code, names, hostSpectates = false) {
   a.send('start-game');
   await a.next('game-started');
   a.send('spectate-ready');
-  const init = await a.wait('init');
+  const init = await a.wait('hb-init');
   assert.equal(init.id, null);
   assert.equal(init.spectator, true);
   a.send('end-game');
@@ -145,38 +146,43 @@ async function room(code, names, hostSpectates = false) {
   const after = await b.stateWith((st) => st.players.length === 2);
   assert.ok(!after.players.some(p => p.id === c.id));
   // a kicked player cannot come back
-  const c2 = client('ROLE01', 'Cat');
+  const c2 = client('ROLE' + RUN, 'Cat');
   c.ws.close();
   console.log('transfer host + kick OK');
 }
 
-// ---------------------------------------------------- kingdomino replay for host view
+// ---------------------------------------------------- kingdomino snapshots (host view + reload)
 {
-  const [h, p] = await room('KING01', ['Boss', 'Pia'], true);
+  const [h, p, q] = await room('KING' + RUN, ['Boss', 'Pia', 'Quin'], true);
   h.send('select-game', { game: 'kingdomino' });
   await h.stateWith((s) => s.game === 'kingdomino');
+  // game settings are host-only and validated
+  q.send('set-options', { game: 'kingdomino', options: { size: 7 } });
+  h.send('set-options', { game: 'kingdomino', options: { size: 7, bonuses: 'nonsense' } });
+  const opts = await h.stateWith((s) => s.options?.size === 7);
+  assert.equal(opts.options.bonuses, 'on', 'invalid option values fall back to the default');
   p.send('toggle-ready');
+  q.send('toggle-ready');
   await h.wait('game-started');
-  p.send('kingdomino-create-finish');
-  await p.wait('kingdomino-game-start');
-  await p.wait('kingdomino-draw-tiles');
-  // host view loads late and replays the log
+  p.send('kingdomino-ready');
+  q.send('kingdomino-ready');
+  const first = await p.wait('kingdomino-state');
+  assert.ok(first.players, 'snapshot has players');
+  // the host view loads late and gets the whole snapshot
   h.send('spectate-ready');
-  const start = await h.wait('kingdomino-game-start');
-  assert.equal(Object.keys(start.players).length, 1);
-  await h.wait('kingdomino-draw-tiles');
-  await h.wait('kingdomino-turn-info');
-  // a player reload also replays
-  const before = p.msgs.filter(m => m.type === 'kingdomino-game-start').length;
-  p.send('kingdomino-create-finish');
-  await p.next('kingdomino-game-start');
-  assert.equal(p.msgs.filter(m => m.type === 'kingdomino-game-start').length, before + 1);
-  console.log('kingdomino replay OK');
+  const snap = await h.wait('kingdomino-state');
+  assert.equal(Object.keys(snap.players ?? {}).length || snap.players.length, 2);
+  // a player reload gets a fresh snapshot
+  const before = p.msgs.filter(m => m.type === 'kingdomino-state').length;
+  p.send('kingdomino-ready');
+  await p.next('kingdomino-state');
+  assert.ok(p.msgs.filter(m => m.type === 'kingdomino-state').length > before);
+  console.log('kingdomino snapshots OK');
 }
 
 // ---------------------------------------------------- misc API
 {
-  const info = await (await fetch(`${HTTP}/api/room/check?code=KING01`)).json();
+  const info = await (await fetch(`${HTTP}/api/room/check?code=KING${RUN}`)).json();
   assert.equal(info.exists, true);
   assert.equal(info.started, true);
   const none = await (await fetch(`${HTTP}/api/room/check?code=ZZZZZZ`)).json();

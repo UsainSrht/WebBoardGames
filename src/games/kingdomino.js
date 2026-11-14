@@ -1,24 +1,27 @@
 /**
- * Kingdomino game logic (runs inside the GameRoom Durable Object).
+ * Kingdomino (runs inside the GameRoom Durable Object).
  *
- * Simplified two-phase variant used by the client:
- *   1. Selection phase – in turn order each player claims one of the drawn tiles.
- *   2. Placement phase – in order of the claimed tile numbers (lowest first) each
- *      player places their tile on their 5x5 grid (castle in the centre).
- * Final score = sum over every connected same-terrain property of (size x crowns).
+ * Real rules: a row of dominoes is revealed, players place their king on one of them in
+ * the order the previous row dictates, then place the domino they took last round into
+ * their own kingdom. Score = sum of (squares x crowns) for every connected property, plus
+ * the optional Middle Kingdom (+10) and Harmony (+5) bonuses.
+ *
+ * Coordinates are relative to the castle, which sits at (0, 0). A placement is the anchor
+ * cell of the left half plus a rotation 0..3 (the right half lies at anchor + ROT[rot]).
  */
 
-const GRID_SIZE = 5;
-const CASTLE = 'castle';
-const TILE_SELECT_MS = 10000;
-const TILE_PLACE_MS = 15000;
-const LEFT_PLAYER_TURN_MS = 400;
-const RETURN_TO_LOBBY_MS = 8000;
+export const TERRAINS = ['farm', 'forest', 'water', 'plains', 'swamp', 'mine'];
+export const COLORS = ['red', 'blue', 'green', 'yellow'];
 
-const COLORS = [0xff0000, 0x0000ff, 0x00ff00, 0xffff00];
+export const PICK_MS = 20000;
+export const PLACE_MS = 30000;
+export const AUTO_MS = 500;       // players who left are auto-played after this short pause
+export const DISCARD_MS = 1800;   // pause so everyone can see a discarded tile
+export const START_FALLBACK_MS = 8000;
+export const FINISH_DELAY_MS = 25000;
 
 // number, [leftType, leftCrowns], [rightType, rightCrowns], image asset
-const TILE_TABLE = [
+export const TILE_TABLE = [
   [1, ['farm', 0], ['farm', 0], '1'], [2, ['farm', 0], ['farm', 0], '1'],
   [3, ['forest', 0], ['forest', 0], '3'], [4, ['forest', 0], ['forest', 0], '3'],
   [5, ['forest', 0], ['forest', 0], '3'], [6, ['forest', 0], ['forest', 0], '3'],
@@ -47,413 +50,532 @@ const TILE_TABLE = [
   [48, ['farm', 0], ['mine', 3], '48']
 ];
 
-function buildTiles() {
-  const tiles = {};
-  for (const [number, [lt, lc], [rt, rc], asset] of TILE_TABLE) {
-    tiles[number] = {
-      number,
-      left: { type: lt, crown: lc },
-      right: { type: rt, crown: rc },
-      asset
-    };
-  }
-  return tiles;
+export const TILES = {};
+for (const [number, [lt, lc], [rt, rc], asset] of TILE_TABLE) {
+  TILES[number] = { number, l: [lt, lc], r: [rt, rc], a: asset };
 }
 
-/** Offset of the second half of a tile relative to its anchor cell, per rotation. */
-const ROTATION_OFFSETS = {
-  0: [0, 1],
-  90: [1, 0],
-  180: [0, -1],
-  270: [-1, 0]
-};
+/** Offset of the right half relative to the left half, per rotation. */
+export const ROT = [[0, 1], [1, 0], [0, -1], [-1, 0]];
+const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+const key = (r, c) => `${r},${c}`;
+
+/** One player's kingdom. */
+export class Board {
+  constructor(size) {
+    this.size = size;
+    this.cells = new Map(); // "r,c" -> { r, c, t, k, n }
+    this.discards = 0;
+    this.doms = [];         // [{ n, r, c, rot }] in the order placed
+  }
+
+  at(r, c) {
+    if (r === 0 && c === 0) return 'castle';
+    return this.cells.get(key(r, c)) || null;
+  }
+
+  /** Bounding box of the castle and every square. */
+  extents() {
+    let minR = 0, maxR = 0, minC = 0, maxC = 0;
+    for (const { r, c } of this.cells.values()) {
+      if (r < minR) minR = r;
+      if (r > maxR) maxR = r;
+      if (c < minC) minC = c;
+      if (c > maxC) maxC = c;
+    }
+    return { minR, maxR, minC, maxC };
+  }
+
+  /** Squares of the tile for a placement, or null when it is illegal. */
+  placementCells(tile, r, c, rot) {
+    if (!tile || !Number.isInteger(r) || !Number.isInteger(c) || !Number.isInteger(rot)) return null;
+    const off = ROT[rot];
+    if (!off) return null;
+    const a = { r, c, t: tile.l[0], k: tile.l[1], n: tile.number };
+    const b = { r: r + off[0], c: c + off[1], t: tile.r[0], k: tile.r[1], n: tile.number };
+    for (const h of [a, b]) {
+      if (this.at(h.r, h.c)) return null;
+    }
+    const e = this.extents();
+    const minR = Math.min(e.minR, a.r, b.r), maxR = Math.max(e.maxR, a.r, b.r);
+    const minC = Math.min(e.minC, a.c, b.c), maxC = Math.max(e.maxC, a.c, b.c);
+    if (maxR - minR + 1 > this.size || maxC - minC + 1 > this.size) return null;
+
+    const matches = (h, other) => DIRS.some(([dr, dc]) => {
+      const nr = h.r + dr, nc = h.c + dc;
+      if (nr === other.r && nc === other.c) return false;
+      const cell = this.at(nr, nc);
+      return cell === 'castle' || (cell && cell.t === h.t);
+    });
+    if (!matches(a, b) && !matches(b, a)) return null;
+    return [a, b];
+  }
+
+  canPlace(tile, r, c, rot) {
+    return !!this.placementCells(tile, r, c, rot);
+  }
+
+  /** Every legal [r, c, rot]. */
+  legal(tile) {
+    const out = [];
+    const s = this.size;
+    for (let r = -s; r <= s; r++) {
+      for (let c = -s; c <= s; c++) {
+        for (let rot = 0; rot < 4; rot++) {
+          if (this.canPlace(tile, r, c, rot)) out.push([r, c, rot]);
+        }
+      }
+    }
+    return out;
+  }
+
+  place(tile, r, c, rot) {
+    const cells = this.placementCells(tile, r, c, rot);
+    if (!cells) return false;
+    for (const h of cells) this.cells.set(key(h.r, h.c), h);
+    this.doms.push({ n: tile.number, r, c, rot });
+    return true;
+  }
+
+  /** Connected same-terrain properties: [{ type, squares, crowns }]. */
+  properties() {
+    const seen = new Set();
+    const out = [];
+    for (const start of this.cells.values()) {
+      if (seen.has(key(start.r, start.c))) continue;
+      let squares = 0, crowns = 0;
+      const stack = [start];
+      seen.add(key(start.r, start.c));
+      while (stack.length) {
+        const cur = stack.pop();
+        squares++;
+        crowns += cur.k;
+        for (const [dr, dc] of DIRS) {
+          const nxt = this.cells.get(key(cur.r + dr, cur.c + dc));
+          if (nxt && nxt.t === start.t && !seen.has(key(nxt.r, nxt.c))) {
+            seen.add(key(nxt.r, nxt.c));
+            stack.push(nxt);
+          }
+        }
+      }
+      out.push({ type: start.t, squares, crowns });
+    }
+    return out;
+  }
+
+  /** Full score breakdown. */
+  score(bonuses = true) {
+    const props = this.properties();
+    const base = props.reduce((sum, p) => sum + p.squares * p.crowns, 0);
+    const largest = props.reduce((m, p) => Math.max(m, p.squares), 0);
+    const crowns = props.reduce((sum, p) => sum + p.crowns, 0);
+    const e = this.extents();
+    const complete = this.cells.size + 1 === this.size * this.size
+      && e.maxR - e.minR + 1 === this.size && e.maxC - e.minC + 1 === this.size;
+    const middle = bonuses && e.minR === -e.maxR && e.minC === -e.maxC;
+    const harmony = bonuses && complete && this.discards === 0;
+    return {
+      base, largest, crowns,
+      middle: middle ? 10 : 0,
+      harmony: harmony ? 5 : 0,
+      total: base + (middle ? 10 : 0) + (harmony ? 5 : 0)
+    };
+  }
+}
 
 export class Kingdomino {
-  constructor(room, players) {
+  constructor(room, players, options = {}) {
     this.room = room;
     this.players = players;
+    this.rng = typeof options.rng === 'function' ? options.rng : Math.random;
+    this.size = Number(options.size) === 7 ? 7 : 5;
+    this.bonuses = options.bonuses !== 'off';
 
-    this.isGameActive = true;
-    this.gameEnded = false;
-    this.started = false;
-    this.readyPlayers = new Set();
-    this.gameTiles = [];       // draw pile (tile numbers)
-    this.drawn = [];           // tiles on offer this round (sorted by number)
-    this.taken = new Map();    // tile number -> odId that claimed it
-    this.placed = new Set();   // odIds that already placed this round
-    this.leftPlayers = new Set();
-    this.currentPlayerIndex = 1;
-    this.isTileSelecting = true;
-    this.turnTimer = null;
-    this.endTimer = null;
-    this.log = [];
+    const ids = Object.keys(players);
+    const n = ids.length;
+    this.draftSize = n === 3 ? 3 : 4;
+    this.kingsEach = Math.max(1, Math.floor(this.draftSize / Math.max(1, n)));
+    const used = n === 2 ? 24 : n === 3 ? 36 : 48;
+    const pile = this.shuffle(Object.keys(TILES).map(Number)).slice(0, used);
+    this.rows = [];
+    for (let i = 0; i + this.draftSize <= pile.length; i += this.draftSize) {
+      this.rows.push(pile.slice(i, i + this.draftSize).sort((a, b) => a - b));
+    }
+    this.rowIndex = 0;
 
-    this.tiles = buildTiles();
-    this.playerGameData = {};
-    this.grids = {};           // odId -> 5x5 grid of CASTLE | {type, crown} | null
-
-    let i = 1;
-    for (const [odId, player] of Object.entries(players)) {
-      this.playerGameData[odId] = {
-        name: player.name,
-        color: null,
-        selectedTile: 0,
-        turnIndex: i,
-        score: 0,
-        gridOccupancy: null
+    const colors = this.shuffle([...COLORS]);
+    this.order = ids; // seating order
+    this.pl = {};
+    ids.forEach((id, i) => {
+      this.pl[id] = {
+        id, name: players[id].name, color: colors[i % colors.length],
+        board: new Board(this.size), left: false
       };
-      i++;
+    });
+
+    this.phase = 'wait'; // wait | play | over
+    this.round = 0;
+    this.cur = null;     // row being picked from: [{ tile, owner }]
+    this.prev = null;    // row being placed:      [{ tile, owner, placed }]
+    this.steps = [];
+    this.stepIdx = -1;
+    this.stage = null;   // 'place' | 'pick'
+    this.legalList = [];
+    this.deadline = 0;
+    this.stageMs = 0;
+    this.timer = null;
+    this.startTimer = null;
+    this.finalRows = null;
+    this.notices = [];
+    this.noticeId = 0;
+    this.seq = 0;
+    this.ready = new Set();
+    this.active = true;
+
+    this.startTimer = setTimeout(() => this.start(), START_FALLBACK_MS);
+  }
+
+  shuffle(list) {
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(this.rng() * (i + 1));
+      [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+  }
+
+  // ------------------------------------------------------------------ messaging
+
+  handleMessage(odId, type, payload) {
+    if (!this.active || !this.pl[odId]) return;
+    payload = payload && typeof payload === 'object' ? payload : {};
+    switch (type) {
+      case 'kingdomino-ready': return this.onReady(odId);
+      case 'kingdomino-pick': return this.onPick(odId, payload);
+      case 'kingdomino-place': return this.onPlace(odId, payload);
     }
   }
 
-  /** Broadcast a game event and remember it so late joiners can replay the game so far. */
-  emit(message) {
-    this.log.push(message);
-    this.room.broadcast(message);
-  }
-
-  /** Replay every event to one client (reload or host-view spectator). */
-  replayTo(odId) {
-    const ws = this.room.getWsByUserId(odId);
-    if (!ws) return;
-    for (const message of this.log) this.room.send(ws, message);
+  onReady(odId) {
+    if (this.phase === 'wait') {
+      this.ready.add(odId);
+      this.sendState(odId);
+      const waiting = this.order.filter(id => !this.pl[id].left && !this.ready.has(id));
+      if (waiting.length === 0) this.start();
+      return;
+    }
+    this.sendState(odId);
+    this.sendLegal(odId);
   }
 
   spectatorSync(odId) {
-    if (this.started) this.replayTo(odId);
+    this.sendState(odId);
   }
 
-  // ----------------------------------------------------------------- Messages
-
-  handleMessage(odId, type, payload) {
-    if (!this.isGameActive || !this.playerGameData[odId]) return;
-
-    switch (type) {
-      case 'kingdomino-create-finish':
-        return this.handleCreateFinish(odId);
-      case 'kingdomino-select-tile':
-        if (this.started && this.isTileSelecting && this.isTurnOf(odId)) {
-          this.selectTile(odId, Number(payload.tileNumber));
-        }
-        return;
-      case 'kingdomino-place-tile':
-        if (this.started && !this.isTileSelecting && this.isTurnOf(odId)) {
-          this.placeTile(odId, Number(payload.tileNumber), payload.row, payload.col, payload.rotation);
-        }
-        return;
-    }
+  sendTo(odId, msg) {
+    const ws = this.room.getWsByUserId(odId);
+    if (ws) this.room.send(ws, msg);
   }
 
-  isTurnOf(odId) {
-    return this.playerGameData[odId].turnIndex === this.currentPlayerIndex;
+  sendState(odId) {
+    this.sendTo(odId, this.snapshot());
   }
 
-  playerOnTurn() {
-    for (const [odId, p] of Object.entries(this.playerGameData)) {
-      if (p.turnIndex === this.currentPlayerIndex) return odId;
-    }
-    return null;
+  sendLegal(odId) {
+    if (this.phase !== 'play' || this.stage !== 'place') return;
+    const step = this.steps[this.stepIdx];
+    if (!step || step.odId !== odId) return;
+    this.sendTo(odId, { type: 'kingdomino-legal', tile: step.place, seq: this.seq, list: this.legalList });
   }
 
-  handleCreateFinish(odId) {
-    if (this.readyPlayers.has(odId)) {
-      if (this.started) this.replayTo(odId); // page reload: rebuild the board from the log
+  reject(odId, message) {
+    this.sendTo(odId, { type: 'kingdomino-reject', message });
+  }
+
+  notice(kind, extra = {}) {
+    this.notices.push({ id: ++this.noticeId, kind, ...extra });
+    if (this.notices.length > 8) this.notices.shift();
+  }
+
+  /** Spectators are not players; broadcast reaches everybody including them. */
+  push() {
+    this.seq++;
+    this.room.broadcast(this.snapshot());
+  }
+
+  slotView(s) {
+    const t = TILES[s.tile];
+    return { tile: t.number, l: t.l, r: t.r, a: t.a, owner: s.owner || null, placed: s.placed || null };
+  }
+
+  snapshot() {
+    const step = this.steps[this.stepIdx];
+    const players = this.order.map(id => {
+      const p = this.pl[id];
+      const sc = p.board.score(this.bonuses);
+      return {
+        id, name: p.name, color: p.color, left: p.left,
+        score: this.phase === 'over' ? sc.total : sc.base, base: sc.base, largest: sc.largest, crowns: sc.crowns,
+        middle: sc.middle, harmony: sc.harmony, discards: p.board.discards,
+        doms: p.board.doms.map(d => ({ ...d, a: TILES[d.n].a })),
+        cells: [...p.board.cells.values()].map(c => ({ r: c.r, c: c.c, t: c.t, k: c.k, n: c.n }))
+      };
+    });
+    return {
+      type: 'kingdomino-state',
+      seq: this.seq,
+      phase: this.phase,
+      size: this.size,
+      bonuses: this.bonuses,
+      round: this.round,
+      rounds: this.rows.length + 1,
+      tilesLeft: Math.max(0, this.rows.length - this.rowIndex) * this.draftSize,
+      draftSize: this.draftSize,
+      players,
+      cur: this.cur ? this.cur.map(s => this.slotView(s)) : null,
+      prev: this.prev ? this.prev.map(s => this.slotView(s)) : null,
+      steps: this.steps.map((s, i) => ({ id: s.odId, place: s.place, pick: s.pick, done: i < this.stepIdx })),
+      stepIdx: this.stepIdx,
+      actor: this.phase === 'play' && step ? step.odId : null,
+      stage: this.phase === 'play' ? this.stage : null,
+      tile: this.phase === 'play' && this.stage === 'place' && step ? step.place : null,
+      deadline: this.deadline,
+      duration: this.stageMs,
+      now: Date.now(),
+      notices: this.notices,
+      final: this.finalRows
+    };
+  }
+
+  // ------------------------------------------------------------------ flow
+
+  start() {
+    if (this.phase !== 'wait' || !this.active) return;
+    clearTimeout(this.startTimer);
+    this.startTimer = null;
+    this.phase = 'play';
+    this.round = 1;
+    this.cur = this.revealRow();
+    this.notice('reveal', { round: 1 });
+    // Kings are placed on the first row in random order.
+    const kings = [];
+    for (let k = 0; k < this.kingsEach; k++) kings.push(...this.order);
+    this.steps = this.shuffle(kings).slice(0, this.draftSize).map(odId => ({ odId, place: null, pick: true }));
+    this.enterStep(0);
+  }
+
+  revealRow() {
+    const row = this.rows[this.rowIndex++];
+    return row.map(tile => ({ tile, owner: null }));
+  }
+
+  endRound() {
+    if (!this.cur && this.round > 1) return this.finish();
+    this.prev = this.cur;
+    this.cur = this.rowIndex < this.rows.length ? this.revealRow() : null;
+    this.round++;
+    const hasPick = !!this.cur;
+    this.steps = [...this.prev]
+      .sort((a, b) => a.tile - b.tile)
+      .map(s => ({ odId: s.owner, place: s.tile, pick: hasPick }));
+    if (hasPick) this.notice('reveal', { round: this.round });
+    else this.notice('final');
+    this.enterStep(0);
+  }
+
+  enterStep(i) {
+    clearTimeout(this.timer);
+    this.timer = null;
+    if (!this.active) return;
+    if (i >= this.steps.length) return this.endRound();
+    this.stepIdx = i;
+    const step = this.steps[i];
+    if (step.place !== null) this.enterPlace(step);
+    else this.enterPick(step);
+  }
+
+  armTimer(odId, ms, fn) {
+    const left = this.pl[odId].left;
+    const wait = left ? AUTO_MS : ms;
+    this.stageMs = wait;
+    this.deadline = Date.now() + wait;
+    this.timer = setTimeout(() => { this.timer = null; fn(); }, wait);
+  }
+
+  enterPlace(step) {
+    this.stage = 'place';
+    const board = this.pl[step.odId].board;
+    this.legalList = board.legal(TILES[step.place]);
+    if (this.legalList.length === 0) {
+      board.discards++;
+      this.markPlaced(step.place, 'discarded');
+      this.notice('discard', { odId: step.odId, tile: step.place });
+      this.stageMs = DISCARD_MS;
+      this.deadline = Date.now() + DISCARD_MS;
+      this.push();
+      this.timer = setTimeout(() => { this.timer = null; this.afterPlace(step); }, DISCARD_MS);
       return;
     }
-    this.readyPlayers.add(odId);
-    if (this.readyPlayers.size >= Object.keys(this.players).length) {
-      this.startGame();
+    this.armTimer(step.odId, PLACE_MS, () => this.autoPlace(step));
+    this.push();
+    this.sendLegal(step.odId);
+  }
+
+  enterPick(step) {
+    this.stage = 'pick';
+    this.legalList = [];
+    this.armTimer(step.odId, PICK_MS, () => this.autoPick(step));
+    this.push();
+  }
+
+  markPlaced(tile, how) {
+    const slot = (this.prev || []).find(s => s.tile === tile);
+    if (slot) slot.placed = how;
+  }
+
+  afterPlace(step) {
+    if (step.pick && this.cur) this.enterPick(step);
+    else this.enterStep(this.stepIdx + 1);
+  }
+
+  // ------------------------------------------------------------------ actions
+
+  onPick(odId, p) {
+    const step = this.steps[this.stepIdx];
+    if (this.phase !== 'play' || this.stage !== 'pick' || !step || step.odId !== odId) {
+      return this.reject(odId, 'It is not your turn to pick');
     }
+    if (!this.pickTile(odId, Number(p.tile), false)) this.reject(odId, 'That tile is not available');
   }
 
-  // --------------------------------------------------------------------- Setup
+  pickTile(odId, tile, auto) {
+    const slot = this.cur && this.cur.find(s => s.tile === tile && !s.owner);
+    if (!slot) return false;
+    slot.owner = odId;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.notice('pick', { odId, tile, auto });
+    // Pick is the last part of a step; move on.
+    this.enterStep(this.stepIdx + 1);
+    return true;
+  }
 
-  startGame() {
-    if (this.started) return;
-    this.started = true;
+  autoPick(step) {
+    const free = this.cur.filter(s => !s.owner);
+    if (!free.length) return this.enterStep(this.stepIdx + 1);
+    const slot = free[Math.floor(this.rng() * free.length)];
+    this.pickTile(step.odId, slot.tile, true);
+  }
 
-    const playerCount = Object.keys(this.playerGameData).length;
-    const totalTiles = playerCount * 12;
-
-    const keys = Object.keys(this.tiles).map(Number);
-    for (let i = keys.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [keys[i], keys[j]] = [keys[j], keys[i]];
+  onPlace(odId, p) {
+    const step = this.steps[this.stepIdx];
+    if (this.phase !== 'play' || this.stage !== 'place' || !step || step.odId !== odId || step.place === null) {
+      return this.reject(odId, 'It is not your turn to place');
     }
-    this.gameTiles = keys.slice(0, totalTiles);
+    if (Number(p.tile) !== step.place) return this.reject(odId, 'Wrong tile');
+    if (!this.placeTile(step, p.r, p.c, p.rot, false)) this.reject(odId, 'You cannot place the tile there');
+  }
 
-    const colors = [...COLORS];
-    for (const odId in this.playerGameData) {
-      const color = colors.splice(Math.floor(Math.random() * colors.length), 1)[0];
-      this.playerGameData[odId].color = color;
-      this.grids[odId] = this.createGrid();
-      this.playerGameData[odId].gridOccupancy = this.occupancyOf(this.grids[odId]);
+  placeTile(step, r, c, rot, auto) {
+    const board = this.pl[step.odId].board;
+    if (!board.place(TILES[step.place], r, c, rot)) return false;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.markPlaced(step.place, 'placed');
+    this.notice('place', { odId: step.odId, tile: step.place, r, c, rot, auto });
+    this.legalList = [];
+    // Show the placement, then continue (pick or next step).
+    if (step.pick && this.cur) {
+      this.afterPlace(step);
+    } else {
+      this.push();
+      this.enterStep(this.stepIdx + 1);
     }
-
-    this.emit({
-      type: 'kingdomino-game-start',
-      tileCount: totalTiles,
-      players: this.playerGameData,
-      turnStartTime: Date.now(),
-      currentPlayerIndex: 1
-    });
-    this.emit({ type: 'kingdomino-tile-selection-start' });
-    this.drawNextTiles();
-    this.nextTurn();
+    return true;
   }
 
-  createGrid() {
-    return Array.from({ length: GRID_SIZE }, (_, r) =>
-      Array.from({ length: GRID_SIZE }, (_, c) => (r === 2 && c === 2 ? CASTLE : null)));
+  autoPlace(step) {
+    const list = this.legalList;
+    if (!list.length) return this.afterPlace(step);
+    const [r, c, rot] = list[Math.floor(this.rng() * list.length)];
+    this.placeTile(step, r, c, rot, true);
   }
 
-  occupancyOf(grid) {
-    return grid.map(row => row.map(cell => (cell === null ? null : cell === CASTLE ? CASTLE : cell.tile)));
-  }
-
-  drawNextTiles() {
-    const count = Object.keys(this.playerGameData).length;
-    this.drawn = this.gameTiles.splice(0, count).sort((a, b) => a - b);
-    this.taken.clear();
-    this.placed.clear();
-    for (const p of Object.values(this.playerGameData)) p.selectedTile = 0;
-
-    this.emit({
-      type: 'kingdomino-draw-tiles',
-      drawnTiles: this.drawn.map(n => this.tiles[n])
-    });
-  }
-
-  // --------------------------------------------------------------------- Turns
-
-  nextTurn() {
-    if (this.gameEnded || !this.isGameActive) return;
-    clearTimeout(this.turnTimer);
-
-    const odId = this.playerOnTurn();
-    const left = odId && this.leftPlayers.has(odId);
-    const duration = left
-      ? LEFT_PLAYER_TURN_MS
-      : this.isTileSelecting ? TILE_SELECT_MS : TILE_PLACE_MS;
-    const turnStartTime = Date.now();
-
-    this.emit({
-      type: 'kingdomino-turn-info',
-      turnIndex: this.currentPlayerIndex,
-      turnStartTime,
-      turnEndTime: turnStartTime + duration
-    });
-
-    this.turnTimer = setTimeout(() => {
-      this.turnTimer = null;
-      if (this.isTileSelecting) this.selectRandomTile();
-      else this.placeRandomTile();
-    }, duration);
-  }
-
-  advanceTurn() {
-    clearTimeout(this.turnTimer);
-    this.turnTimer = null;
-
-    const playerCount = Object.keys(this.playerGameData).length;
-    this.currentPlayerIndex++;
-
-    if (this.currentPlayerIndex > playerCount) {
-      this.currentPlayerIndex = 1;
-
-      if (this.isTileSelecting) {
-        this.isTileSelecting = false;
-        this.emit({ type: 'kingdomino-tile-selection-end' });
-        this.reorderPlayersBySelectedTile();
-      } else {
-        if (this.gameTiles.length === 0) {
-          return this.endGame();
-        }
-        this.isTileSelecting = true;
-        this.emit({ type: 'kingdomino-tile-selection-start' });
-        this.drawNextTiles();
-      }
-    }
-
-    this.nextTurn();
-  }
-
-  // ----------------------------------------------------------------- Selection
-
-  selectTile(odId, tileNumber) {
-    const drawnIndex = this.drawn.indexOf(tileNumber);
-    if (drawnIndex === -1 || this.taken.has(tileNumber)) return;
-    if (this.playerGameData[odId].selectedTile) return;
-
-    this.taken.set(tileNumber, odId);
-    this.playerGameData[odId].selectedTile = tileNumber;
-
-    this.emit({ type: 'kingdomino-tile-selected', odId, tileNumber, drawnIndex });
-    this.advanceTurn();
-  }
-
-  selectRandomTile() {
-    const odId = this.playerOnTurn();
-    if (!odId) return this.advanceTurn();
-
-    const free = this.drawn.filter(n => !this.taken.has(n));
-    if (free.length === 0) return this.advanceTurn();
-
-    this.selectTile(odId, free[Math.floor(Math.random() * free.length)]);
-  }
-
-  reorderPlayersBySelectedTile() {
-    const sorted = Object.entries(this.playerGameData)
-      .sort((a, b) => a[1].selectedTile - b[1].selectedTile);
-    sorted.forEach(([odId], i) => {
-      this.playerGameData[odId].turnIndex = i + 1;
-    });
-    this.emit({ type: 'kingdomino-players-update', players: this.playerGameData });
-  }
-
-  // ----------------------------------------------------------------- Placement
-
-  placeTile(odId, tileNumber, row, col, rotation) {
-    const player = this.playerGameData[odId];
-    if (!player.selectedTile || player.selectedTile !== tileNumber || this.placed.has(odId)) return;
-
-    row = Number(row);
-    col = Number(col);
-    rotation = Number(rotation) || 0;
-
-    const cells = this.placementCells(this.grids[odId], row, col, rotation);
-    if (!cells) {
-      const ws = this.room.getWsByUserId(odId);
-      if (ws) this.room.send(ws, { type: 'error', message: 'Invalid tile placement' });
-      return;
-    }
-
-    const tile = this.tiles[tileNumber];
-    const grid = this.grids[odId];
-    grid[cells[0].r][cells[0].c] = { ...tile.left, tile: tileNumber };
-    grid[cells[1].r][cells[1].c] = { ...tile.right, tile: tileNumber };
-    player.gridOccupancy = this.occupancyOf(grid);
-    this.placed.add(odId);
-
-    this.emit({ type: 'kingdomino-tile-placed', odId, tileNumber, row, col, rotation });
-    this.advanceTurn();
-  }
-
-  /**
-   * Returns the two grid cells [left, right] a tile would occupy,
-   * or null if the placement is illegal.
-   */
-  placementCells(grid, row, col, rotation) {
-    const offset = ROTATION_OFFSETS[rotation];
-    if (!offset || !Number.isInteger(row) || !Number.isInteger(col)) return null;
-
-    const a = { r: row, c: col };
-    const b = { r: row + offset[0], c: col + offset[1] };
-
-    for (const { r, c } of [a, b]) {
-      if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE) return null;
-      if (grid[r][c] !== null) return null;
-    }
-
-    const touchesGrid = [a, b].some(({ r, c }) =>
-      [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([dr, dc]) => {
-        const nr = r + dr, nc = c + dc;
-        const isOwnHalf = (nr === a.r && nc === a.c) || (nr === b.r && nc === b.c);
-        return !isOwnHalf && nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && grid[nr][nc] !== null;
-      }));
-
-    return touchesGrid ? [a, b] : null;
-  }
-
-  placeRandomTile() {
-    // Timed out: the tile is discarded.
-    const odId = this.playerOnTurn();
-    if (!odId) return this.advanceTurn();
-
-    const player = this.playerGameData[odId];
-    if (player.selectedTile && !this.placed.has(odId)) {
-      this.placed.add(odId);
-      this.emit({
-        type: 'kingdomino-tile-placed',
-        odId,
-        tileNumber: player.selectedTile,
-        row: -1, // -1 marks a discarded tile
-        col: -1,
-        rotation: 0
-      });
-    }
-    this.advanceTurn();
-  }
-
-  // ------------------------------------------------------------------- Scoring
-
-  calculateScore(odId) {
-    const grid = this.grids[odId];
-    if (!grid) return 0;
-
-    const seen = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
-    let total = 0;
-
-    for (let r = 0; r < GRID_SIZE; r++) {
-      for (let c = 0; c < GRID_SIZE; c++) {
-        const cell = grid[r][c];
-        if (!cell || cell === CASTLE || seen[r][c]) continue;
-
-        let size = 0;
-        let crowns = 0;
-        const stack = [[r, c]];
-        seen[r][c] = true;
-
-        while (stack.length) {
-          const [cr, cc] = stack.pop();
-          size++;
-          crowns += grid[cr][cc].crown;
-          for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-            const nr = cr + dr, nc = cc + dc;
-            if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE || seen[nr][nc]) continue;
-            const next = grid[nr][nc];
-            if (next && next !== CASTLE && next.type === cell.type) {
-              seen[nr][nc] = true;
-              stack.push([nr, nc]);
-            }
-          }
-        }
-        total += size * crowns;
-      }
-    }
-    return total;
-  }
-
-  endGame() {
-    this.gameEnded = true;
-    clearTimeout(this.turnTimer);
-    this.turnTimer = null;
-
-    for (const odId in this.playerGameData) {
-      this.playerGameData[odId].score = this.calculateScore(odId);
-    }
-
-    this.emit({ type: 'kingdomino-game-end', players: this.playerGameData });
-
-    const ranking = Object.values(this.playerGameData)
-      .sort((a, b) => b.score - a.score)
-      .map((p, i) => `${i + 1}. ${p.name}: ${p.score}`)
-      .join(' | ');
-    this.emit({ type: 'system-message', message: `Kingdomino results - ${ranking}` });
-
-    this.endTimer = setTimeout(() => this.room.endGame(), RETURN_TO_LOBBY_MS);
-  }
-
-  /** A player left the room: their turns are skipped quickly, their grid still scores. */
   onPlayerLeft(odId) {
-    if (this.playerGameData[odId]) this.leftPlayers.add(odId);
+    const p = this.pl[odId];
+    if (!p || p.left) return;
+    p.left = true;
+    if (this.phase === 'wait') {
+      if (this.order.every(id => this.pl[id].left || this.ready.has(id))) this.start();
+      return;
+    }
+    if (this.phase !== 'play') return;
+    this.notice('left', { odId });
+    const step = this.steps[this.stepIdx];
+    if (step && step.odId === odId && this.timer && this.stage !== null) {
+      // Replace the running timer with a short auto-play one (discard pauses keep theirs).
+      const discarding = this.stage === 'place' && this.legalList.length === 0;
+      if (!discarding) {
+        clearTimeout(this.timer);
+        this.timer = null;
+        this.armTimer(odId, 0, () => (this.stage === 'place' ? this.autoPlace(step) : this.autoPick(step)));
+      }
+    }
+    this.push();
+  }
+
+  // ------------------------------------------------------------------ end
+
+  standings() {
+    const rows = this.order.map(id => {
+      const p = this.pl[id];
+      const sc = p.board.score(this.bonuses);
+      return { id, name: p.name, color: p.color, score: sc.total, largest: sc.largest, crowns: sc.crowns, sc };
+    });
+    rows.sort((a, b) => b.score - a.score || b.largest - a.largest || b.crowns - a.crowns);
+    let rank = 0;
+    rows.forEach((r, i) => {
+      const prev = rows[i - 1];
+      const tied = prev && prev.score === r.score && prev.largest === r.largest && prev.crowns === r.crowns;
+      if (!tied) rank = i + 1;
+      r.rank = rank;
+    });
+    return rows;
+  }
+
+  finish() {
+    if (this.phase === 'over') return;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.phase = 'over';
+    this.stage = null;
+    this.deadline = 0;
+    this.stageMs = 0;
+    const rows = this.standings();
+    this.finalRows = rows.map(r => ({
+      id: r.id, name: r.name, rank: r.rank, score: r.score, largest: r.largest, crowns: r.crowns,
+      base: r.sc.base, middle: r.sc.middle, harmony: r.sc.harmony
+    }));
+    this.notice('over');
+    this.push();
+    const winners = rows.filter(r => r.rank === 1);
+    const title = winners.length === 1 ? `${winners[0].name} wins` : `Tie: ${winners.map(w => w.name).join(' and ')}`;
+    this.room.finishGame({
+      title,
+      subtitle: 'Kingdomino',
+      rows: rows.map(r => {
+        const bonus = r.sc.middle + r.sc.harmony;
+        const note = `Largest property: ${r.largest}${bonus ? `, bonus +${bonus}` : ''}`;
+        return { id: r.id, name: r.name, score: r.score, rank: r.rank, note };
+      }),
+      delayMs: FINISH_DELAY_MS
+    });
   }
 
   cleanup() {
-    this.isGameActive = false;
-    clearTimeout(this.turnTimer);
-    clearTimeout(this.endTimer);
-    this.turnTimer = null;
-    this.endTimer = null;
+    this.active = false;
+    clearTimeout(this.timer);
+    clearTimeout(this.startTimer);
+    this.timer = null;
+    this.startTimer = null;
   }
 }

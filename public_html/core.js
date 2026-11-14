@@ -166,6 +166,8 @@
   WBG.prefs = {
     get notify() { return WBG.store.get('wbg.notify', '1') === '1'; },
     set notify(v) { WBG.store.set('wbg.notify', v ? '1' : '0'); },
+    get sound() { return WBG.store.get('wbg.sound', '1') === '1'; },
+    set sound(v) { WBG.store.set('wbg.sound', v ? '1' : '0'); },
     get reduceMotion() { return WBG.store.get('wbg.reduceMotion', '0') === '1'; },
     set reduceMotion(v) {
       WBG.store.set('wbg.reduceMotion', v ? '1' : '0');
@@ -208,6 +210,9 @@
     const timer = setTimeout(remove, duration);
     el.addEventListener('click', () => { clearTimeout(timer); remove(); });
   };
+
+  /** Remove every toast at once (used when a game starts). */
+  WBG.clearToasts = () => { if (toastBox) toastBox.replaceChildren(); };
 
   /* ---------------------------------------------------------------- modals */
   const openStack = [];
@@ -315,6 +320,156 @@
     }
     const size = n + quiet * 2;
     return `<svg class="${cls}" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="${size}" height="${size}" fill="${light}"/><path d="${d}" fill="${dark}"/></svg>`;
+  };
+
+  /* -------------------------------------------------------------- more icons */
+  /** Games can register their own icons (WBG.addIcons({ name: '<svg inner markup>' })). */
+  WBG.addIcons = (map) => Object.assign(ICONS, map);
+  WBG.addIcons({
+    volume: '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11"/>',
+    'volume-off': '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
+    help: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.5a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .9-1 1.7M12 16.8v.01"/>',
+    rotate: '<path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/>',
+    coin: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M14.8 9.6c-.4-.9-1.400-1.400-2.800-1.400-1.600 0-2.700.8-2.700 2s1 1.700 2.700 1.900c1.800.2 2.800.8 2.800 2s-1.200 2-2.800 2c-1.400 0-2.500-.6-2.900-1.600"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+    draw: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 10h7M8.5 14h7"/>',
+    target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+    sparkles: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+    'arrow-up': '<path d="M12 19V5M6 11l6-6 6 6"/>',
+    hourglass: '<path d="M7 4h10M7 20h10M8 4c0 4 4 5 4 8s-4 4-4 8M16 4c0 4-4 5-4 8s4 4 4 8"/>'
+  });
+
+  /* ------------------------------------------------------------------ sound */
+  // Everything is synthesised with the Web Audio API: no audio files to ship or license.
+  const sound = (WBG.sound = (() => {
+    let ctx = null;
+    let master = null;
+    const AC = window.AudioContext || window.webkitAudioContext;
+
+    const ready = () => {
+      if (!AC) return false;
+      if (!ctx) {
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.55;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return true;
+    };
+
+    // Browsers only allow audio after a gesture.
+    const unlock = () => { ready(); };
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true });
+
+    const tone = ({ f = 440, to = null, type = 'sine', dur = 0.15, vol = 0.3, at = 0, attack = 0.005 }) => {
+      const t = ctx.currentTime + at;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f, t);
+      if (to) osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(vol, t + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g).connect(master);
+      osc.start(t);
+      osc.stop(t + dur + 0.02);
+    };
+
+    const noise = ({ dur = 0.08, vol = 0.25, at = 0, type = 'highpass', freq = 2000, q = 0.8, to = null }) => {
+      const t = ctx.currentTime + at;
+      const buf = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * dur)), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const filter = ctx.createBiquadFilter();
+      filter.type = type;
+      filter.Q.value = q;
+      filter.frequency.setValueAtTime(freq, t);
+      if (to) filter.frequency.exponentialRampToValueAtTime(to, t + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(filter).connect(g).connect(master);
+      src.start(t);
+    };
+
+    const notes = (list, opts = {}) => list.forEach((f, i) => tone({ f, at: i * (opts.gap ?? 0.09), dur: opts.dur ?? 0.22, type: opts.type ?? 'triangle', vol: opts.vol ?? 0.28 }));
+
+    const bank = {
+      click: () => tone({ f: 640, dur: 0.05, vol: 0.2, type: 'triangle' }),
+      pop: () => tone({ f: 420, to: 760, dur: 0.09, vol: 0.25 }),
+      notify: () => notes([784, 1047], { gap: 0.08, dur: 0.14, vol: 0.2 }),
+      turn: () => notes([660, 880], { gap: 0.1, dur: 0.2, vol: 0.25 }),
+      tick: () => tone({ f: 1100, dur: 0.03, vol: 0.1, type: 'square' }),
+      countdown: () => tone({ f: 523, dur: 0.14, vol: 0.28 }),
+      go: () => tone({ f: 1047, dur: 0.3, vol: 0.3, type: 'triangle' }),
+      win: () => notes([523, 659, 784, 1047, 1319], { gap: 0.1, dur: 0.32, vol: 0.28 }),
+      lose: () => { tone({ f: 330, to: 220, dur: 0.4, vol: 0.25, type: 'sawtooth' }); tone({ f: 247, to: 165, dur: 0.5, vol: 0.2, at: 0.18, type: 'sawtooth' }); },
+      error: () => tone({ f: 170, dur: 0.14, vol: 0.2, type: 'square' }),
+      roll: () => { for (let i = 0; i < 7; i++) noise({ dur: 0.035, vol: 0.28, at: i * 0.055 + Math.random() * 0.02, freq: 900 + Math.random() * 2400, type: 'bandpass', q: 3 }); },
+      land: () => { tone({ f: 190, to: 120, dur: 0.09, vol: 0.28, type: 'triangle' }); noise({ dur: 0.05, vol: 0.2, type: 'lowpass', freq: 1500 }); },
+      card: () => noise({ dur: 0.09, vol: 0.22, type: 'bandpass', freq: 3200, q: 0.6, to: 1200 }),
+      deal: () => [0, 0.09, 0.18].forEach((d) => noise({ dur: 0.08, vol: 0.18, at: d, type: 'bandpass', freq: 3000, q: 0.6, to: 1100 })),
+      move: () => { tone({ f: 230, to: 150, dur: 0.08, vol: 0.3, type: 'triangle' }); noise({ dur: 0.04, vol: 0.15, type: 'lowpass', freq: 1800 }); },
+      capture: () => { tone({ f: 170, to: 90, dur: 0.14, vol: 0.36, type: 'triangle' }); noise({ dur: 0.08, vol: 0.28, type: 'lowpass', freq: 2500 }); },
+      castle: () => { bank.move(); setTimeout(() => ready() && bank.move(), 120); },
+      check: () => notes([880, 880], { gap: 0.09, dur: 0.1, type: 'square', vol: 0.14 }),
+      flip: () => tone({ f: 300, to: 700, dur: 0.12, vol: 0.2 }),
+      place: () => { tone({ f: 200, to: 130, dur: 0.1, vol: 0.3, type: 'triangle' }); noise({ dur: 0.06, vol: 0.2, type: 'lowpass', freq: 1400 }); },
+      bump: () => { tone({ f: 140, to: 70, dur: 0.14, vol: 0.4, type: 'sine' }); noise({ dur: 0.06, vol: 0.18, type: 'lowpass', freq: 1200 }); },
+      fall: () => { tone({ f: 700, to: 70, dur: 0.6, vol: 0.28, type: 'sine' }); },
+      boost: () => noise({ dur: 0.25, vol: 0.14, type: 'highpass', freq: 800, to: 5000 }),
+      coin: () => notes([988, 1319], { gap: 0.07, dur: 0.18, vol: 0.25, type: 'square' }),
+      farkle: () => { tone({ f: 200, to: 100, dur: 0.5, vol: 0.3, type: 'sawtooth' }); tone({ f: 150, to: 70, dur: 0.5, vol: 0.2, type: 'square', at: 0.05 }); },
+      reveal: () => tone({ f: 300, to: 620, dur: 0.18, vol: 0.25, type: 'triangle' }),
+      uno: () => notes([784, 988, 1175], { gap: 0.07, dur: 0.16, vol: 0.3, type: 'square' })
+    };
+
+    return {
+      play(name) {
+        if (!WBG.prefs.sound || !bank[name] || !ready()) return;
+        try { bank[name](); } catch { /* audio is best effort */ }
+      },
+      /** Schedule a sound after a delay (ms). */
+      later(name, ms) { setTimeout(() => sound.play(name), ms); },
+      names: () => Object.keys(bank)
+    };
+  })());
+
+  /* ------------------------------------------------------------------ rules */
+  /**
+   * A game fragment describes how to play; the room page shows it behind a help button.
+   * WBG.setRules({ title, sections: [{ title, items: ['...'] }] })
+   */
+  WBG.setRules = (rules) => {
+    WBG.rules = rules;
+    window.dispatchEvent(new CustomEvent('wbg-rules'));
+  };
+
+  /* -------------------------------------------------------------- game art */
+  // Original flat illustrations (no emoji, no bitmap assets).
+  WBG.art = {
+    rps(move, cls = 'size-full') {
+      const stroke = 'stroke="#232846" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"';
+      const body = {
+        rock: `<path d="M16 64 24 37 47 21l28 6 10 24-6 22-27 10-26-4z" fill="#8f98ba" ${stroke}/>
+          <path d="M24 37l24 11 27-21M48 48l4 35M48 48 16 64M48 48l37 3" fill="none" stroke="#232846" stroke-opacity=".3" stroke-width="2.5" stroke-linejoin="round"/>
+          <path d="M24 37l24 11-32 16z" fill="#aab2d0"/><path d="M48 48l37 3-6 22-27 10z" fill="#767fa3"/>
+          <path d="M31 38l12-8" stroke="#fff" stroke-opacity=".6" stroke-width="4" stroke-linecap="round"/>`,
+        paper: `<g transform="rotate(-8 50 50)"><path d="M26 14h32l18 18v54H26z" fill="#f4f5fb" ${stroke}/>
+          <path d="M58 14v18h18" fill="#d5d9ee" ${stroke}/>
+          <path d="M36 48h30M36 60h30M36 72h20" fill="none" stroke="#9aa3c7" stroke-width="4" stroke-linecap="round"/></g>`,
+        scissors: `<path d="M45 64 63 12l7 2-14 54z" fill="#d6dbef" ${stroke}/>
+          <path d="M55 64 37 12l-7 2 14 54z" fill="#b6bdd9" ${stroke}/>
+          <circle cx="34" cy="80" r="11" fill="none" stroke="#e11d48" stroke-width="7"/><circle cx="66" cy="80" r="11" fill="none" stroke="#e11d48" stroke-width="7"/>
+          <circle cx="50" cy="62" r="3.5" fill="#232846"/>`
+      }[move] || '';
+      return `<svg class="${cls}" viewBox="0 0 100 100" aria-hidden="true">${body}</svg>`;
+    }
   };
 
   /* ------------------------------------------------- game helpers (in-game) */

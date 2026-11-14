@@ -1,16 +1,22 @@
 /**
- * Uno (2-10 players). Hands are private: each player gets their own 'uno-state'.
+ * Uno (2-10 players). Hands are private: every player gets their own 'uno-state'.
  *
- * House rules: no stacking of +2/+4, a drawn card may be played immediately,
- * otherwise the player passes. Reverse acts as skip with two players.
- * First player to empty their hand wins.
+ * Options (see config.js):
+ *   target    0 = a single round, otherwise play rounds until someone reaches that many points
+ *   stacking  'on': a +2 can be answered with a +2 (and a +4 with a +4) instead of drawing
+ *   unoCall   'on': you must press UNO on your second to last card, or anyone can catch you
+ *   turnTime  seconds per turn
+ *
+ * Other rules: a drawn card may be played immediately, otherwise the turn passes; Reverse acts
+ * as Skip with two players; the round winner scores the cards left in everybody's hands.
  */
 
 const COLORS = ['red', 'yellow', 'green', 'blue'];
-const TURN_MS = 30000;
-const START_FALLBACK_MS = 8000;
-const RETURN_TO_LOBBY_MS = 12000;
 const HAND_SIZE = 7;
+const START_FALLBACK_MS = 8000;
+const UNO_WINDOW_MS = 3500;
+const NEXT_ROUND_MS = 7000;
+const RETURN_TO_LOBBY_MS = 25000;
 
 export function buildDeck() {
   const cards = [];
@@ -25,48 +31,84 @@ export function buildDeck() {
   return cards;
 }
 
-export function shuffle(arr) {
+export function shuffle(arr, rng = Math.random) {
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
 }
 
+/** Penalty points of a card left in hand. */
+export function cardPoints(card) {
+  if (/^\d$/.test(card.value)) return Number(card.value);
+  return card.color === 'wild' ? 50 : 20;
+}
+
 export class Uno {
-  constructor(room, players) {
+  constructor(room, players, options = {}) {
     this.room = room;
     this.players = players;
     this.isGameActive = true;
+    this.rng = Math.random;
+    this.now = () => Date.now();
+
+    this.target = Number(options.target) || 0;
+    this.stacking = options.stacking === 'on';
+    this.unoCall = options.unoCall !== 'off';
+    this.turnMs = (Number(options.turnTime) || 30) * 1000;
 
     this.names = {};
+    this.scores = {};
     this.order = Object.keys(players);
-    for (const [id, p] of Object.entries(players)) this.names[id] = p.name;
+    for (const [id, p] of Object.entries(players)) { this.names[id] = p.name; this.scores[id] = 0; }
 
-    this.deck = shuffle(buildDeck());
+    this.round = 0;
+    this.phase = 'play'; // play | roundOver | over
+    this.timer = null;
+    this.unoTimer = null;
+    this.nextRoundAt = 0;
+    this.deadline = 0;
+    this.loaded = new Set();
+    this.running = false;
+    this.playSeq = 0;
+    this.lastPlay = null;
+    this.roundResult = null;
+    this.exposed = null;     // { id, until } a player on one card who has not called UNO yet
+    this.preCalled = null;   // player who pressed UNO before playing their second to last card
+
+    this.dealRound();
+    this.timer = setTimeout(() => this.begin(), START_FALLBACK_MS);
+  }
+
+  get top() { return this.discard[this.discard.length - 1]; }
+
+  // ----------------------------------------------------------------- rounds
+
+  dealRound() {
+    this.round++;
+    this.deck = shuffle(buildDeck(), this.rng);
     this.discard = [];
     this.hands = {};
     for (const id of this.order) this.hands[id] = this.deck.splice(0, HAND_SIZE);
 
     // The first up-card is always a plain number card.
-    let idx = this.deck.findIndex(c => /^\d$/.test(c.value));
+    const idx = this.deck.findIndex(c => /^\d$/.test(c.value));
     this.discard.push(this.deck.splice(idx, 1)[0]);
     this.color = this.top.color;
 
     this.dir = 1;
-    this.turn = this.order[0];
-    this.pending = null; // card id drawn this turn that may still be played
-    this.winner = null;
-    this.deadline = 0;
-    this.timer = null;
-    this.log = 'Game started';
-    this.loaded = new Set();
-    this.running = false;
-
-    this.timer = setTimeout(() => this.begin(), START_FALLBACK_MS);
+    this.turn = this.order[(this.round - 1) % this.order.length];
+    this.pending = null;       // card id drawn this turn that may still be played
+    this.pendingDraw = 0;      // stacked penalty cards the current player faces
+    this.pendingType = null;   // 'draw2' | 'wild4'
+    this.exposed = null;
+    this.preCalled = null;
+    this.lastPlay = null;
+    this.roundResult = null;
+    this.phase = 'play';
+    this.log = `Round ${this.round}: ${this.names[this.turn]} starts`;
   }
-
-  get top() { return this.discard[this.discard.length - 1]; }
 
   begin() {
     if (this.running || !this.isGameActive) return;
@@ -74,6 +116,8 @@ export class Uno {
     this.startTurnTimer();
     this.broadcastState();
   }
+
+  // --------------------------------------------------------------- messages
 
   handleMessage(odId, type, payload) {
     if (!this.isGameActive || !this.hands[odId]) return;
@@ -87,20 +131,48 @@ export class Uno {
       case 'uno-play': return this.play(odId, Number(payload.cardId), payload.color);
       case 'uno-draw': return this.draw(odId);
       case 'uno-pass': return this.pass(odId);
+      case 'uno-call': return this.call(odId);
+      case 'uno-catch': return this.catchPlayer(odId);
     }
   }
 
-  isPlayable(card) {
+  // ------------------------------------------------------------------ rules
+
+  matches(card) {
     return card.color === 'wild' || card.color === this.color || card.value === this.top.value;
   }
 
+  /** Can the player on turn play this card right now? */
+  canPlay(card) {
+    if (this.pendingDraw > 0) return this.stacking && card.value === this.pendingType;
+    if (this.pending !== null) return card.id === this.pending && this.matches(card);
+    return this.matches(card);
+  }
+
+  playableIds(odId) {
+    if (!this.running || this.phase !== 'play' || this.turn !== odId) return [];
+    return this.hands[odId].filter(c => this.canPlay(c)).map(c => c.id);
+  }
+
   canAct(odId) {
-    return this.running && !this.winner && this.turn === odId;
+    return this.running && this.phase === 'play' && this.turn === odId;
   }
 
   fail(odId, message) {
     const ws = this.room.getWsByUserId(odId);
     if (ws) this.room.send(ws, { type: 'error', message });
+  }
+
+  /** Any action by someone other than the exposed player closes the catch window. */
+  settleExposure(actor) {
+    if (this.exposed && this.exposed.id !== actor) this.clearExposure();
+    else if (this.exposed && this.exposed.id === actor) this.clearExposure();
+  }
+
+  clearExposure() {
+    this.exposed = null;
+    clearTimeout(this.unoTimer);
+    this.unoTimer = null;
   }
 
   play(odId, cardId, color) {
@@ -110,32 +182,62 @@ export class Uno {
     if (idx === -1) return;
     const card = hand[idx];
 
-    if (this.pending !== null && this.pending !== cardId) return this.fail(odId, 'You can only play the card you just drew');
-    if (!this.isPlayable(card)) return this.fail(odId, "That card can't be played");
+    if (!this.canPlay(card)) {
+      return this.fail(odId, this.pendingDraw > 0 ? `Stack a ${this.pendingType === 'draw2' ? '+2' : '+4'} or draw` : "That card can't be played");
+    }
     if (card.color === 'wild' && !COLORS.includes(color)) return this.fail(odId, 'Choose a colour');
 
+    this.settleExposure(odId);
     hand.splice(idx, 1);
     this.discard.push(card);
     this.color = card.color === 'wild' ? color : card.color;
     this.pending = null;
+    this.lastPlay = { by: odId, card, seq: ++this.playSeq };
 
     const name = this.names[odId];
     this.log = `${name} played ${this.describe(card)}`;
 
-    if (hand.length === 0) return this.win(odId);
-
+    const next = this.nextPlayer(odId, 1);
     let steps = 1;
-    const victim = () => this.nextPlayer(odId, 1);
     switch (card.value) {
-      case 'skip': steps = 2; this.log += ' - next player skipped'; break;
+      case 'skip':
+        steps = 2;
+        this.log += `, ${this.names[next]} is skipped`;
+        break;
       case 'reverse':
         this.dir *= -1;
         if (this.order.length === 2) steps = 2;
         break;
-      case 'draw2': this.drawCards(victim(), 2); steps = 2; this.log += ` - ${this.names[victim()]} draws 2`; break;
-      case 'wild4': this.drawCards(victim(), 4); steps = 2; this.log += ` - ${this.names[victim()]} draws 4`; break;
+      case 'draw2':
+      case 'wild4': {
+        const n = card.value === 'draw2' ? 2 : 4;
+        if (this.stacking) {
+          this.pendingDraw += n;
+          this.pendingType = card.value;
+          this.log += `, ${this.names[next]} must stack or draw ${this.pendingDraw}`;
+        } else {
+          this.drawCards(next, n);
+          steps = 2;
+          this.log += `, ${this.names[next]} draws ${n}`;
+        }
+        break;
+      }
     }
-    if (hand.length === 1) this.log += ` - ${name} has UNO!`;
+
+    if (hand.length === 0) return this.winRound(odId);
+
+    if (hand.length === 1) {
+      this.log += `, ${name} has one card left`;
+      if (this.unoCall && this.preCalled !== odId) {
+        this.exposed = { id: odId, until: this.now() + UNO_WINDOW_MS };
+        clearTimeout(this.unoTimer);
+        this.unoTimer = setTimeout(() => {
+          this.unoTimer = null;
+          if (this.exposed?.id === odId) { this.exposed = null; this.broadcastState(); }
+        }, UNO_WINDOW_MS);
+      }
+    }
+    this.preCalled = null;
 
     this.turn = this.nextPlayer(odId, steps);
     this.nextTurn();
@@ -147,10 +249,22 @@ export class Uno {
 
   draw(odId) {
     if (!this.canAct(odId) || this.pending !== null) return;
+    this.settleExposure(odId);
+
+    if (this.pendingDraw > 0) {
+      const n = this.pendingDraw;
+      this.drawCards(odId, n);
+      this.pendingDraw = 0;
+      this.pendingType = null;
+      this.log = `${this.names[odId]} draws ${n}`;
+      this.turn = this.nextPlayer(odId, 1);
+      return this.nextTurn();
+    }
+
     const [card] = this.drawCards(odId, 1);
     if (!card) return this.pass(odId, true);
 
-    if (this.isPlayable(card)) {
+    if (this.matches(card)) {
       this.pending = card.id;
       this.log = `${this.names[odId]} drew a card`;
       this.startTurnTimer();
@@ -164,10 +278,34 @@ export class Uno {
 
   pass(odId, force = false) {
     if (!this.canAct(odId) || (this.pending === null && !force)) return;
+    this.settleExposure(odId);
     this.pending = null;
     this.log = `${this.names[odId]} passed`;
     this.turn = this.nextPlayer(odId, 1);
     this.nextTurn();
+  }
+
+  /** UNO! Press it on your last-but-one card (before or right after playing it). */
+  call(odId) {
+    if (!this.unoCall || this.phase !== 'play') return;
+    if (this.exposed?.id === odId) {
+      this.clearExposure();
+      this.log = `${this.names[odId]} says UNO!`;
+      this.broadcastState();
+    } else if (this.turn === odId && this.hands[odId].length === 2) {
+      this.preCalled = odId;
+      this.log = `${this.names[odId]} says UNO!`;
+      this.broadcastState();
+    }
+  }
+
+  catchPlayer(odId) {
+    const ex = this.exposed;
+    if (!ex || ex.id === odId || this.phase !== 'play' || this.now() > ex.until) return;
+    this.clearExposure();
+    this.drawCards(ex.id, 2);
+    this.log = `${this.names[odId]} caught ${this.names[ex.id]} without UNO: draws 2`;
+    this.broadcastState();
   }
 
   drawCards(odId, n) {
@@ -175,7 +313,7 @@ export class Uno {
     for (let i = 0; i < n; i++) {
       if (this.deck.length === 0) {
         const keep = this.discard.pop();
-        this.deck = shuffle(this.discard);
+        this.deck = shuffle(this.discard, this.rng);
         this.discard = [keep];
       }
       const card = this.deck.pop();
@@ -194,50 +332,123 @@ export class Uno {
 
   nextTurn() {
     this.pending = null;
+    this.preCalled = null;
     this.startTurnTimer();
     this.broadcastState();
   }
 
   startTurnTimer() {
     clearTimeout(this.timer);
-    this.deadline = Date.now() + TURN_MS;
+    this.deadline = this.now() + this.turnMs;
     const who = this.turn;
-    this.timer = setTimeout(() => {
-      if (!this.isGameActive || this.winner || this.turn !== who) return;
-      if (this.pending !== null) this.pass(who);
-      else {
-        // time out: draw one card and move on
-        this.pending = null;
-        this.drawCards(who, 1);
-        this.log = `${this.names[who]} ran out of time and drew a card`;
-        this.turn = this.nextPlayer(who, 1);
-        this.nextTurn();
-      }
-    }, TURN_MS);
+    this.timer = setTimeout(() => this.onTimeout(who), this.turnMs);
   }
 
-  win(odId) {
-    this.winner = odId;
-    clearTimeout(this.timer);
-    this.log = `${this.names[odId]} wins!`;
-    this.broadcastState();
-    this.timer = setTimeout(() => this.room.endGame(), RETURN_TO_LOBBY_MS);
+  onTimeout(who) {
+    if (!this.isGameActive || this.phase !== 'play' || this.turn !== who) return;
+    if (this.pending !== null) return this.pass(who);
+    if (this.pendingDraw > 0) return this.draw(who);
+    // out of time: draw one card and move on
+    this.settleExposure(who);
+    this.drawCards(who, 1);
+    this.log = `${this.names[who]} ran out of time and drew a card`;
+    this.turn = this.nextPlayer(who, 1);
+    this.nextTurn();
   }
+
+  // ----------------------------------------------------------------- scoring
+
+  winRound(winner) {
+    clearTimeout(this.timer);
+    this.clearExposure();
+    this.phase = 'roundOver';
+
+    let points = 0;
+    const left = {};
+    for (const id of this.order) {
+      if (id === winner) continue;
+      const hand = this.hands[id].reduce((s, c) => s + cardPoints(c), 0);
+      left[id] = hand;
+      points += hand;
+    }
+    this.scores[winner] += points;
+    this.roundResult = { winner, points, left };
+    this.log = `${this.names[winner]} wins the round and scores ${points}`;
+
+    const gameOver = this.target === 0 || this.scores[winner] >= this.target;
+    if (gameOver) {
+      this.phase = 'over';
+      this.broadcastState();
+      return this.finish(winner, left);
+    }
+
+    this.nextRoundAt = this.now() + NEXT_ROUND_MS;
+    this.broadcastState();
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      if (!this.isGameActive) return;
+      this.dealRound();
+      this.startTurnTimer();
+      this.broadcastState();
+    }, NEXT_ROUND_MS);
+  }
+
+  finish(winner, left) {
+    // Single round: rank by the cards left in hand. Longer games: by total score.
+    const ids = [...this.order];
+    const score = (id) => (this.target === 0 ? (id === winner ? 1e9 : -left[id]) : this.scores[id]);
+    ids.sort((a, b) => score(b) - score(a));
+    let rank = 0;
+    let prev = null;
+    const rows = ids.map((id, i) => {
+      const s = score(id);
+      if (s !== prev) rank = i + 1;
+      prev = s;
+      return {
+        id,
+        name: this.names[id],
+        rank,
+        score: this.target === 0 ? (id === winner ? this.scores[winner] : 0) : this.scores[id],
+        note: id === winner ? 'Played their last card' : `${this.hands[id].length} cards left (${left[id]} points)`
+      };
+    });
+    this.room.finishGame({
+      title: `${this.names[winner]} wins`,
+      subtitle: this.target ? `First to ${this.target} points` : 'Round won',
+      rows,
+      delayMs: RETURN_TO_LOBBY_MS
+    });
+  }
+
+  // --------------------------------------------------------------- snapshots
 
   stateFor(odId) {
+    const timeLeft = this.running && this.phase === 'play' ? Math.max(0, this.deadline - this.now()) : 0;
     return {
       type: 'uno-state',
       you: odId,
       hand: this.hands[odId] || [],
-      players: this.order.map(id => ({ id, name: this.names[id], count: this.hands[id].length })),
+      playable: odId ? this.playableIds(odId) : [],
+      players: this.order.map(id => ({ id, name: this.names[id], count: this.hands[id].length, score: this.scores[id] })),
       turn: this.turn,
       dir: this.dir,
       top: this.top,
       color: this.color,
       deckCount: this.deck.length,
       pending: this.pending,
-      winner: this.winner,
-      deadline: this.running ? this.deadline : 0,
+      pendingDraw: this.pendingDraw,
+      pendingType: this.pendingType,
+      phase: this.phase,
+      round: this.round,
+      target: this.target,
+      stacking: this.stacking,
+      unoCall: this.unoCall,
+      uno: this.exposed ? { id: this.exposed.id, left: Math.max(0, this.exposed.until - this.now()) } : null,
+      lastPlay: this.lastPlay,
+      roundResult: this.roundResult,
+      nextRoundIn: this.phase === 'roundOver' ? Math.max(0, this.nextRoundAt - this.now()) : 0,
+      timeLeft,
+      turnMs: this.turnMs,
       log: this.log
     };
   }
@@ -247,16 +458,18 @@ export class Uno {
     if (ws) this.room.send(ws, this.stateFor(odId));
   }
 
-  /** Host view: everything public, no hand. */
+  /** Host view: everything public, never a hand. */
   spectatorSync(odId) {
     const ws = this.room.getWsByUserId(odId);
-    if (ws) this.room.send(ws, { ...this.stateFor(null), you: odId, hand: [], spectator: true });
+    if (ws) this.room.send(ws, { ...this.stateFor(null), you: odId, hand: [], playable: [], spectator: true });
   }
 
   broadcastState() {
     for (const id of this.order) this.sendState(id);
     for (const id of this.room.spectatorIds()) this.spectatorSync(id);
   }
+
+  // ------------------------------------------------------------------ leaving
 
   onPlayerLeft(odId) {
     if (!this.hands[odId]) return;
@@ -265,20 +478,40 @@ export class Uno {
     const wasTurn = this.turn === odId;
     const next = wasTurn ? this.nextPlayer(odId, 1) : this.turn;
     this.order.splice(this.order.indexOf(odId), 1);
+    if (this.exposed?.id === odId) this.clearExposure();
     this.log = `${this.names[odId]} left the game`;
 
-    if (this.winner) return;
+    if (this.phase !== 'play') return this.broadcastState();
     if (this.order.length < 2) {
-      if (this.order.length === 1) return this.win(this.order[0]);
+      if (this.order.length === 1) {
+        // the remaining player wins by default
+        this.scores[this.order[0]] += 0;
+        this.phase = 'over';
+        this.broadcastState();
+        clearTimeout(this.timer);
+        this.room.finishGame({
+          title: `${this.names[this.order[0]]} wins`,
+          subtitle: 'Everyone else left',
+          rows: [{ id: this.order[0], name: this.names[this.order[0]], rank: 1, score: this.scores[this.order[0]] }],
+          delayMs: 15000
+        });
+      }
       return;
     }
-    if (wasTurn) { this.turn = next; this.nextTurn(); }
-    else this.broadcastState();
+    if (wasTurn) {
+      this.turn = next;
+      this.pendingDraw = 0;
+      this.pendingType = null;
+      this.nextTurn();
+    } else {
+      this.broadcastState();
+    }
   }
 
   cleanup() {
     this.isGameActive = false;
     clearTimeout(this.timer);
-    this.timer = null;
+    clearTimeout(this.unoTimer);
+    this.timer = this.unoTimer = null;
   }
 }

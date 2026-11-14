@@ -7,132 +7,284 @@
   const DARK = '#6a76ad';
 
   let state = null;
+  let prevState = null;
   let selected = null;
   let flipped = false;
+  let drag = null;          // { from, startX, startY, active, ghost, owned }
+  let dragFrom = null;      // square whose piece is being dragged (dimmed)
+  let skipAnimTo = null;    // own drag-dropped move: do not slide it again
+  let clockAt = 0;          // performance.now() when the clock values were received
+  let clockTicker = 0;
+  let resignArmed = 0;
 
   socket.off('chess-state');
+  WBG.onTeardown(() => { clearInterval(clockTicker); clearTimeout(resignArmed); removeGhost(); document.removeEventListener('pointermove', onPointerMove); document.removeEventListener('pointerup', onPointerUp); });
+
+  WBG.setRules({
+    title: 'Chess',
+    sections: [
+      { title: 'Goal', items: ['Checkmate the opposing king: attack it so it has no way to escape.', 'The game is drawn by stalemate, agreement, insufficient material, the fifty-move rule or threefold repetition.'] },
+      { title: 'Moving', items: ['Tap a piece, then a highlighted square, or drag the piece. Only legal moves are offered.', 'Special moves: castling (move the king two squares toward a rook), en passant, and pawn promotion.'] },
+      { title: 'Clock', items: ['If the host enabled a time control, your clock runs while it is your turn. Running out of time loses the game, unless the opponent cannot possibly checkmate.', 'Increments add time after each of your moves.'] },
+      { title: 'Controls', items: ['Flip turns the board around. Offer a draw with Draw; your opponent can accept or decline, and making a move cancels a pending offer.', 'Tap Resign twice to give up.'] }
+    ]
+  });
 
   const sq = (i) => 'abcdefgh'[i % 8] + (8 - Math.floor(i / 8));
+  const idx = (name) => (8 - Number(name[1])) * 8 + (name.charCodeAt(0) - 97);
   const isWhite = (p) => p !== '.' && p === p.toUpperCase();
 
-  /** Pieces each side has lost, derived from the board. */
+  const myColor = () => (state.white === myId ? 'w' : state.black === myId ? 'b' : null);
+  const bottomColor = () => ((myColor() === 'b') !== flipped ? 'b' : 'w');
+  const canMove = () => !!state && !state.result && myColor() === state.turn;
+  const legalFrom = (from) => state.legal.filter((m) => m.from === from);
+
+  /* ------------------------------------------------------------- clocks */
+  const fmtClock = (ms) => {
+    if (ms < 10000) return `0:${(ms / 1000).toFixed(1).padStart(4, '0')}`;
+    const s = Math.ceil(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  const clockNow = (color) => {
+    if (!state?.clock) return null;
+    let ms = state.clock[color];
+    if (state.clock.running === color && !state.result) ms -= performance.now() - clockAt;
+    return Math.max(0, ms);
+  };
+
+  function paintClocks() {
+    if (!state?.clock) return;
+    for (const color of ['w', 'b']) {
+      const el = document.querySelector(`[data-clock="${color}"]`);
+      if (!el) continue;
+      const ms = clockNow(color);
+      el.textContent = fmtClock(ms);
+      const running = state.clock.running === color && !state.result;
+      el.className = `rounded-lg px-3 py-1 font-mono text-lg font-bold tabular-nums ${running ? 'bg-white text-ink-900' : 'bg-white/8 text-slate-200'} ${running && ms < 20000 ? 'clock-low' : ''}`;
+    }
+    const c = myColor();
+    if (c && state.clock.running === c) {
+      const secs = Math.ceil(clockNow(c) / 1000);
+      if (secs <= 10 && secs !== paintClocks.lastTick) { paintClocks.lastTick = secs; WBG.sound.play('tick'); }
+    }
+  }
+  clockTicker = setInterval(paintClocks, 100);
+
+  /* ------------------------------------------------------- captured etc. */
   function captured() {
-    const have = { w: { ...START }, b: { ...START } };
-    for (const k of Object.keys(have.w)) { have.w[k] = 0; have.b[k] = 0; }
+    const have = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
     for (const ch of state.board) {
       if (ch === '.' || ch.toLowerCase() === 'k') continue;
       have[isWhite(ch) ? 'w' : 'b'][ch.toLowerCase()]++;
     }
     const lost = (c) => Object.entries(START).flatMap(([k, n]) => Array(Math.max(0, n - have[c][k])).fill(k));
-    return { w: lost('w'), b: lost('b') }; // pieces lost BY colour c
+    return { w: lost('w'), b: lost('b') };
   }
 
-  function playerBar(el, color, id) {
+  function playerBar(el, color) {
+    const id = color === 'w' ? state.white : state.black;
     const name = state.names[id] || 'Player';
-    const mine = id === myId;
     const turn = !state.result && state.turn === color;
     const lost = captured();
-    const taken = lost[color === 'w' ? 'b' : 'w']; // pieces this colour has captured
-    const score = taken.reduce((s, k) => s + VALUE[k], 0);
-    const other = lost[color]; const otherScore = other.reduce((s, k) => s + VALUE[k], 0);
-    const lead = score - otherScore;
+    const taken = lost[color === 'w' ? 'b' : 'w'];
+    const lead = taken.reduce((s, k) => s + VALUE[k], 0) - lost[color].reduce((s, k) => s + VALUE[k], 0);
     el.className = `flex items-center gap-3 rounded-2xl border px-3 py-2 transition ${turn ? 'border-brand-400/60 bg-brand-500/12' : 'border-white/8 bg-white/4'}`;
     el.innerHTML = `${WBG.avatar(name)}
       <div class="min-w-0 flex-1">
-        <p class="flex items-center gap-2 text-sm font-semibold text-white"><span class="truncate">${WBG.esc(name)}</span>${mine ? '<span class="chip">you</span>' : ''}
+        <p class="flex items-center gap-2 text-sm font-semibold text-white"><span class="truncate">${WBG.esc(name)}</span>${id === myId ? '<span class="chip">you</span>' : ''}
           <span class="inline-block size-3.5 shrink-0 rounded-full border border-white/30 ${color === 'w' ? 'bg-slate-100' : 'bg-slate-800'}" title="${color === 'w' ? 'White' : 'Black'}"></span></p>
-        <p class="flex h-4 items-center gap-px">${taken.map((k) => WBG.chessPiece(color === 'w' ? k : k.toUpperCase(), 'size-4 -mr-1')).join('')}${lead > 0 ? `<span class="ml-2 text-xs text-slate-400">+${lead}</span>` : ''}</p>
+        <p class="flex h-4 items-center">${taken.map((k) => WBG.chessPiece(color === 'w' ? k : k.toUpperCase(), 'size-4 -mr-1.5')).join('')}${lead > 0 ? `<span class="ml-2.5 text-xs text-slate-400">+${lead}</span>` : ''}</p>
       </div>
-      ${turn ? `<span class="chip chip-brand animate-pulse-soft">${state.check ? 'Check' : 'To move'}</span>` : ''}`;
+      ${state.clock ? '<span data-clock="' + color + '"></span>' : turn ? `<span class="chip chip-brand animate-pulse-soft">${state.check ? 'Check' : 'To move'}</span>` : ''}`;
   }
 
-  function render() {
-    if (!state) return;
-    const myColor = state.white === myId ? 'w' : state.black === myId ? 'b' : null;
-    const bottomColor = (myColor === 'b') !== flipped ? 'b' : 'w';
-    const myTurn = !state.result && myColor === state.turn;
-    const targets = new Map();
-    if (selected && myTurn) for (const m of state.legal) if (m.from === selected) targets.set(m.to, true);
+  /* -------------------------------------------------------------- render */
+  const cellPx = () => $('chess-board').clientWidth / 8;
+  const cellPos = (name) => {
+    const file = name.charCodeAt(0) - 97;
+    const rank = Number(name[1]);
+    return bottomColor() === 'w' ? { c: file, r: 8 - rank } : { c: 7 - file, r: rank - 1 };
+  };
 
-    const board = $('chess-board');
+  function render(opts = {}) {
+    if (!state) return;
+    const mc = myColor();
+    const targets = new Set(selected && canMove() ? legalFrom(selected).map((m) => m.to) : []);
+    const bc = bottomColor();
     const cells = [];
+
     for (let k = 0; k < 64; k++) {
-      const i = bottomColor === 'b' ? 63 - k : k;
+      const i = bc === 'b' ? 63 - k : k;
       const name = sq(i);
       const row = Math.floor(i / 8), col = i % 8;
       const piece = state.board[i];
       const dark = (row + col) % 2 === 1;
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'relative grid aspect-square place-items-center p-0 outline-offset-[-3px]';
+      const cell = document.createElement('div');
+      cell.className = 'relative grid aspect-square place-items-center';
       cell.style.background = dark ? DARK : LIGHT;
+      cell.dataset.sq = name;
       cell.setAttribute('role', 'gridcell');
       cell.setAttribute('aria-label', `${name}${piece !== '.' ? ` ${isWhite(piece) ? 'white' : 'black'} ${piece.toLowerCase()}` : ''}`);
-      const inMove = state.lastMove && (state.lastMove.from === name || state.lastMove.to === name);
       let html = '';
-      if (inMove) html += '<span class="absolute inset-0 bg-amber-300/45"></span>';
-      if (selected === name) html += '<span class="absolute inset-0 bg-emerald-400/55"></span>';
-      if (state.check && piece === (state.turn === 'w' ? 'K' : 'k')) html += '<span class="absolute inset-0" style="background:radial-gradient(circle,rgba(244,63,94,.85),rgba(244,63,94,0) 70%)"></span>';
+      if (state.lastMove && (state.lastMove.from === name || state.lastMove.to === name)) html += '<span class="pointer-events-none absolute inset-0 bg-amber-300/45"></span>';
+      if (selected === name) html += '<span class="pointer-events-none absolute inset-0 bg-emerald-400/55"></span>';
+      if (state.check && piece === (state.turn === 'w' ? 'K' : 'k')) html += '<span class="pointer-events-none absolute inset-0" style="background:radial-gradient(circle,rgba(244,63,94,.9),rgba(244,63,94,0) 70%)"></span>';
       if (piece !== '.') {
-        const moved = state.lastMove && state.lastMove.to === name;
-        html += `<span class="relative size-[88%] ${moved ? 'animate-pop' : ''}">${WBG.chessPiece(piece)}</span>`;
+        const own = mc && (isWhite(piece) ? 'w' : 'b') === mc;
+        html += `<span class="piece pointer-events-none relative size-[88%] ${own && canMove() && legalFrom(name).length ? '' : ''}" style="${dragFrom === name ? 'opacity:.3' : ''}">${WBG.chessPiece(piece)}</span>`;
       }
       if (targets.has(name)) {
         html += piece !== '.'
-          ? '<span class="absolute inset-[6%] rounded-full border-[5px] border-emerald-500/70"></span>'
-          : '<span class="absolute size-[28%] rounded-full bg-emerald-600/70"></span>';
+          ? '<span class="pointer-events-none absolute inset-[6%] rounded-full border-[5px] border-emerald-500/70"></span>'
+          : '<span class="pointer-events-none absolute size-[28%] rounded-full bg-emerald-600/70"></span>';
       }
-      if (col === (bottomColor === 'w' ? 0 : 7) ) html += `<span class="pointer-events-none absolute top-0.5 left-1 text-[10px] font-bold" style="color:${dark ? LIGHT : DARK}">${8 - row}</span>`;
-      if (row === (bottomColor === 'w' ? 7 : 0)) html += `<span class="pointer-events-none absolute right-1 bottom-0.5 text-[10px] font-bold" style="color:${dark ? LIGHT : DARK}">${'abcdefgh'[col]}</span>`;
+      if (col === (bc === 'w' ? 0 : 7)) html += `<span class="pointer-events-none absolute top-0.5 left-1 text-[10px] font-bold" style="color:${dark ? LIGHT : DARK}">${8 - row}</span>`;
+      if (row === (bc === 'w' ? 7 : 0)) html += `<span class="pointer-events-none absolute right-1 bottom-0.5 text-[10px] font-bold" style="color:${dark ? LIGHT : DARK}">${'abcdefgh'[col]}</span>`;
       cell.innerHTML = html;
-      cell.addEventListener('click', () => onCell(name, piece, myTurn, myColor));
       cells.push(cell);
     }
-    board.replaceChildren(...cells);
+    $('chess-board').replaceChildren(...cells);
 
-    const topColor = bottomColor === 'w' ? 'b' : 'w';
-    const idOf = (c) => (c === 'w' ? state.white : state.black);
-    playerBar($('chess-top'), topColor, idOf(topColor));
-    playerBar($('chess-bottom'), bottomColor, idOf(bottomColor));
+    const topColor = bc === 'w' ? 'b' : 'w';
+    playerBar($('chess-top'), topColor);
+    playerBar($('chess-bottom'), bc);
+    paintClocks();
 
+    // status
     const nameOf = (id) => state.names[id] || 'Player';
     let status;
     if (state.result) status = state.result.winner ? `${nameOf(state.result.winner)} wins by ${state.result.reason}` : `Draw by ${state.result.reason}`;
-    else if (!myColor) status = `${nameOf(idOf(state.turn))} to move${state.check ? ' - check' : ''}`;
-    else status = myTurn ? (state.check ? 'Your move - you are in check' : 'Your move') : 'Waiting for your opponent';
+    else if (!mc) status = `${nameOf(state.turn === 'w' ? state.white : state.black)} to move${state.check ? ' - check' : ''}`;
+    else if (canMove()) status = state.check ? 'Your move - you are in check' : 'Your move';
+    else status = `Waiting for ${nameOf(state.turn === 'w' ? state.white : state.black)}`;
     $('chess-status').textContent = status;
 
-    $('chess-resign').hidden = !!state.result || !myColor;
+    // controls
+    const playing = !!mc && !state.result;
+    $('chess-resign').hidden = !playing;
+    $('chess-draw').hidden = !playing;
+    const offered = state.drawOffer;
+    $('chess-draw').disabled = !!offered || state.moveCount < 2;
+    $('chess-draw').querySelector('span').textContent = offered === mc ? 'Offered' : 'Draw';
+    const incoming = playing && offered && offered !== mc;
+    $('chess-offer').hidden = !incoming;
+    if (incoming) $('chess-offer-text').textContent = `${nameOf(offered === 'w' ? state.white : state.black)} offers a draw`;
 
-    const res = $('chess-result');
-    res.hidden = !state.result;
-    if (state.result) {
-      $('chess-result-title').textContent = state.result.winner
-        ? (state.result.winner === myId ? 'You win' : `${nameOf(state.result.winner)} wins`)
-        : 'Draw';
-      $('chess-result-sub').textContent = `By ${state.result.reason}. Returning to the lobby shortly.`;
-    }
+    renderMoves();
+    if (!opts.noAnim) animateLastMove();
   }
 
-  function onCell(name, piece, myTurn, myColor) {
-    if (!myTurn) return;
-    if (selected) {
-      const options = state.legal.filter((m) => m.from === selected && m.to === name);
-      if (options.length) {
-        const from = selected;
-        selected = null;
-        if (options.some((m) => m.promo)) { render(); return askPromotion(from, name, myColor); }
-        WBG.haptic(10);
-        socket.emit('chess-move', { from, to: name });
-        // optimistic: clear the selection immediately; the server state redraws the board
-        render();
-        return;
-      }
-    }
-    const mine = piece !== '.' && (isWhite(piece) ? 'w' : 'b') === myColor;
-    selected = mine && state.legal.some((m) => m.from === name) ? (selected === name ? null : name) : null;
-    render();
+  function renderMoves() {
+    const moves = state.moves || [];
+    const pairs = [];
+    for (let i = 0; i < moves.length; i += 2) pairs.push([moves[i], moves[i + 1]]);
+    const last = moves.length - 1;
+    const cls = (n) => `rounded px-1.5 py-0.5 font-medium ${n === last ? 'bg-brand-500/30 text-white' : 'text-slate-300'}`;
+    $('chess-moves').innerHTML = pairs.map((p, n) => `<li class="contents"><span class="py-0.5 text-right text-xs text-slate-500">${n + 1}.</span><span class="${cls(n * 2)}">${WBG.esc(p[0])}</span><span class="${cls(n * 2 + 1)}">${p[1] ? WBG.esc(p[1]) : ''}</span></li>`).join('');
+    $('chess-moves').scrollTop = $('chess-moves').scrollHeight;
+    $('chess-strip').innerHTML = moves.map((m, i) => `<span class="${i === last ? 'rounded-md bg-brand-500/30 px-2 py-1 text-xs font-semibold text-white' : 'rounded-md bg-white/6 px-2 py-1 text-xs text-slate-300'}">${i % 2 === 0 ? `${i / 2 + 1}. ` : ''}${WBG.esc(m)}</span>`).join('');
+    $('chess-strip').scrollLeft = $('chess-strip').scrollWidth;
   }
+
+  /* ------------------------------------------------------ animation, sound */
+  function animateLastMove() {
+    const lm = state.lastMove;
+    if (!lm || !prevState || prevState.moveCount === state.moveCount) return;
+    if (skipAnimTo === lm.to) { skipAnimTo = null; return; }
+    const piece = document.querySelector(`[data-sq="${lm.to}"] .piece`);
+    if (!piece || WBG.prefs.reduceMotion) return;
+    const a = cellPos(lm.from), b = cellPos(lm.to);
+    const px = cellPx();
+    piece.animate([{ transform: `translate(${(a.c - b.c) * px}px, ${(a.r - b.r) * px}px)`, zIndex: 5 }, { transform: 'none' }], { duration: 170, easing: 'cubic-bezier(.2,.8,.3,1)' });
+  }
+
+  function moveSound() {
+    const san = state.moves?.[state.moves.length - 1] || '';
+    if (/[+#]$/.test(san)) WBG.sound.play('check');
+    else if (san.startsWith('O-O')) WBG.sound.play('castle');
+    else if (san.includes('x')) WBG.sound.play('capture');
+    else WBG.sound.play('move');
+  }
+
+  /* ---------------------------------------------------- interaction (tap + drag) */
+  function commit(from, to) {
+    const options = legalFrom(from).filter((m) => m.to === to);
+    if (!options.length) return false;
+    selected = null;
+    if (options.some((m) => m.promo)) { render({ noAnim: true }); askPromotion(from, to, myColor()); return true; }
+    WBG.haptic(10);
+    socket.emit('chess-move', { from, to });
+    render({ noAnim: true });
+    return true;
+  }
+
+  function handleTap(name) {
+    if (!canMove()) return;
+    if (selected && commit(selected, name)) return;
+    const piece = state.board[idx(name)];
+    const mine = piece !== '.' && (isWhite(piece) ? 'w' : 'b') === myColor();
+    selected = mine && legalFrom(name).length ? (selected === name ? null : name) : null;
+    if (selected) WBG.sound.play('click');
+    render({ noAnim: true });
+  }
+
+  function removeGhost() {
+    drag?.ghost?.remove();
+  }
+
+  function onPointerDown(e) {
+    if (e.button > 0) return;
+    const cell = e.target.closest('[data-sq]');
+    if (!cell || !canMove()) return;
+    const name = cell.dataset.sq;
+    const piece = state.board[idx(name)];
+    const owned = piece !== '.' && (isWhite(piece) ? 'w' : 'b') === myColor() && legalFrom(name).length > 0;
+    drag = { from: name, startX: e.clientX, startY: e.clientY, active: false, ghost: null, owned, piece };
+    if (owned && selected !== name) { selected = name; render({ noAnim: true }); }
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp, { once: true });
+    document.addEventListener('pointercancel', onPointerUp, { once: true });
+  }
+
+  function onPointerMove(e) {
+    if (!drag) return;
+    if (!drag.active) {
+      if (!drag.owned || Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 6) return;
+      drag.active = true;
+      const size = cellPx();
+      const ghost = document.createElement('div');
+      ghost.className = 'chess-ghost';
+      ghost.style.width = ghost.style.height = `${size * 0.95}px`;
+      ghost.innerHTML = WBG.chessPiece(drag.piece);
+      document.body.appendChild(ghost);
+      drag.ghost = ghost;
+      dragFrom = drag.from;
+      render({ noAnim: true });
+    }
+    drag.ghost.style.left = `${e.clientX}px`;
+    drag.ghost.style.top = `${e.clientY}px`;
+  }
+
+  function onPointerUp(e) {
+    document.removeEventListener('pointermove', onPointerMove);
+    const d = drag;
+    drag = null;
+    if (!d) return;
+    if (!d.active) {
+      if (e.type !== 'pointercancel') handleTap(d.from);
+      return;
+    }
+    d.ghost?.remove();
+    dragFrom = null;
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-sq]')?.dataset.sq;
+    if (target && target !== d.from && e.type !== 'pointercancel' && commit(d.from, target)) {
+      skipAnimTo = target; // the piece is already where the user dropped it
+      return;
+    }
+    render({ noAnim: true });
+  }
+
+  $('chess-board').addEventListener('pointerdown', onPointerDown);
 
   function askPromotion(from, to, color) {
     const box = $('chess-promo-options');
@@ -150,10 +302,39 @@
     $('chess-promo').hidden = false;
   }
 
-  socket.on('chess-state', (s) => { state = s; selected = null; render(); });
-  $('chess-flip').addEventListener('click', () => { flipped = !flipped; render(); });
+  /* ---------------------------------------------------------------- socket */
+  socket.on('chess-state', (s) => {
+    const first = !state;
+    prevState = state;
+    state = s;
+    clockAt = performance.now();
+    selected = canMove() && selected && legalFrom(selected).length ? selected : null;
+    $('chess-promo').hidden = true;
+    render({ noAnim: first });
+    if (!first && prevState && prevState.moveCount !== s.moveCount) moveSound();
+    if (!first && !prevState.drawOffer && s.drawOffer && s.drawOffer !== myColor() && myColor()) WBG.sound.play('notify');
+    if (!first && s.moveCount !== prevState.moveCount && canMove()) WBG.sound.later('turn', 220);
+  });
+
+  $('chess-flip').addEventListener('click', () => { flipped = !flipped; WBG.sound.play('click'); render({ noAnim: true }); });
+  $('chess-draw').addEventListener('click', () => { WBG.sound.play('click'); socket.emit('chess-offer-draw'); });
+  $('chess-accept').addEventListener('click', () => socket.emit('chess-accept-draw'));
+  $('chess-decline').addEventListener('click', () => socket.emit('chess-decline-draw'));
   $('chess-resign').addEventListener('click', () => {
-    if (confirm('Resign this game?')) socket.emit('chess-resign');
+    const btn = $('chess-resign');
+    if (resignArmed) {
+      clearTimeout(resignArmed);
+      resignArmed = 0;
+      socket.emit('chess-resign');
+      return;
+    }
+    btn.querySelector('span').textContent = 'Tap again';
+    btn.classList.add('!bg-rose-600');
+    resignArmed = setTimeout(() => {
+      resignArmed = 0;
+      btn.querySelector('span').textContent = 'Resign';
+      btn.classList.remove('!bg-rose-600');
+    }, 3000);
   });
 
   WBG.gameReady('chess-page-loaded');

@@ -22,3 +22,6 @@
 
 /tailwind.css
   Cache-Control: public, max-age=3600
+
+/icons/*
+  Cache-Control: public, max-age=604800

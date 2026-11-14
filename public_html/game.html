@@ -7,6 +7,7 @@
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#07090f">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -24,6 +25,8 @@
       <span id="role-chip" class="chip chip-brand hidden sm:inline-flex" hidden><i data-icon="eye" class="size-3.5"></i>Host view</span>
     </div>
     <div class="flex items-center gap-1.5">
+      <button id="help-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="How to play" hidden><i data-icon="help" class="size-5"></i></button>
+      <button id="sound-btn" class="btn btn-secondary btn-icon btn-sm" aria-label="Sound"><i data-icon="volume" class="size-5"></i></button>
       <span id="conn" class="grid size-9 place-items-center text-slate-500" title="Connecting" role="img" aria-label="Connecting"><i data-icon="wifi" class="size-5"></i></span>
       <button id="people-btn" class="btn btn-secondary btn-icon btn-sm relative" aria-label="Players and chat">
         <i data-icon="users" class="size-5"></i>
@@ -96,6 +99,7 @@
             <span id="games-hint" class="text-xs text-slate-400"></span>
           </div>
           <div id="game-grid" class="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-labelledby="games-title"></div>
+          <div id="options-panel" class="mt-4 space-y-3.5 border-t border-white/8 pt-4" hidden></div>
         </section>
 
         <!-- Actions (fixed bar on small screens) -->
@@ -205,6 +209,10 @@
           <span><span class="block text-sm font-semibold text-white">Reduce motion</span><span class="block text-xs text-slate-400">Turn off animations and transitions</span></span>
           <input id="set-motion" type="checkbox" class="switch">
         </label>
+        <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-white/8 bg-white/4 p-3.5">
+          <span><span class="block text-sm font-semibold text-white">Sound effects</span><span class="block text-xs text-slate-400">Game and interface sounds</span></span>
+          <input id="set-sound" type="checkbox" class="switch">
+        </label>
       </div>
     </div>
   </div>
@@ -233,6 +241,35 @@
         <button id="confirm-cancel" class="btn btn-secondary" data-autofocus>Cancel</button>
         <button id="confirm-ok" class="btn btn-danger">Confirm</button>
       </div>
+    </div>
+  </div>
+
+  <!-- How to play -->
+  <div id="rules-modal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+      <div class="mb-4 flex items-center justify-between">
+        <h2 id="rules-title" class="modal-title">How to play</h2>
+        <button class="btn btn-ghost btn-icon btn-sm" data-close aria-label="Close"><i data-icon="x" class="size-5"></i></button>
+      </div>
+      <div id="rules-body" class="space-y-4 text-sm text-slate-300"></div>
+    </div>
+  </div>
+
+  <!-- Results (standings after a game) -->
+  <div id="results" class="fixed inset-0 z-30 grid place-items-center overflow-y-auto bg-ink-950/70 p-4 backdrop-blur-sm" hidden>
+    <div class="card animate-pop w-full max-w-md p-6">
+      <div class="mb-4 text-center">
+        <span class="mx-auto mb-3 grid size-14 place-items-center rounded-2xl bg-amber-500/15 text-amber-300"><i data-icon="trophy" class="size-7"></i></span>
+        <h2 id="results-title" class="text-2xl font-bold tracking-tight text-white"></h2>
+        <p id="results-sub" class="mt-1 text-sm text-slate-400"></p>
+      </div>
+      <ol id="results-rows" class="space-y-2"></ol>
+      <p id="results-timer" class="mt-4 text-center text-sm text-slate-400"></p>
+      <div id="results-host" class="mt-4 grid grid-cols-2 gap-2" hidden>
+        <button id="results-again" class="btn btn-primary"><i data-icon="refresh" class="size-4"></i>Play again</button>
+        <button id="results-lobby" class="btn btn-secondary"><i data-icon="home" class="size-4"></i>Lobby</button>
+      </div>
+      <button id="results-hide" class="btn btn-ghost btn-sm mt-3 w-full">View the table</button>
     </div>
   </div>
 
